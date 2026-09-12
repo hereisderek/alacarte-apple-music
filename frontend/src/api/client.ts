@@ -139,10 +139,13 @@ export type Job = {
   createdAt: number
   updatedAt: number
   finalDir?: string
+  quality?: QualityPreference
+  variant?: QualityGroup | null
   stats?: { total?: number; done?: number; failed?: number; converted?: number }
 }
 
 export type QualityPreference = 'flac' | 'alac' | 'atmos' | 'aac'
+export type QualityGroup = 'lossless' | 'atmos' | 'aac'
 
 export type ReleaseScope = 'albums' | 'singles_eps' | 'everything'
 
@@ -696,6 +699,7 @@ export const api = {
       playlistIds?: string[]
       isrcs?: string[]
       upcs?: string[]
+      albumVariants?: Record<string, QualityGroup[]>
       totals: { albums: number; singles: number; playlists?: number }
     }>('/api/library'),
   libraryPresence: (payload: {

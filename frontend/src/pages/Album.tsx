@@ -8,6 +8,8 @@ import {
   artworkUrl,
   type AlbumDetail,
   type Job,
+  type QualityGroup,
+  type QualityPreference,
 } from '../api/client'
 import { useLibraryPresence } from '../hooks/useLibraryPresence'
 import { useDownloadQualityPrompt } from '../hooks/useDownloadQualityPrompt'
@@ -45,6 +47,7 @@ export function AlbumPage() {
     verifyAlbumPresence,
     verifyAlbumTracksPresence,
     getAlbumTrackPresence,
+    getAlbumVersionGroups,
   } = useLibraryPresence()
   const { jobs } = useQueue()
   const touchMode = useTouchMode()
@@ -147,6 +150,39 @@ export function AlbumPage() {
   const bgColor = album?.artworkColor ? `#${album.artworkColor}` : '#1a1a1a'
   const primaryArtistId = album?.artistId || album?.artists?.[0]?.id || null
   const alreadyInLibrary = allPresent || (!trackPresence && album ? isAlbumInLibrary(album) : false)
+  const presentGroups = useMemo(
+    () => (album && alreadyInLibrary ? getAlbumVersionGroups(album) : []),
+    [album, alreadyInLibrary, getAlbumVersionGroups],
+  )
+  const missingVariants = useMemo(() => {
+    if (!album || !alreadyInLibrary) return []
+    const options: Array<{ group: QualityGroup; quality: QualityPreference; label: string }> = []
+    if (album.hasAtmos && !presentGroups.includes('atmos')) {
+      options.push({ group: 'atmos', quality: 'atmos', label: 'Get Atmos version' })
+    }
+    if (!presentGroups.includes('lossless') && (album.hasLossless ?? true)) {
+      options.push({ group: 'lossless', quality: 'flac', label: 'Get lossless version' })
+    }
+    if (!presentGroups.includes('aac')) {
+      options.push({ group: 'aac', quality: 'aac', label: 'Get AAC version' })
+    }
+    return options
+  }, [album, alreadyInLibrary, presentGroups])
+  const [variantEnqueueing, setVariantEnqueueing] = useState<string | null>(null)
+
+  const onVariantDownload = async (label: string, run: () => Promise<unknown>) => {
+    setVariantEnqueueing(label)
+    try {
+      await run()
+    } catch (err: any) {
+      if (!/already in library/i.test(String(err?.message || ''))) {
+        setError(err?.message || 'Enqueue failed')
+      }
+      await verifyAlbumPresence(album)
+    } finally {
+      setVariantEnqueueing(null)
+    }
+  }
   const downloadButtonLabel = enqueueing
     ? 'Queueing…'
     : alreadyInLibrary
@@ -247,6 +283,21 @@ export function AlbumPage() {
                     )}
                     {downloadButtonLabel}
                   </Button>
+                  {missingVariants.map((option) => (
+                    <Button
+                      key={option.group}
+                      onClick={() =>
+                        onVariantDownload(option.label, async () => {
+                          if (!ready && (await verifyAlbumPresence(album))) return
+                          await api.enqueue(album.id, option.quality)
+                        })
+                      }
+                      disabled={variantEnqueueing === option.label || existingJob?.status === 'running'}
+                      className="border-white/20 bg-white/5 hover:bg-white/10 disabled:opacity-50"
+                    >
+                      {variantEnqueueing === option.label ? 'Queueing…' : option.label}
+                    </Button>
+                  ))}
                 </div>
               </div>
             </motion.div>

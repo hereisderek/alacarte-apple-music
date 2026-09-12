@@ -17,6 +17,7 @@ import {
   type Song,
 } from '../api/client'
 import { isAlbumKeyVariantMatch, makeAlbumMatchKey, makeSongMatchKey } from '../lib/libraryMatchKey'
+import type { QualityGroup } from '../api/client'
 import { useEventStream } from './useEventStream'
 
 type AlbumLookup = Pick<Album, 'id' | 'artistName' | 'name'> & {
@@ -58,6 +59,7 @@ type LibraryPresenceContextValue = {
     force?: boolean,
   ) => Promise<AlbumTrackPresence | null>
   getAlbumTrackPresence: (albumId: string | null | undefined) => AlbumTrackPresence | null
+  getAlbumVersionGroups: (album: AlbumLookup | null | undefined) => QualityGroup[]
   refreshLibraryPresence: () => Promise<void>
 }
 
@@ -67,6 +69,7 @@ type PresenceSnapshot = {
   playlistIds: Record<string, true>
   isrcs: Record<string, true>
   upcs: Record<string, true>
+  albumVariants: Record<string, QualityGroup[]>
   albumTrackPresence: Record<string, AlbumTrackPresence>
 }
 
@@ -111,6 +114,7 @@ export function LibraryPresenceProvider({ children }: { children: React.ReactNod
           r.albumKeys || [],
           r.isrcs || [],
           r.upcs || [],
+          Object.entries(r.albumVariants || {}),
         ),
         albumTrackPresence: prev.albumTrackPresence,
       }))
@@ -179,6 +183,21 @@ export function LibraryPresenceProvider({ children }: { children: React.ReactNod
       return Boolean(key && snapshot.songKeys[key])
     },
     [snapshot.songKeys, snapshot.isrcs],
+  )
+
+  const getAlbumVersionGroups = useCallback(
+    (album: AlbumLookup | null | undefined) => {
+      const groups = new Set<QualityGroup>()
+      const upc = normalizeUpcClient(album?.upc)
+      if (upc && snapshot.upcs[upc]) groups.add('lossless')
+      const key = makeAlbumKey(album)
+      if (key && snapshot.albumKeys[key]) groups.add('lossless')
+      if (key) {
+        for (const g of snapshot.albumVariants[key] || []) groups.add(g)
+      }
+      return Array.from(groups)
+    },
+    [snapshot.albumKeys, snapshot.albumVariants, snapshot.upcs],
   )
 
   const isPlaylistInLibrary = useCallback(
@@ -350,6 +369,7 @@ export function LibraryPresenceProvider({ children }: { children: React.ReactNod
       verifyPlaylistPresence,
       verifyAlbumTracksPresence,
       getAlbumTrackPresence,
+      getAlbumVersionGroups,
       refreshLibraryPresence,
     }),
     [
@@ -364,6 +384,7 @@ export function LibraryPresenceProvider({ children }: { children: React.ReactNod
       verifyPlaylistPresence,
       verifyAlbumTracksPresence,
       getAlbumTrackPresence,
+      getAlbumVersionGroups,
     ],
   )
 
@@ -390,6 +411,7 @@ function buildSnapshot(
   albumKeysArr: string[] = [],
   isrcsArr: string[] = [],
   upcsArr: string[] = [],
+  albumVariantsArr: Array<[string, QualityGroup[]]> = [],
 ): PresenceSnapshot {
   const albumKeys: Record<string, true> = {}
   const songKeys: Record<string, true> = {}
@@ -432,7 +454,20 @@ function buildSnapshot(
     if (n) upcs[n] = true
   }
 
-  return { albumKeys, songKeys, playlistIds, isrcs, upcs, albumTrackPresence: {} }
+  const albumVariants: Record<string, QualityGroup[]> = {}
+  for (const [key, groups] of albumVariantsArr || []) {
+    if (key && Array.isArray(groups)) albumVariants[String(key)] = groups
+  }
+
+  return {
+    albumKeys,
+    songKeys,
+    playlistIds,
+    isrcs,
+    upcs,
+    albumVariants,
+    albumTrackPresence: {},
+  }
 }
 
 function makeAlbumKey(album: AlbumLookup | LibraryAlbum | null | undefined) {
