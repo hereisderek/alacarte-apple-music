@@ -17,6 +17,7 @@ import {
 import { getLibraryPlaylistDetail } from './appleLibraryApi.mjs'
 import { triggerNavidromeScan } from './navidromeApi.mjs'
 import { writeAmdpConfig, spawnAmdp } from './amdpRunner.mjs'
+import { applyVariantSuffix, groupOf } from './qualityGroups.mjs'
 import {
   convertDirToFlac,
   extractFolderArt,
@@ -29,8 +30,9 @@ import {
   mergeMove,
   resolveArtistDir,
   sanitizeSegment,
+  writeVersionMarker,
 } from './folderLayout.mjs'
-import { getAlbumTrackPresence, hasSongInLibrary, invalidateLibraryCache, isPlaylistInLibrary, songNameFromFilename, stripTrailingYear } from './libraryIndex.mjs'
+import { getAlbumTrackPresence, getAlbumVersionGroups, hasSongInLibrary, invalidateLibraryCache, isPlaylistInLibrary, songNameFromFilename, stripTrailingYear } from './libraryIndex.mjs'
 import { writePlaylistM3U } from './playlistExport.mjs'
 import { getDb } from './db.mjs'
 import { normalizeForMatchKey } from './libraryMatchKey.mjs'
@@ -103,12 +105,15 @@ async function preflightMusicTarget(settings, job) {
     return
   }
   const convention = settings.namingConvention || 'apple'
-  const finalDir = await computeFinalDir(
+  let finalDir = await computeFinalDir(
     MUSIC_ROOT,
     job.artist,
     applyNamingConvention(stripTrailingYear(job.albumTitle || ''), convention),
     job.year,
   )
+  if (job.variant) {
+    finalDir = applyVariantSuffix(finalDir, job.variant, job.quality)
+  }
   await assertWritableTarget(finalDir)
 }
 
@@ -255,6 +260,8 @@ function jobPublic(j) {
     updatedAt: j.updatedAt,
     finalDir: j.finalDir,
     stats: j.stats,
+    quality: j.quality,
+    variant: j.variant || null,
   }
 }
 
@@ -378,17 +385,23 @@ function restorePersistedJobs() {
 }
 
 export async function enqueueAlbum({ albumId, storefront, quality, expectedArtistId }) {
+  const settings = await readSettings()
+  const requestedQuality = normalizeQuality(quality, settings.quality)
+  const requestedGroup = groupOf(requestedQuality)
+
+  let activeDifferentGroupJob = false
   for (const j of state.jobs.values()) {
     if (
+      j.kind === 'album' &&
       j.albumId === albumId &&
       (j.status === 'queued' || j.status === 'running')
     ) {
-      return jobPublic(j)
+      if (groupOf(j.quality) === requestedGroup) return jobPublic(j)
+      activeDifferentGroupJob = true
     }
   }
 
   const id = crypto.randomUUID()
-  const settings = await readSettings()
   let meta = null
   try {
     const raw = await getAlbum({
@@ -402,19 +415,32 @@ export async function enqueueAlbum({ albumId, storefront, quality, expectedArtis
   }
 
   let missingTracks = null
+  let variant = null
   if (meta?.artistName && meta?.name && Array.isArray(meta?.tracks) && meta.tracks.length > 0) {
     const presence = await getAlbumTrackPresence(
       meta.artistName,
       meta.name,
       meta.tracks.map((t) => ({ id: t.id, name: t.name, isrc: t.isrc })),
     )
-    if (presence.complete) {
-      throw alreadyInLibraryError('Already in library')
-    }
-    if (presence.present > 0) {
-      missingTracks = meta.tracks
-        .filter((t) => !presence.tracks[t.id])
-        .map((t) => ({ id: t.id, name: t.name, isrc: t.isrc }))
+    const existingGroups = await getAlbumVersionGroups(
+      meta.artistName,
+      meta.name,
+      meta.upc,
+    )
+    if (existingGroups.has(requestedGroup)) {
+      if (presence.complete) {
+        throw alreadyInLibraryError('Already in library')
+      }
+      if (presence.present > 0) {
+        missingTracks = meta.tracks
+          .filter((t) => !presence.tracks[t.id])
+          .map((t) => ({ id: t.id, name: t.name, isrc: t.isrc }))
+      }
+    } else if (
+      (existingGroups.size > 0 || activeDifferentGroupJob) &&
+      (presence.complete || presence.present > 0)
+    ) {
+      variant = requestedGroup
     }
   }
 
@@ -444,6 +470,7 @@ export async function enqueueAlbum({ albumId, storefront, quality, expectedArtis
     error: null,
     finalDir: null,
     missingTracks,
+    variant,
     upc: meta?.upc || null,
     trackIsrcs: (meta?.tracks || [])
       .filter((t) => t.isrc)
@@ -966,6 +993,9 @@ async function runJob(job) {
       progressState,
     })
     let combined = `${downloadResult.stdout}\n${downloadResult.stderr}`
+    if (quality === 'atmos' && job.variant && (await shouldFallbackAtmosToFlac(downloadResult, combined, jobStaging))) {
+      throw new Error('Atmos is not available for this album; the lossless version is already in the library')
+    }
     if (quality === 'atmos' && (await shouldFallbackAtmosToFlac(downloadResult, combined, jobStaging))) {
       await fsp.rm(jobStaging, { recursive: true, force: true })
       await ensureDir(jobStaging)
@@ -1230,6 +1260,7 @@ async function runJob(job) {
           })
         }
       }
+      await writeVersionMarker(finalDir, job.quality, { ifMissing: true })
     } else {
       const rawAlbumName = applyNamingConvention(
         firstAlbum.name.replace(/\s*\(\d{4}\)\s*$/, ''),
@@ -1241,6 +1272,9 @@ async function runJob(job) {
         rawAlbumName,
         job.year,
       )
+      if (job.variant) {
+        finalDir = applyVariantSuffix(finalDir, job.variant, job.quality)
+      }
 
       if (convention === 'qobuz') {
         const audioFiles = await fsp.readdir(albumPath)
@@ -1265,6 +1299,7 @@ async function runJob(job) {
         currentTrack: null,
       })
       await mergeMove(albumPath, finalDir)
+      await writeVersionMarker(finalDir, job.quality)
     }
 
     try {

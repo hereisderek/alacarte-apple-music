@@ -3,6 +3,8 @@ import path from 'node:path'
 
 import { normalizeIsrc, normalizeUpc, readAudioIdentityTags } from './audioTags.mjs'
 import { getDb, getMeta, setMeta } from './db.mjs'
+import { groupOf, parseVariantSuffix } from './qualityGroups.mjs'
+import { readVersionMarker } from './folderLayout.mjs'
 import {
   isAlbumKeyVariantMatch,
   makeAlbumMatchKey,
@@ -80,6 +82,7 @@ function emptyIndex() {
     isrcs: new Set(),
     upcs: new Set(),
     songPaths: new Map(),
+    albumVersionGroups: new Map(),
   }
 }
 
@@ -244,10 +247,17 @@ async function scanPlaylistsDir(ctx, acc) {
   }
 }
 
+async function readDirGroup(dirPath) {
+  const marker = await readVersionMarker(dirPath)
+  if (marker) return groupOf(marker)
+  return parseVariantSuffix(path.basename(dirPath))
+}
+
 async function scanAudioDir(dirPath, kind, artistName, ctx, acc) {
   const dirStat = await statSafe(dirPath)
   if (!dirStat?.isDirectory()) return
 
+  const dirGroup = kind === 'album' ? await readDirGroup(dirPath) : null
   const cachedDir = ctx.useCache ? getDirRow(ctx.db, dirPath) : null
   if (cachedDir && Math.round(dirStat.mtimeMs) === cachedDir.mtime) {
     aggregateAudioDirFromRows(
@@ -257,6 +267,7 @@ async function scanAudioDir(dirPath, kind, artistName, ctx, acc) {
       dirPath,
       cachedDir.mtime,
       acc,
+      dirGroup,
     )
     return
   }
@@ -309,7 +320,7 @@ async function scanAudioDir(dirPath, kind, artistName, ctx, acc) {
     }
     rows.push(row)
   }
-  aggregateAudioDirFromRows(rows, kind, artistName, dirPath, addedAtFromStat(dirStat), acc)
+  aggregateAudioDirFromRows(rows, kind, artistName, dirPath, addedAtFromStat(dirStat), acc, dirGroup)
   if (ctx.persist) {
     deleteFileRowsNotIn(ctx.db, dirPath, seen)
     upsertDirRow(ctx.db, dirPath, dirStat, kind, path.dirname(dirPath))
@@ -356,7 +367,7 @@ function parseFileRow(row) {
   return { ...row, metaParsed: meta }
 }
 
-function aggregateAudioDirFromRows(rawRows, kind, artistName, dirPath, dirAddedAt, acc) {
+function aggregateAudioDirFromRows(rawRows, kind, artistName, dirPath, dirAddedAt, acc, dirGroup = null) {
   const rows = rawRows.map(parseFileRow)
   if (rows.length === 0) return
   const rel = toRel(dirPath)
@@ -383,6 +394,15 @@ function aggregateAudioDirFromRows(rawRows, kind, artistName, dirPath, dirAddedA
     if (albumKey) {
       acc.albumKeys.add(albumKey)
       acc.albumTrackKeys.set(albumKey, trackSet)
+    }
+    const versionGroup = dirGroup || (rows.some((r) => /\.flac$/i.test(r.path)) ? 'lossless' : null)
+    if (versionGroup) {
+      const baseAlbumName = albumName.replace(/\s*\((FLAC|ALAC|Atmos|AAC)\)$/i, '')
+      const baseKey = makeAlbumKey(artistName, baseAlbumName)
+      if (baseKey) {
+        if (!acc.albumVersionGroups.has(baseKey)) acc.albumVersionGroups.set(baseKey, new Set())
+        acc.albumVersionGroups.get(baseKey).add(versionGroup)
+      }
     }
   } else {
     for (const row of rows) {
@@ -715,6 +735,17 @@ export async function hasSongInLibrary(artistName, songName, preScannedIndex = n
   const key = makeSongKey(artistName, songName)
   if (!key) return false
   return index.songKeys.has(key)
+}
+
+export async function getAlbumVersionGroups(artistName, albumName, upc = null, preScannedIndex = null) {
+  const index = preScannedIndex || (await scanLibraryOnce())
+  const groups = new Set()
+  const upcNorm = normalizeUpc(upc)
+  if (upcNorm && index.upcs.has(upcNorm)) groups.add('lossless')
+  const baseKey = makeAlbumKey(artistName, albumName)
+  if (index.albumKeys.has(baseKey)) groups.add('lossless')
+  for (const g of index.albumVersionGroups.get(baseKey) || []) groups.add(g)
+  return groups
 }
 
 export function makeAlbumKey(artistName, albumName) {

@@ -54,6 +54,9 @@ libraryRouter.get('/', async (_req, res) => {
       playlistIds: Array.from(index.playlistIds || []),
       isrcs: Array.from(index.isrcs || []),
       upcs: Array.from(index.upcs || []),
+      albumVersionGroups: Object.fromEntries(
+        Array.from(index.albumVersionGroups || [], ([k, v]) => [k, Array.from(v)]),
+      ),
       totals: {
         albums: albums.length,
         singles: singles.length,

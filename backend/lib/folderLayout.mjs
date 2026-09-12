@@ -6,6 +6,7 @@ import {
   applyQobuzWriteNaming,
   sanitizeSegment,
 } from './libraryMatchKey.mjs'
+import { groupOf } from './qualityGroups.mjs'
 
 export { sanitizeSegment }
 
@@ -92,4 +93,22 @@ export async function mergeMove(src, dest) {
 
 export function pathExists(p) {
   return fs.existsSync(p)
+}
+
+const VERSION_MARKER = '.alacarte-version'
+
+export function versionMarkerPath(finalDir) {
+  return path.join(finalDir, VERSION_MARKER)
+}
+
+export async function writeVersionMarker(finalDir, quality, { ifMissing = false } = {}) {
+  const marker = versionMarkerPath(finalDir)
+  if (ifMissing && fs.existsSync(marker)) return
+  await fsp.writeFile(marker, groupOf(quality), 'utf8')
+}
+
+export async function readVersionMarker(finalDir) {
+  const raw = await fsp.readFile(versionMarkerPath(finalDir), 'utf8').catch(() => null)
+  const trimmed = raw?.trim()
+  return trimmed || null
 }
