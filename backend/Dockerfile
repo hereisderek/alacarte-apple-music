@@ -29,9 +29,13 @@ FROM node:22-bookworm-slim AS node-runtime
 FROM ghcr.io/zhaarey/apple-music-downloader@sha256:e9364425b5034bdb55414672992bd369b65c9542832eac6de97b9d6994feecf3
 
 ENV DEBIAN_FRONTEND=noninteractive
+# musl ships /lib/ld-musl-x86_64.so.1 so musl-linked apple-music-dl builds
+# (see upstream #29 / GH issue #28) can execve here too, while glibc builds
+# keep working unchanged.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       ca-certificates \
+      musl \
       tini \
       curl \
       && rm -rf /var/lib/apt/lists/*
