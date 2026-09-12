@@ -92,6 +92,7 @@ export function LibraryPresenceProvider({ children }: { children: React.ReactNod
     playlistIds: {},
     isrcs: {},
     upcs: {},
+    albumVariants: {},
     albumTrackPresence: {},
   })
   const [loading, setLoading] = useState(true)

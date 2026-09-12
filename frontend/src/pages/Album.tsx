@@ -156,7 +156,7 @@ export function AlbumPage() {
   )
   const missingVariants = useMemo(() => {
     if (!album || !alreadyInLibrary) return []
-    const options: Array<{ group: QualityGroup; quality: QualityPreference; label: string }> = []
+    const options: Array<{ group: QualityGroup; quality?: QualityPreference; label: string }> = []
     if (album.hasAtmos && !presentGroups.includes('atmos')) {
       options.push({ group: 'atmos', quality: 'atmos', label: 'Get Atmos version' })
     }

@@ -74,7 +74,14 @@ export function QueueItem({ job }: Props) {
               >
                 {stripYear(job.albumTitle)}
               </ResolvedMediaLink>
-            )}
+            )}{job.variant ? (
+              <span className="opacity-60">
+                {' · '}
+                {job.variant === 'lossless'
+                  ? `${job.quality === 'flac' ? 'FLAC' : 'ALAC'} version`
+                  : `${job.variant[0].toUpperCase()}${job.variant.slice(1)} version`}
+              </span>
+            ) : null}
           </div>
         </div>
         <div className="truncate text-xs text-white/55 mt-0.5">
