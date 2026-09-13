@@ -1,12 +1,14 @@
 import express from 'express'
 
 import {
+  VERSION_GROUP_VALUES,
   readPublicSettings,
   writeSettings,
   encryptSecret,
   readSettings,
   AUTO_DOWNLOAD_FREQUENCY_VALUES,
   NAMING_CONVENTION_VALUES,
+  decryptSecret,
 } from '../lib/settingsStore.mjs'
 import {
   startWrapperLogin,
@@ -48,7 +50,9 @@ export const WRITABLE_KEYS = new Set([
   'autoDownloadCheckFrequency',
   'stagingInsideMusicLibrary',
   'namingConvention',
-])
+  'versionOptionsEnabled',
+  'versionOptions',
+  ])
 
 const EXPLICIT_FILTER_VALUES = new Set(['explicit', 'clean', 'both'])
 const LYRICS_FORMAT_VALUES = new Set(['lrc', 'ttml'])
@@ -75,6 +79,8 @@ settingsRouter.put('/', async (req, res) => {
       if (k === 'lyricsType' && !LYRICS_TYPE_VALUES.has(v)) continue
       if (k === 'quality' && !QUALITY_VALUES.has(v)) continue
       if (k === 'namingConvention' && !NAMING_CONVENTION_VALUES.has(v)) continue
+      if (k === 'versionOptionsEnabled' && typeof v !== 'boolean') continue
+      if (k === 'versionOptions' && !Array.isArray(v)) continue
       if (k === 'autoDownloadCheckFrequency' && !AUTO_DOWNLOAD_FREQUENCY_VALUES.has(v)) continue
       if (k === 'navidromePassword') {
         if (v) {

@@ -193,6 +193,8 @@ export type PublicSettings = {
   autoDownloadCheckFrequency: AutoCheckFrequency
   stagingInsideMusicLibrary: boolean
   namingConvention: 'apple' | 'qobuz'
+  versionOptionsEnabled: boolean
+  versionOptions: QualityGroup[]
 }
 
 export type AutoCheckFrequency =
@@ -700,6 +702,7 @@ export const api = {
       isrcs?: string[]
       upcs?: string[]
       albumVariants?: Record<string, QualityGroup[]>
+      albumVersionGroups?: Record<string, QualityGroup[]>
       totals: { albums: number; singles: number; playlists?: number }
     }>('/api/library'),
   libraryPresence: (payload: {

@@ -15,6 +15,7 @@ import { useLibraryPresence } from '../hooks/useLibraryPresence'
 import { useDownloadQualityPrompt } from '../hooks/useDownloadQualityPrompt'
 import { useQueue } from '../hooks/useQueue'
 import { useTouchMode } from '../hooks/useTouchMode'
+import { useAppSettings } from '../hooks/useAppSettings'
 import { ProgressBar } from '../components/ProgressBar'
 import { Badge } from '../components/Badge'
 import { Button } from '../components/Button'
@@ -51,6 +52,7 @@ export function AlbumPage() {
   } = useLibraryPresence()
   const { jobs } = useQueue()
   const touchMode = useTouchMode()
+  const appSettings = useAppSettings()
   const { chooseDownloadQuality, qualityPrompt } = useDownloadQualityPrompt()
 
   const trackPresence = album ? getAlbumTrackPresence(album.id) : null
@@ -155,19 +157,20 @@ export function AlbumPage() {
     [album, alreadyInLibrary, getAlbumVersionGroups],
   )
   const missingVariants = useMemo(() => {
-    if (!album || !alreadyInLibrary) return []
+    if (!appSettings?.versionOptionsEnabled || !album || !alreadyInLibrary) return []
+    const offered = appSettings.versionOptions || []
     const options: Array<{ group: QualityGroup; quality?: QualityPreference; label: string }> = []
-    if (album.hasAtmos && !presentGroups.includes('atmos')) {
+    if (offered.includes('atmos') && album.hasAtmos && !presentGroups.includes('atmos')) {
       options.push({ group: 'atmos', quality: 'atmos', label: 'Get Atmos version' })
     }
-    if (!presentGroups.includes('lossless') && (album.hasLossless ?? true)) {
+    if (offered.includes('lossless') && !presentGroups.includes('lossless') && (album.hasLossless ?? true)) {
       options.push({ group: 'lossless', quality: 'flac', label: 'Get lossless version' })
     }
-    if (!presentGroups.includes('aac')) {
+    if (offered.includes('aac') && !presentGroups.includes('aac')) {
       options.push({ group: 'aac', quality: 'aac', label: 'Get AAC version' })
     }
     return options
-  }, [album, alreadyInLibrary, presentGroups])
+  }, [album, alreadyInLibrary, presentGroups, appSettings])
   const [variantEnqueueing, setVariantEnqueueing] = useState<string | null>(null)
 
   const onVariantDownload = async (label: string, run: () => Promise<unknown>) => {

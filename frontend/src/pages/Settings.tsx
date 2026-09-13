@@ -8,6 +8,7 @@ import {
   Key,
   Globe,
   FolderOpen,
+  ListPlus,
   Radar,
   ShieldCheck,
   Tags,
@@ -381,6 +382,70 @@ export function SettingsPage() {
 
                 </div>
               </label>
+            </div>
+          </SettingsCard>
+        </StaggeredItem>
+
+        <StaggeredItem>
+          <SettingsCard icon={<ListPlus className="h-4 w-4" />} title="Other versions">
+            <div className="space-y-4">
+              <label className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={settings.versionOptionsEnabled}
+                  onChange={(e) =>
+                    update({ versionOptionsEnabled: e.target.checked })
+                  }
+                  className="mt-0.5 shrink-0"
+                />
+                <div>
+                  <div className="text-[13px] font-medium">
+                    Show other version options on album pages
+                  </div>
+                  <div className="mt-0.5 text-[13px] text-[var(--text-dim)]">
+                    For albums already in the library, offer pills to download
+                    the album again in the formats selected below. Each version
+                    is stored in its own folder.
+                  </div>
+                </div>
+              </label>
+              {settings.versionOptionsEnabled && (
+                <div
+                  className="flex flex-wrap items-center gap-2 pt-1"
+                  role="group"
+                  aria-label="Versions to offer"
+                >
+                  <span className="text-[13px] text-[var(--text-dim)]">Offer:</span>
+                  {(['lossless', 'atmos', 'aac'] as const).map((group) => {
+                    const on = settings.versionOptions.includes(group)
+                    return (
+                      <button
+                        key={group}
+                        type="button"
+                        aria-pressed={on}
+                        onClick={() => {
+                          const next = on
+                            ? settings.versionOptions.filter((g) => g !== group)
+                            : [...settings.versionOptions, group]
+                          update({ versionOptions: next })
+                        }}
+                        className={
+                          'inline-flex select-none items-center rounded-full border px-3 py-1 text-[13px] font-medium transition-colors ' +
+                          (on
+                            ? 'border-white/30 bg-white/15 text-white'
+                            : 'border-white/15 bg-transparent text-white/60 hover:bg-white/10')
+                        }
+                      >
+                        {group === 'lossless'
+                          ? 'Lossless'
+                          : group === 'atmos'
+                            ? 'Atmos'
+                            : 'AAC'}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           </SettingsCard>
         </StaggeredItem>

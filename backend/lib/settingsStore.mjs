@@ -35,10 +35,13 @@ const DEFAULTS = {
   autoDownloadCheckFrequency: 'auto',
   stagingInsideMusicLibrary: false,
   namingConvention: 'apple',
+  versionOptionsEnabled: false,
+  versionOptions: ['atmos', 'lossless', 'aac'],
 }
 
 const QUALITY_VALUES = new Set(['flac', 'alac', 'atmos', 'aac'])
 export const NAMING_CONVENTION_VALUES = new Set(['apple', 'qobuz'])
+export const VERSION_GROUP_VALUES = new Set(['lossless', 'atmos', 'aac'])
 
 export const AUTO_DOWNLOAD_FREQUENCY_VALUES = new Set([
   'auto',
@@ -170,6 +173,17 @@ function normalizeSettings(parsed) {
     namingConvention: NAMING_CONVENTION_VALUES.has(parsed?.namingConvention)
       ? parsed.namingConvention
       : DEFAULTS.namingConvention,
+    versionOptionsEnabled: toBool(
+      parsed?.versionOptionsEnabled,
+      DEFAULTS.versionOptionsEnabled,
+    ),
+    ...(Array.isArray(parsed?.versionOptions)
+      ? {
+          versionOptions: parsed.versionOptions.filter((g) =>
+            VERSION_GROUP_VALUES.has(g),
+          ),
+        }
+      : {}),
   }
 }
 
@@ -210,6 +224,10 @@ export async function readPublicSettings() {
     autoDownloadCheckFrequency: s.autoDownloadCheckFrequency || 'auto',
     stagingInsideMusicLibrary: Boolean(s.stagingInsideMusicLibrary),
     namingConvention: s.namingConvention || 'apple',
+    versionOptionsEnabled: Boolean(s.versionOptionsEnabled),
+    versionOptions: Array.isArray(s.versionOptions)
+      ? s.versionOptions.filter((g) => VERSION_GROUP_VALUES.has(g))
+      : [],
   }
 }
 
