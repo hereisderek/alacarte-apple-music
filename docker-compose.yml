@@ -1,9 +1,9 @@
 services:
   wrapper:
+    image: ghcr.io/hereisderek/alacarte-wrapper:latest
     build:
       context: ./wrapper
       dockerfile: Dockerfile
-    image: alacarte-wrapper:local
     container_name: alacarte-wrapper
     # Wrapper binary + upstream rootfs are amd64-only. Pinning the platform makes
     # the build/run path explicit on arm64 hosts (Apple Silicon emulates via Rosetta).
@@ -26,6 +26,7 @@ services:
       - "10020"
       - "20020"
       - "30020"
+      - "40020"
     networks:
       - alacarte-net
     # on-failure (not unless-stopped) so clean exit due to missing creds doesn't
@@ -33,6 +34,7 @@ services:
     restart: on-failure
 
   web:
+    image: ghcr.io/hereisderek/alacarte-web:latest
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -47,6 +49,7 @@ services:
       - AMDL_WRAPPER_DECRYPT_PORT=10020
       - AMDL_WRAPPER_M3U8_PORT=20020
       - AMDL_WRAPPER_ACCOUNT_PORT=30020
+      - AMDL_WRAPPER_SUPERVISOR_PORT=40020
       - AMDL_MUSIC_PATH=/music
       - AMDL_CONFIG_DIR=/config
       - AMDL_SECRET_KEY=${AMDL_SECRET_KEY:-}
@@ -58,10 +61,6 @@ services:
       # Shared with the wrapper container so the web UI can drop a 2fa.txt file
       # when the Apple ID requires a 2FA code (wrapper polls this path).
       - ./data/wrapper:/wrapper-data
-      # Required so the web UI can run first-time Apple ID login for the
-      # wrapper container automatically. Treat this as root-on-host access;
-      # only expose the web UI on trusted networks.
-      - ${CONTAINER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
     # Default (WEB_BIND unset/empty) publishes on all interfaces — same as
     # docker's default. Set WEB_BIND=127.0.0.1 in .env to restrict the UI to
     # the host machine only when fronting with a reverse proxy.
