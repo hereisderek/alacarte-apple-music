@@ -51,27 +51,228 @@ Output lands in `/music/<Artist>/<Album>/01. Track.flac` (or `/music/<Artist>/Si
 ## Requirements
 
 - **`linux/amd64` (x86_64)** — the FairPlay wrapper binary and the upstream downloader image are amd64-only. On Apple Silicon Macs, Docker Desktop transparently emulates amd64 via Rosetta. On native arm64 Linux (Raspberry Pi, ARM cloud VPS), enable `qemu-user-static` / `binfmt_misc` to run amd64 containers, or use an x86_64 host.
-- Docker + Docker Compose
+- Docker & Docker Compose (or standalone Docker engine)
 - An **Apple Music paid subscription**
 
-## Quick start
+## Pre-built Container Images
 
-1. `git clone` this repo and `cd` into it
-2. Copy `.env.example` to `.env` and set `MUSIC_PATH` to your music library folder
-3. Run `docker compose up -d --build`
-4. Open `http://<your-host>:7373`
-5. Grab the one-time setup token from logs (`docker compose logs alacarte-web`) and use it on the welcome screen with your new username/password
-6. Go to Settings → enter your Apple ID email, password, and preferred storefront
+Official automated builds are published to GitHub Container Registry (GHCR) on every push to `main` and release tag:
 
-## Upgrade notes
+- **Web UI & Backend**: `ghcr.io/hereisderek/alacarte-web:latest` (or pinned by tag/commit sha, e.g. `:sha-dc0eecf`)
+- **Decryption Wrapper**: `ghcr.io/hereisderek/alacarte-wrapper:latest` (or pinned by tag/commit sha)
 
-Upgrading an existing deployment:
+---
 
-1. Pull latest changes and rebuild: `docker compose up -d --build`
-2. If your current install has no auth configured yet, open the UI and complete first-time setup with the one-time setup token from logs.
-3. If you already have auth configured, sign in normally.
+## Hosting & Deployment
 
-No manual data migration is required for `data/web/settings.json` or existing encrypted Apple credentials.
+You can run ALACarte either using **Docker Compose** (recommended) or standalone **Docker CLI (`docker run`)**.
+
+### Option 1: Docker Compose (Recommended)
+
+You don't need to clone the full repository to deploy. You can create a new folder with just `docker-compose.yml` and `.env`:
+
+1. Create a project directory:
+   ```bash
+   mkdir alacarte && cd alacarte
+   ```
+
+2. Create `.env`:
+   ```env
+   # Required: Path to your host music library folder
+   MUSIC_PATH=/path/to/your/music/library
+
+   # Optional port (default 7373)
+   WEB_PORT=7373
+
+   # Optional: set to 127.0.0.1 to restrict access to localhost only (behind reverse proxy)
+   WEB_BIND=0.0.0.0
+
+   # Optional: disable built-in password gate if using external auth (Authelia, Cloudflare Access)
+   AUTH_DISABLED=false
+   ```
+
+3. Create `docker-compose.yml`:
+   ```yaml
+   services:
+     wrapper:
+       image: ghcr.io/hereisderek/alacarte-wrapper:latest
+       container_name: alacarte-wrapper
+       platform: linux/amd64
+       volumes:
+         - ./data/wrapper:/app/rootfs/data
+         # Android chroot device nodes required by FairPlay decryptor
+         - /dev/null:/app/rootfs/dev/null
+         - /dev/urandom:/app/rootfs/dev/urandom
+         - /dev/random:/app/rootfs/dev/random
+         - /dev/zero:/app/rootfs/dev/zero
+       expose:
+         - "10020"
+         - "20020"
+         - "30020"
+         - "40020"
+       networks:
+         - alacarte-net
+       restart: on-failure
+
+     web:
+       image: ghcr.io/hereisderek/alacarte-web:latest
+       container_name: alacarte-web
+       platform: linux/amd64
+       depends_on:
+         - wrapper
+       environment:
+         - PORT=7373
+         - AMDL_WRAPPER_HOST=alacarte-wrapper
+         - AMDL_WRAPPER_DECRYPT_PORT=10020
+         - AMDL_WRAPPER_M3U8_PORT=20020
+         - AMDL_WRAPPER_ACCOUNT_PORT=30020
+         - AMDL_WRAPPER_SUPERVISOR_PORT=40020
+         - AMDL_MUSIC_PATH=/music
+         - AMDL_CONFIG_DIR=/config
+         - AMDL_SECRET_KEY=${AMDL_SECRET_KEY:-}
+         - AUTH_DISABLED=${AUTH_DISABLED:-false}
+         - TRUST_PROXY=${TRUST_PROXY:-loopback}
+       volumes:
+         - ./data/web:/config
+         - ${MUSIC_PATH:?Set MUSIC_PATH in .env}:/music
+         - ./data/wrapper:/wrapper-data
+       ports:
+         - "${WEB_BIND:-0.0.0.0}:${WEB_PORT:-7373}:7373"
+       networks:
+         - alacarte-net
+       restart: unless-stopped
+
+   networks:
+     alacarte-net:
+       name: ${DOCKER_NETWORK:-alacarte-net}
+       external: ${DOCKER_NETWORK_EXTERNAL:-false}
+   ```
+
+4. Start the stack:
+   ```bash
+   docker compose up -d
+   ```
+
+5. Retrieve the first-time setup token:
+   ```bash
+   docker compose logs alacarte-web
+   ```
+   Open `http://<your-host-ip>:7373`, paste the token from the logs, set up your admin credentials, and go to **Settings → Apple Account** to log in.
+
+---
+
+### Option 2: Docker CLI (`docker run`)
+
+If you prefer running standalone `docker run` commands without Docker Compose:
+
+1. **Create the shared network:**
+   ```bash
+   docker network create alacarte-net
+   ```
+
+2. **Create local storage directories:**
+   ```bash
+   mkdir -p ./data/wrapper ./data/web
+   ```
+
+3. **Start the FairPlay decryption wrapper:**
+   ```bash
+   docker run -d \
+     --name alacarte-wrapper \
+     --platform linux/amd64 \
+     --network alacarte-net \
+     --restart on-failure \
+     -v "$(pwd)/data/wrapper:/app/rootfs/data" \
+     -v /dev/null:/app/rootfs/dev/null \
+     -v /dev/urandom:/app/rootfs/dev/urandom \
+     -v /dev/random:/app/rootfs/dev/random \
+     -v /dev/zero:/app/rootfs/dev/zero \
+     ghcr.io/hereisderek/alacarte-wrapper:latest
+   ```
+
+4. **Start the web backend & downloader:**
+   ```bash
+   docker run -d \
+     --name alacarte-web \
+     --platform linux/amd64 \
+     --network alacarte-net \
+     --restart unless-stopped \
+     -p 7373:7373 \
+     -e PORT=7373 \
+     -e AMDL_WRAPPER_HOST=alacarte-wrapper \
+     -e AMDL_WRAPPER_DECRYPT_PORT=10020 \
+     -e AMDL_WRAPPER_M3U8_PORT=20020 \
+     -e AMDL_WRAPPER_ACCOUNT_PORT=30020 \
+     -e AMDL_WRAPPER_SUPERVISOR_PORT=40020 \
+     -e AMDL_MUSIC_PATH=/music \
+     -e AMDL_CONFIG_DIR=/config \
+     -e AUTH_DISABLED=false \
+     -e TRUST_PROXY=loopback \
+     -v "$(pwd)/data/web:/config" \
+     -v "/path/to/your/music/library:/music" \
+     -v "$(pwd)/data/wrapper:/wrapper-data" \
+     ghcr.io/hereisderek/alacarte-web:latest
+   ```
+
+5. **Complete initial setup:**
+   ```bash
+   docker logs alacarte-web
+   ```
+   Copy the one-time token and navigate to `http://localhost:7373`.
+
+---
+
+## Volume & Persistence Reference
+
+| Container Path | Host Recommended | Purpose |
+|----------------|------------------|---------|
+| `alacarte-web:/config` | `./data/web` | Web settings (`settings.json`), auth state, encryption key (`.secret`), sync history |
+| `alacarte-web:/music` | `/path/to/music` | Destination music library where organized folders and tracks land |
+| `alacarte-web:/wrapper-data` | `./data/wrapper` | Shared data mount with wrapper (allows fast file drops for 2FA) |
+| `alacarte-wrapper:/app/rootfs/data` | `./data/wrapper` | Stores cached Apple account credentials and decryption tokens |
+| `alacarte-wrapper:/app/rootfs/dev/*` | `/dev/*` | Android chroot device nodes needed for crypto/random generation |
+
+---
+
+## Environment Variables Reference
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `7373` | Internal listening port for the web service |
+| `WEB_PORT` | `7373` | Exposed host port in `docker-compose.yml` |
+| `WEB_BIND` | `0.0.0.0` | Host IP to bind to (`127.0.0.1` locks UI to local host only) |
+| `AMDL_MUSIC_PATH` | `/music` | Path to music library inside web container |
+| `AMDL_CONFIG_DIR` | `/config` | Path to persistent configuration inside web container |
+| `AMDL_WRAPPER_HOST` | `alacarte-wrapper` | Hostname or IP of the wrapper container |
+| `AMDL_WRAPPER_DECRYPT_PORT` | `10020` | Port for wrapper decrypt service |
+| `AMDL_WRAPPER_M3U8_PORT` | `20020` | Port for wrapper M3U8 stream service |
+| `AMDL_WRAPPER_ACCOUNT_PORT` | `30020` | Port for wrapper account info service |
+| `AMDL_WRAPPER_SUPERVISOR_PORT` | `40020` | Port for wrapper supervisor HTTP control API |
+| `AUTH_DISABLED` | `false` | Set to `true` to disable built-in password authentication |
+| `TRUST_PROXY` | `loopback` | Express trust proxy setting for reverse proxies |
+| `AMDL_SECRET_KEY` | *(auto-generated)* | 64-hex char key for encrypting credentials at rest |
+
+---
+
+## Upgrade Notes
+
+To update an existing deployment to the latest build:
+
+- **With Docker Compose**:
+  ```bash
+  docker compose pull
+  docker compose up -d
+  ```
+- **With Docker CLI**:
+  ```bash
+  docker pull ghcr.io/hereisderek/alacarte-wrapper:latest
+  docker pull ghcr.io/hereisderek/alacarte-web:latest
+  docker stop alacarte-web alacarte-wrapper
+  docker rm alacarte-web alacarte-wrapper
+  # Re-run the docker run commands above
+  ```
+
+No manual data migration is required. Existing settings, auth credentials, and cached Apple login tokens persist seamlessly in `./data`.
 
 ## Security
 
