@@ -50,6 +50,10 @@ jobs:
             echo "merge_success=true" >> $GITHUB_OUTPUT
           else
             echo "Merge conflict detected."
+            CONFLICTS=$(git diff --name-only --diff-filter=U)
+            echo "conflicts<<EOF" >> $GITHUB_OUTPUT
+            echo "$CONFLICTS" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
             echo "merge_success=false" >> $GITHUB_OUTPUT
             git merge --abort || true
             exit 1
@@ -64,7 +68,23 @@ jobs:
         if: failure() && steps.check.outputs.has_changes == 'true' && steps.merge.outputs.merge_success != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CONFLICTS: ${{ steps.merge.outputs.conflicts }}
         run: |
           gh issue create \
             --title "Upstream Sync Conflict Detected" \
-            --body "Automated upstream synchronization with \`sosjalapeno/alacarte:main\` encountered merge conflicts. Please resolve manually by pulling upstream \`main\` into your branch."
+            --body "Automated upstream synchronization with \`sosjalapeno/alacarte:main\` encountered merge conflicts.
+
+### Conflicting Files:
+\`\`\`
+${CONFLICTS:-Unable to list}
+\`\`\`
+
+### How to resolve locally:
+\`\`\`bash
+git remote add upstream https://github.com/sosjalapeno/alacarte.git # if not already added
+git fetch upstream main
+git merge upstream/main
+# Open the conflicting files and resolve conflict markers
+git commit
+git push origin main
+\`\`\`"
