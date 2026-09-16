@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import http from 'node:http'
 
 import {
   buildFailureTail,
@@ -12,7 +13,15 @@ import {
   redactWrapperOutput,
   TWO_FA_HINT,
 } from '../lib/wrapperLoginDiagnostics.mjs'
-import { validate2faCode } from '../lib/wrapperLogin.mjs'
+import {
+  validate2faCode,
+  isWrapperReachable,
+  isDockerReachable,
+  startWrapperLogin,
+  submit2FA,
+  cancelLogin,
+  getLoginStatus,
+} from '../lib/wrapperLogin.mjs'
 
 test('uses StoreServices diagnostics instead of the generic response type', () => {
   const reason = extractWrapperFailureReason(`
@@ -237,4 +246,146 @@ test('accepts only exactly six digits for 2FA codes', () => {
   assert.equal(validate2faCode('12345'), false)
   assert.equal(validate2faCode('1234567'), false)
   assert.equal(validate2faCode('12a456'), false)
+})
+
+test('isWrapperReachable detects healthy and unhealthy supervisor', async () => {
+  const server = http.createServer((req, res) => {
+    if (req.url === '/health') {
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: true, mode: 'normal' }))
+    } else {
+      res.writeHead(404)
+      res.end()
+    }
+  })
+  await new Promise((r) => server.listen(0, '127.0.0.1', r))
+  const port = server.address().port
+  process.env.AMDL_WRAPPER_HOST = '127.0.0.1'
+  process.env.AMDL_WRAPPER_SUPERVISOR_PORT = String(port)
+
+  try {
+    assert.equal(await isWrapperReachable(), true)
+    assert.equal(await isDockerReachable(), true)
+  } finally {
+    server.close()
+  }
+
+  assert.equal(await isWrapperReachable(), false)
+})
+
+test('startWrapperLogin handles stream and detects success', async () => {
+  const server = http.createServer((req, res) => {
+    if (req.url === '/health') {
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: true }))
+    } else if (req.url === '/login' && req.method === 'POST') {
+      res.writeHead(200, { 'Content-Type': 'text/plain' })
+      res.write('[+] logging in...\n')
+      res.write('account info cached successfully\n')
+      res.end()
+    }
+  })
+  await new Promise((r) => server.listen(0, '127.0.0.1', r))
+  const port = server.address().port
+  process.env.AMDL_WRAPPER_HOST = '127.0.0.1'
+  process.env.AMDL_WRAPPER_SUPERVISOR_PORT = String(port)
+
+  try {
+    const result = await startWrapperLogin({ email: 'test@example.com', password: 'pass' })
+    assert.deepEqual(result, { ok: true })
+    const status = getLoginStatus()
+    assert.equal(status.inProgress, false)
+  } finally {
+    server.close()
+  }
+})
+
+test('submit2FA forwards code to supervisor', async () => {
+  let receivedCode = null
+  let loginStreamRes = null
+
+  const server = http.createServer((req, res) => {
+    if (req.url === '/login' && req.method === 'POST') {
+      req.resume()
+      res.writeHead(200, { 'Content-Type': 'text/plain' })
+      res.flushHeaders()
+      res.write('[!] Enter your 2FA code into rootfs/data/data/com.apple.android.music/files/2fa.txt\n')
+      loginStreamRes = res
+    } else if (req.url === '/login/2fa' && req.method === 'POST') {
+      let body = ''
+      req.on('data', (c) => { body += c })
+      req.on('end', () => {
+        const json = JSON.parse(body)
+        receivedCode = json.code
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ ok: true }))
+
+        // After 2FA submitted, finish login successfully
+        if (loginStreamRes) {
+          loginStreamRes.write('[!] Code file detected! Logging in...\n')
+          loginStreamRes.write('account info cached successfully\n')
+          loginStreamRes.end()
+        }
+      })
+    }
+  })
+  await new Promise((r) => server.listen(0, '127.0.0.1', r))
+  const port = server.address().port
+  process.env.AMDL_WRAPPER_HOST = '127.0.0.1'
+  process.env.AMDL_WRAPPER_SUPERVISOR_PORT = String(port)
+
+  try {
+    const loginPromise = startWrapperLogin({ email: 'user@example.com', password: 'secretpassword' })
+
+    // Wait until 2FA prompt is detected
+    for (let i = 0; i < 50; i++) {
+      const status = getLoginStatus()
+      if (status.status?.phase === '2fa-required') break
+      await new Promise((r) => setTimeout(r, 20))
+    }
+
+    const subRes = await submit2FA('654321')
+    assert.deepEqual(subRes, { ok: true })
+    assert.equal(receivedCode, '654321')
+
+    const res = await loginPromise
+    assert.deepEqual(res, { ok: true })
+  } finally {
+    server.close()
+  }
+})
+
+test('cancelLogin sends cancel to supervisor and aborts active login', async () => {
+  let cancelledOnServer = false
+  const server = http.createServer((req, res) => {
+    if (req.url === '/login' && req.method === 'POST') {
+      req.resume()
+      res.writeHead(200, { 'Content-Type': 'text/plain' })
+      res.flushHeaders()
+      res.write('[+] logging in...\n')
+      // keep open
+    } else if (req.url === '/login/cancel' && req.method === 'POST') {
+      req.resume()
+      cancelledOnServer = true
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: true }))
+    }
+  })
+  await new Promise((r) => server.listen(0, '127.0.0.1', r))
+  const port = server.address().port
+  process.env.AMDL_WRAPPER_HOST = '127.0.0.1'
+  process.env.AMDL_WRAPPER_SUPERVISOR_PORT = String(port)
+
+  try {
+    const loginPromise = startWrapperLogin({ email: 'user@example.com', password: 'secretpassword' })
+    await new Promise((r) => setTimeout(r, 50))
+
+    const cancelRes = await cancelLogin()
+    assert.deepEqual(cancelRes, { ok: true })
+    assert.equal(cancelledOnServer, true)
+
+    await assert.rejects(loginPromise, /Cancelled/)
+  } finally {
+    server.close()
+  }
 })
