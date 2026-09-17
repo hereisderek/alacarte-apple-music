@@ -33,6 +33,6 @@ RUN gcc -shared -fPIC -O2 \
   && chmod +x /app/wrapper-entrypoint.sh /app/supervisor
 
 ENTRYPOINT ["/app/wrapper-entrypoint.sh"]
-CMD ["-H", "0.0.0.0"]
+CMD ["-host", "0.0.0.0"]
 
 EXPOSE 10020 20020 30020 40020
