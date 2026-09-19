@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { emitEvent, onEvent } from './eventBus.mjs'
 import { getMusicRoot, invalidateLibraryCache, makeSongKey, scanLibraryOnce } from './libraryIndex.mjs'
+import { normalizeForMatchKey } from './libraryMatchKey.mjs'
 import { sanitizeSegment } from './folderLayout.mjs'
 import { writePlaylistM3U } from './playlistExport.mjs'
 
@@ -185,10 +186,24 @@ export async function rebuildFollowedPlaylistM3u(record) {
     const index = await scanLibraryOnce()
     const musicRoot = getMusicRoot()
     const absPaths = []
+    const pathsBySongTitle = new Map()
+    for (const [key, rel] of index.songPaths || []) {
+        const songPart = key.slice(key.lastIndexOf('::') + 2)
+        if (songPart && !pathsBySongTitle.has(songPart)) {
+            pathsBySongTitle.set(songPart, rel)
+        }
+    }
     for (const track of record.trackIndex) {
         if (!track?.artistName || !track?.name) continue
         const key = makeSongKey(track.artistName, track.name)
-        const rel = key ? index.songPaths?.get(key) : null
+        let rel = key ? index.songPaths?.get(key) : null
+        if (!rel) {
+            // Compilation and soundtrack tracks often live under a different
+            // artist folder than the playlist metadata claims, so fall back
+            // to a song-title match across all artists.
+            const title = normalizeForMatchKey(track.name).toLowerCase()
+            rel = pathsBySongTitle.get(title) || null
+        }
         if (rel) absPaths.push(path.join(musicRoot, rel))
     }
     if (absPaths.length === 0) {
