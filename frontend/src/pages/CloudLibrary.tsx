@@ -339,7 +339,7 @@ export function CloudLibraryPage() {
       <section className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold tracking-tight text-white md:text-3xl">
-            Cloud
+            Apple Music
           </h1>
         </div>
         <div className="flex w-full flex-wrap items-center justify-start gap-2 md:w-auto md:justify-end">
