@@ -5,6 +5,7 @@ import { emitEvent, onEvent } from './eventBus.mjs'
 import { getMusicRoot, invalidateLibraryCache, makeSongKey, scanLibraryOnce } from './libraryIndex.mjs'
 import { normalizeForMatchKey } from './libraryMatchKey.mjs'
 import { sanitizeSegment } from './folderLayout.mjs'
+import { groupOf } from './qualityGroups.mjs'
 import { writePlaylistM3U } from './playlistExport.mjs'
 
 const CONFIG_DIR = process.env.AMDL_CONFIG_DIR || '/config'
@@ -186,25 +187,47 @@ export async function rebuildFollowedPlaylistM3u(record) {
     const index = await scanLibraryOnce()
     const musicRoot = getMusicRoot()
     const absPaths = []
-    const pathsBySongTitle = new Map()
-    for (const [key, rel] of index.songPaths || []) {
-        const songPart = key.slice(key.lastIndexOf('::') + 2)
-        if (songPart && !pathsBySongTitle.has(songPart)) {
-            pathsBySongTitle.set(songPart, rel)
-        }
-    }
     for (const track of record.trackIndex) {
-        if (!track?.artistName || !track?.name) continue
-        const key = makeSongKey(track.artistName, track.name)
-        let rel = key ? index.songPaths?.get(key) : null
-        if (!rel) {
-            // Compilation and soundtrack tracks often live under a different
-            // artist folder than the playlist metadata claims, so fall back
-            // to a song-title match across all artists.
-            const title = normalizeForMatchKey(track.name).toLowerCase()
-            rel = pathsBySongTitle.get(title) || null
+        if (!track?.name) continue
+        const wanted = track.version || null
+        const key = track.artistName
+            ? makeSongKey(track.artistName, track.name)
+            : null
+
+        // Candidate files across version folders, exact artist key first,
+        // then a normalized song title match for compilation/soundtrack
+        // tracks that import under a different artist folder.
+        let candidates = key
+            ? (index.songVersionPaths?.get(key) || []).slice()
+            : []
+        if (candidates.length === 0) {
+            const suffix = `::${normalizeForMatchKey(track.name).toLowerCase()}`
+            for (const [songKey, versions] of index.songVersionPaths || []) {
+                if (!songKey.endsWith(suffix)) continue
+                for (const v of versions) candidates.push(v)
+            }
         }
-        if (rel) absPaths.push(path.join(musicRoot, rel))
+        const seen = new Set()
+        candidates = candidates.filter((c) => {
+            if (seen.has(c.rel)) return false
+            seen.add(c.rel)
+            return true
+        })
+        if (candidates.length === 0) continue
+
+        // Pick the version this playlist fetched, else lossless, else
+        // the library's canonical copy.
+        let rel = null
+        if (wanted) {
+            const match = candidates.find((c) => c.group === wanted)
+            if (match) rel = match.rel
+        }
+        if (!rel) {
+            const lossless = candidates.find((c) => c.group === 'lossless')
+            const primary = candidates.find((c) => c.group === 'primary')
+            rel = (lossless || primary || candidates[0]).rel
+        }
+        absPaths.push(path.join(musicRoot, rel))
     }
     if (absPaths.length === 0) {
         const base = sanitizeSegment(record.name || 'Playlist')
@@ -268,6 +291,7 @@ function normalizePlaylistRecord(playlist) {
                 id: String(t?.id || ''),
                 name: String(t?.name || ''),
                 artistName: String(t?.artistName || ''),
+                version: String(t?.version || ''),
             }))
             .filter((t) => t.id || t.name),
         totalTrackCount: Number(playlist?.totalTrackCount || 0),
@@ -303,7 +327,19 @@ onEvent(async (evt) => {
                     job.songId &&
                     record.trackIndex.some((t) => t.id === job.songId)),
         )
+        const qualityGroup = groupOf(job.quality)
         for (const record of affected) {
+            const tracks = Array.isArray(record.trackIndex) ? record.trackIndex : []
+            let touched = false
+            for (const t of tracks) {
+                if (job.songId && t.id === job.songId && t.version !== qualityGroup) {
+                    t.version = qualityGroup
+                    touched = true
+                }
+            }
+            if (touched) {
+                await updateFollowedPlaylist(record.id, { trackIndex: tracks })
+            }
             if (record.id === job.followedPlaylistId && record.missingTrackCount > 0) {
                 const updated = await decrementFollowedPlaylistMissing(record.id)
                 if (updated) {
