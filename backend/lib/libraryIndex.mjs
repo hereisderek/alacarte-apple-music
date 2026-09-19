@@ -14,7 +14,7 @@ import {
 
 export { stripTrailingYear }
 
-const MUSIC_ROOT = process.env.AMDL_MUSIC_PATH || '/music'
+
 const AUDIO_RE = /\.(flac|m4a|mp3)$/i
 
 const SCAN_TTL_MS = 30_000
@@ -30,7 +30,7 @@ let _scanCache = null
 let _scanCacheAt = 0
 
 export function getMusicRoot() {
-  return MUSIC_ROOT
+  return process.env.AMDL_MUSIC_PATH || '/music'
 }
 
 async function getCachedIndex() {
@@ -115,14 +115,14 @@ async function walkLibrary(mode) {
   await scanPlaylistsDir(ctx, acc)
 
   const seenArtistDirs = new Set()
-  const artistEntries = await readDirSafe(MUSIC_ROOT)
+  const artistEntries = await readDirSafe(getMusicRoot())
   for (const artistEntry of artistEntries) {
     if (!artistEntry.isDirectory()) continue
     if (artistEntry.name.startsWith('.')) continue
     if (artistEntry.name === 'Playlists') continue
 
     const artistName = artistEntry.name
-    const artistPath = path.join(MUSIC_ROOT, artistName)
+    const artistPath = path.join(getMusicRoot(), artistName)
     seenArtistDirs.add(artistPath)
     const artistStat = await statSafe(artistPath)
     const cachedArtist = useCache ? getDirRow(db, artistPath) : null
@@ -167,7 +167,7 @@ async function walkLibrary(mode) {
     }
     if (persist) {
       deleteDirRowsNotIn(db, artistPath, seenChildPaths)
-      upsertDirRow(db, artistPath, artistStat, 'artist', MUSIC_ROOT)
+      upsertDirRow(db, artistPath, artistStat, 'artist', getMusicRoot())
     }
   }
 
@@ -201,7 +201,7 @@ async function walkLibrary(mode) {
 }
 
 async function scanPlaylistsDir(ctx, acc) {
-  const playlistsDir = path.join(MUSIC_ROOT, 'Playlists')
+  const playlistsDir = path.join(getMusicRoot(), 'Playlists')
   const dirStat = await statSafe(playlistsDir)
   if (!dirStat?.isDirectory()) return
 
@@ -243,7 +243,7 @@ async function scanPlaylistsDir(ctx, acc) {
   }
   if (ctx.persist) {
     deleteFileRowsNotIn(ctx.db, playlistsDir, seen)
-    upsertDirRow(ctx.db, playlistsDir, dirStat, 'playlists', MUSIC_ROOT)
+    upsertDirRow(ctx.db, playlistsDir, dirStat, 'playlists', getMusicRoot())
   }
 }
 
@@ -770,5 +770,5 @@ function readDirSafe(dir) {
 }
 
 function toRel(absPath) {
-  return path.relative(MUSIC_ROOT, absPath).split(path.sep).join('/')
+  return path.relative(getMusicRoot(), absPath).split(path.sep).join('/')
 }

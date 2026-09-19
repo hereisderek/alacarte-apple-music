@@ -3,9 +3,8 @@ import path from 'node:path'
 
 import { artworkUrl } from './appleApi.mjs'
 import { ensureDir, sanitizeSegment } from './folderLayout.mjs'
-import { purgePlaylistExportsSharingIds } from './libraryIndex.mjs'
+import { getMusicRoot, purgePlaylistExportsSharingIds } from './libraryIndex.mjs'
 
-const MUSIC_ROOT = process.env.AMDL_MUSIC_PATH || '/music'
 
 // Shared playlist export writer: m3u8 under <music>/Playlists plus an Apple
 // cover image sidecar. Used by full playlist downloads and followed-playlist
@@ -18,12 +17,12 @@ export async function writePlaylistM3U({
     artworkTemplate,
     reuseArtwork = false,
 }) {
-    const playlistsDir = path.join(MUSIC_ROOT, 'Playlists')
+    const playlistsDir = path.join(getMusicRoot(), 'Playlists')
     await ensureDir(playlistsDir)
     const base = sanitizeSegment(playlistName || 'Playlist')
     const filePath = path.join(playlistsDir, `${base}.m3u8`)
 
-    await purgePlaylistExportsSharingIds(MUSIC_ROOT, {
+    await purgePlaylistExportsSharingIds(getMusicRoot(), {
         playlistId,
         libraryPlaylistId,
         keepAbsPath: filePath,
