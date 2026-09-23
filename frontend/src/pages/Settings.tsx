@@ -961,9 +961,9 @@ function MediaUserTokenForm({ settings, onChange }: { settings: PublicSettings; 
   return (
     <form className="space-y-3" onSubmit={save}>
       <div className="text-sm text-white/55">
-        Required for lyrics. Grab the raw value from{' '}
+        Required for lyrics. In your browser open{' '}
         <a href="https://music.apple.com" target="_blank" rel="noopener noreferrer" className="text-accent underline underline-offset-2 decoration-accent/50 hover:text-white">music.apple.com</a>
-        {' '}→ DevTools → Application → Cookies.
+        , play any song, then in the web inspector storage tab open the cookies for music.apple.com and double-click the value of the media-user-token row to copy the full string, it's long and opaque
       </div>
       {settings.hasMediaUserToken && (
         <div className="text-sm text-emerald-400">Currently stored.</div>

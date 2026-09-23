@@ -389,11 +389,17 @@ async function runSyncPass(
         artworkColor: meta.artworkColor || record.artworkColor,
         isUserCreated: meta.isUserCreated ?? record.isUserCreated,
         knownTrackIds: nextKnown,
-        trackIndex: tracks.map((track) => ({
-            id: track.id,
-            name: track.name,
-            artistName: track.artistName,
-        })),
+        trackIndex: tracks.map((track) => {
+            const existing = record.trackIndex.find(
+                (t) => t.id === track.id && t.version,
+            )
+            return {
+                id: track.id,
+                name: track.name,
+                artistName: track.artistName,
+                version: existing?.version || '',
+            }
+        }),
         totalTrackCount: tracks.length,
         missingTrackCount: missingCount,
         undownloadableTrackCount: undownloadableCount,

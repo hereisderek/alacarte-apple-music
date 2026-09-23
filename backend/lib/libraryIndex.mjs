@@ -14,7 +14,7 @@ import {
 
 export { stripTrailingYear }
 
-const MUSIC_ROOT = process.env.AMDL_MUSIC_PATH || '/music'
+
 const AUDIO_RE = /\.(flac|m4a|mp3)$/i
 
 const SCAN_TTL_MS = 30_000
@@ -30,7 +30,7 @@ let _scanCache = null
 let _scanCacheAt = 0
 
 export function getMusicRoot() {
-  return MUSIC_ROOT
+  return process.env.AMDL_MUSIC_PATH || '/music'
 }
 
 async function getCachedIndex() {
@@ -82,6 +82,7 @@ function emptyIndex() {
     isrcs: new Set(),
     upcs: new Set(),
     songPaths: new Map(),
+    songVersionPaths: new Map(),
     albumVersionGroups: new Map(),
   }
 }
@@ -115,14 +116,14 @@ async function walkLibrary(mode) {
   await scanPlaylistsDir(ctx, acc)
 
   const seenArtistDirs = new Set()
-  const artistEntries = await readDirSafe(MUSIC_ROOT)
+  const artistEntries = await readDirSafe(getMusicRoot())
   for (const artistEntry of artistEntries) {
     if (!artistEntry.isDirectory()) continue
     if (artistEntry.name.startsWith('.')) continue
     if (artistEntry.name === 'Playlists') continue
 
     const artistName = artistEntry.name
-    const artistPath = path.join(MUSIC_ROOT, artistName)
+    const artistPath = path.join(getMusicRoot(), artistName)
     seenArtistDirs.add(artistPath)
     const artistStat = await statSafe(artistPath)
     const cachedArtist = useCache ? getDirRow(db, artistPath) : null
@@ -167,7 +168,7 @@ async function walkLibrary(mode) {
     }
     if (persist) {
       deleteDirRowsNotIn(db, artistPath, seenChildPaths)
-      upsertDirRow(db, artistPath, artistStat, 'artist', MUSIC_ROOT)
+      upsertDirRow(db, artistPath, artistStat, 'artist', getMusicRoot())
     }
   }
 
@@ -201,7 +202,7 @@ async function walkLibrary(mode) {
 }
 
 async function scanPlaylistsDir(ctx, acc) {
-  const playlistsDir = path.join(MUSIC_ROOT, 'Playlists')
+  const playlistsDir = path.join(getMusicRoot(), 'Playlists')
   const dirStat = await statSafe(playlistsDir)
   if (!dirStat?.isDirectory()) return
 
@@ -243,7 +244,7 @@ async function scanPlaylistsDir(ctx, acc) {
   }
   if (ctx.persist) {
     deleteFileRowsNotIn(ctx.db, playlistsDir, seen)
-    upsertDirRow(ctx.db, playlistsDir, dirStat, 'playlists', MUSIC_ROOT)
+    upsertDirRow(ctx.db, playlistsDir, dirStat, 'playlists', getMusicRoot())
   }
 }
 
@@ -258,6 +259,7 @@ async function scanAudioDir(dirPath, kind, artistName, ctx, acc) {
   if (!dirStat?.isDirectory()) return
 
   const dirGroup = kind === 'album' ? await readDirGroup(dirPath) : null
+  const dirHasFlac = kind === 'album'
   const cachedDir = ctx.useCache ? getDirRow(ctx.db, dirPath) : null
   if (cachedDir && Math.round(dirStat.mtimeMs) === cachedDir.mtime) {
     aggregateAudioDirFromRows(
@@ -268,6 +270,7 @@ async function scanAudioDir(dirPath, kind, artistName, ctx, acc) {
       cachedDir.mtime,
       acc,
       dirGroup,
+      dirHasFlac,
     )
     return
   }
@@ -314,13 +317,13 @@ async function scanAudioDir(dirPath, kind, artistName, ctx, acc) {
         albumKey,
         isrc: tags.isrc || null,
         upc: tags.upc || null,
-        meta: { hasLyrics },
+        meta: dirGroup ? { hasLyrics, version: dirGroup } : { hasLyrics },
       })
       if (ctx.persist) upsertFileRow(ctx.db, row)
     }
     rows.push(row)
   }
-  aggregateAudioDirFromRows(rows, kind, artistName, dirPath, addedAtFromStat(dirStat), acc, dirGroup)
+  aggregateAudioDirFromRows(rows, kind, artistName, dirPath, addedAtFromStat(dirStat), acc, dirGroup, dirHasFlac)
   if (ctx.persist) {
     deleteFileRowsNotIn(ctx.db, dirPath, seen)
     upsertDirRow(ctx.db, dirPath, dirStat, kind, path.dirname(dirPath))
@@ -367,7 +370,8 @@ function parseFileRow(row) {
   return { ...row, metaParsed: meta }
 }
 
-function aggregateAudioDirFromRows(rawRows, kind, artistName, dirPath, dirAddedAt, acc, dirGroup = null) {
+function aggregateAudioDirFromRows(rawRows, kind, artistName, dirPath, dirAddedAt, acc, dirGroup = null, dirHasFlac = false) {
+    let versionGroup = dirGroup || null
   const rows = rawRows.map(parseFileRow)
   if (rows.length === 0) return
   const rel = toRel(dirPath)
@@ -395,7 +399,7 @@ function aggregateAudioDirFromRows(rawRows, kind, artistName, dirPath, dirAddedA
       acc.albumKeys.add(albumKey)
       acc.albumTrackKeys.set(albumKey, trackSet)
     }
-    const versionGroup = dirGroup || (rows.some((r) => /\.flac$/i.test(r.path)) ? 'lossless' : null)
+    versionGroup = dirGroup || (rows.some((r) => /\.flac$/i.test(r.path)) ? 'lossless' : null)
     if (versionGroup) {
       const baseAlbumName = albumName.replace(/\s*\((FLAC|ALAC|Atmos|AAC)\)$/i, '')
       const baseKey = makeAlbumKey(artistName, baseAlbumName)
@@ -423,6 +427,16 @@ function aggregateAudioDirFromRows(rawRows, kind, artistName, dirPath, dirAddedA
       acc.songKeys.add(row.song_key)
       if (!acc.songPaths.has(row.song_key)) {
         acc.songPaths.set(row.song_key, toRel(row.path))
+      }
+    }
+    if (row.song_key && !acc.songVersionPaths.has(row.song_key)) {
+      acc.songVersionPaths.set(row.song_key, [])
+    }
+    if (row.song_key) {
+      const rel = toRel(row.path)
+      const versions = acc.songVersionPaths.get(row.song_key)
+      if (!versions.some((v) => v.rel === rel)) {
+        versions.push({ rel, group: versionGroup || 'primary' })
       }
     }
     if (row.isrc) acc.isrcs.add(row.isrc)
@@ -770,5 +784,5 @@ function readDirSafe(dir) {
 }
 
 function toRel(absPath) {
-  return path.relative(MUSIC_ROOT, absPath).split(path.sep).join('/')
+  return path.relative(getMusicRoot(), absPath).split(path.sep).join('/')
 }

@@ -111,8 +111,8 @@ export function NavDrawer({ open, onClose }: Props) {
               Browse
             </div>
             <DrawerRow to="/search" icon={SearchIcon} label="Search" />
-            <DrawerRow to="/library" icon={LibraryIcon} label="Library" />
-            <DrawerRow to="/cloud-library" icon={Cloud} label="Cloud" />
+            <DrawerRow to="/library" icon={LibraryIcon} label="Downloads" />
+            <DrawerRow to="/cloud-library" icon={Cloud} label="Apple Music" />
             <DrawerRow to="/following" icon={UserRoundCheck} label="Following" />
 
             <div className="mb-1 mt-4 px-3 text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-white/40">
