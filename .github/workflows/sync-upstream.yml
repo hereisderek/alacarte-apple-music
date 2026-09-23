@@ -70,21 +70,25 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CONFLICTS: ${{ steps.merge.outputs.conflicts }}
         run: |
+          BODY=$(cat <<EOF
+          Automated upstream synchronization with \`sosjalapeno/alacarte:main\` encountered merge conflicts.
+
+          ### Conflicting Files:
+          \`\`\`
+          ${CONFLICTS:-Unable to list}
+          \`\`\`
+
+          ### How to resolve locally:
+          \`\`\`bash
+          git remote add upstream https://github.com/sosjalapeno/alacarte.git # if not already added
+          git fetch upstream main
+          git merge upstream/main
+          # Open the conflicting files and resolve conflict markers
+          git commit
+          git push origin main
+          \`\`\`
+          EOF
+          )
           gh issue create \
             --title "Upstream Sync Conflict Detected" \
-            --body "Automated upstream synchronization with \`sosjalapeno/alacarte:main\` encountered merge conflicts.
-
-### Conflicting Files:
-\`\`\`
-${CONFLICTS:-Unable to list}
-\`\`\`
-
-### How to resolve locally:
-\`\`\`bash
-git remote add upstream https://github.com/sosjalapeno/alacarte.git # if not already added
-git fetch upstream main
-git merge upstream/main
-# Open the conflicting files and resolve conflict markers
-git commit
-git push origin main
-\`\`\`"
+            --body "$BODY"
