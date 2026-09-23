@@ -44,6 +44,9 @@ type Supervisor struct {
 	loginListeners map[chan string]struct{}
 	stopping       bool
 	lastLoginErr   string
+	// Track consecutive clean exits for exponential backoff
+	cleanExitCount int
+	lastStartTime  time.Time
 }
 
 func NewSupervisor(wrapperBin, wrapperDataDir string, normalArgs []string) *Supervisor {
@@ -141,6 +144,7 @@ func (s *Supervisor) StartNormal() {
 
 	s.normalCmd = cmd
 	s.mode = ModeNormal
+	s.lastStartTime = time.Now()
 	log.Printf("[supervisor] normal wrapper started with PID %d", cmd.Process.Pid)
 
 	go func() {
@@ -178,19 +182,35 @@ func (s *Supervisor) StartNormal() {
 		}
 
 		log.Printf("[supervisor] normal wrapper exited with code %d", exitCode)
+
+		s.mu.Lock()
+		uptime := time.Since(s.lastStartTime)
+		s.mode = ModeIdle
+
 		if exitCode == 0 {
-			s.mu.Lock()
-			s.mode = ModeIdle
+			// Clean exit — likely no credentials yet, or session ended.
+			// Use exponential backoff for consecutive clean exits to
+			// avoid a tight restart loop, but always restart so the
+			// wrapper comes back when credentials are supplied.
+			if uptime > 30*time.Second {
+				// Ran for a meaningful duration → reset backoff
+				s.cleanExitCount = 0
+			}
+			s.cleanExitCount++
+			delay := time.Duration(5<<(s.cleanExitCount-1)) * time.Second
+			if delay > 60*time.Second {
+				delay = 60 * time.Second
+			}
 			s.mu.Unlock()
-			log.Printf("[supervisor] wrapper exited cleanly (waiting for Apple credentials)")
+			log.Printf("[supervisor] wrapper exited cleanly, restarting in %s...", delay)
+			time.Sleep(delay)
 		} else {
-			s.mu.Lock()
-			s.mode = ModeIdle
+			s.cleanExitCount = 0
 			s.mu.Unlock()
 			log.Printf("[supervisor] wrapper crashed, restarting in 3s...")
 			time.Sleep(3 * time.Second)
-			s.StartNormal()
 		}
+		s.StartNormal()
 	}()
 }
 
