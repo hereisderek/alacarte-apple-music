@@ -398,7 +398,7 @@ export function FollowingPage() {
                 <EmptyState
                     icon={<ListMusic className="h-5 w-5" />}
                     title="No playlists followed yet."
-                    body="Open one of your Apple Music playlists (or any Apple playlist) and use Follow. ALACarte will download every track you add to it."
+                    body="Open one of your Apple Music playlists (or any Apple playlist) and use Follow. alacarte will download every track you add to it."
                     linkLabel="Browse cloud playlists"
                     linkHref="/cloud-library?tab=playlists"
                 />

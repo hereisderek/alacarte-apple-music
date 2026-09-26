@@ -1,3 +1,4 @@
+import { hasValidApiToken } from './apiToken.mjs'
 import { isAuthDisabled } from './requireAuth.mjs'
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
@@ -14,10 +15,12 @@ function parseSourceHost(value) {
 }
 
 export function originGuard() {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     if (isAuthDisabled()) return next()
     if (!req.path.startsWith('/api/')) return next()
     if (SAFE_METHODS.has(req.method)) return next()
+    // bearer tokens are not sent automatically by browsers, so no CSRF risk
+    if (await hasValidApiToken(req)) return next()
 
     const expectedHost = req.headers.host
 

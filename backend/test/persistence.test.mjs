@@ -57,6 +57,15 @@ test('full scan indexes the library and writes cache rows', async () => {
     'Artist One/Great Album/01. First Song.flac',
   )
 
+  // findSongPathInLibrary resolves existing files so playlist downloads can
+  // reference them instead of downloading again
+  const { findSongPathInLibrary } = await import('../lib/libraryIndex.mjs')
+  assert.equal(
+    await findSongPathInLibrary('Artist One', 'First Song', null, index),
+    path.join(tmpMusic, 'Artist One/Great Album/01. First Song.flac'),
+  )
+  assert.equal(await findSongPathInLibrary('Artist One', 'Missing Song', null, index), null)
+
   const files = getDb().prepare('SELECT COUNT(*) AS n FROM library_files').get()
   assert.equal(files.n, 3)
   const dirs = getDb().prepare('SELECT COUNT(*) AS n FROM library_dirs').get()
@@ -233,4 +242,24 @@ test('followed playlist m3u export lists present tracks in order', async () => {
   // projected records hide the bulky trackIndex from API clients
   const projected = store.projectPlaylist(record)
   assert.equal(projected.trackIndex, undefined)
+})
+
+test('an outdated identity tag version re-reads cached files once', async () => {
+  const { buildMinimalFlacWithTags } = await import('../lib/audioTags.mjs')
+  const { scanLibrary, invalidateLibraryCache } = await import('../lib/libraryIndex.mjs')
+  const file = path.join(tmpMusic, 'Tagged Artist/Tagged Album/01. Tagged.flac')
+  fs.mkdirSync(path.dirname(file), { recursive: true })
+  fs.writeFileSync(file, buildMinimalFlacWithTags({ isrc: 'USRC15555555' }))
+  invalidateLibraryCache()
+  assert.ok((await scanLibrary()).isrcs.has('USRC15555555'))
+
+  // Simulate a row cached by a reader that could not see this file's ISRC.
+  getDb().prepare('UPDATE library_files SET isrc = NULL WHERE path = ?').run(file)
+  invalidateLibraryCache()
+  assert.ok(!(await scanLibrary()).isrcs.has('USRC15555555'))
+
+  setMeta('identity_tags_version', '1')
+  invalidateLibraryCache()
+  assert.ok((await scanLibrary()).isrcs.has('USRC15555555'))
+  assert.equal(getMeta('identity_tags_version'), '2')
 })

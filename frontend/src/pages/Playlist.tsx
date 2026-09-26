@@ -461,7 +461,7 @@ export function PlaylistPage() {
                 {playlist?.name || 'Playlist'}
               </h2>
               <p className="mt-2 text-sm text-white/60">
-                ALACarte will watch this playlist and automatically download
+                alacarte will watch this playlist and automatically download
                 tracks you add to it. Removing a track from the playlist keeps
                 its download in your library.
               </p>

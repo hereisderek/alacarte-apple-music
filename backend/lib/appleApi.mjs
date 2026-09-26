@@ -39,6 +39,7 @@ export async function searchCatalog({
   language = 'en-US',
   mediaUserToken,
   signal,
+  withRelationships = false,
 }) {
   const qs = new URLSearchParams({
     term,
@@ -48,6 +49,11 @@ export async function searchCatalog({
     offset: String(offset),
     l: language,
   })
+  if (withRelationships) {
+    // search ignores a bare include; per-type includes add artist/album ids
+    qs.set('include[songs]', 'artists,albums')
+    qs.set('include[albums]', 'artists')
+  }
   const url = `${BASE}/${encodeURIComponent(storefront)}/search?${qs.toString()}`
   return apiGet(url, { language, mediaUserToken, signal })
 }
