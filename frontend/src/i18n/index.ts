@@ -36,7 +36,23 @@ void i18n
     resources: {
       en: { translation: en },
       zh: { translation: zh },
-      'zh-hant': { translation: zhHant },
+      // Registered under 'zh-Hant' (title-cased script subtag), NOT our own
+      // lowercase 'zh-hant' code below — i18next's internal language-resolution
+      // hierarchy (services.languageUtils.formatLanguageCode /
+      // toResolveHierarchy) always title-cases a small set of known script
+      // subtags including 'hant' (see i18next's own specialCases list), so
+      // calling changeLanguage('zh-hant') builds the lookup order
+      // ['zh-Hant', 'zh', 'en'] regardless of the casing we pass in. If the
+      // resource bundle key here doesn't match that exact 'zh-Hant' casing,
+      // the lookup silently falls through to the 'zh' bundle instead —
+      // i18n.language still reads back as 'zh-hant' (so this is easy to miss
+      // in casual testing), but every t() call resolves to Simplified
+      // Chinese. Confirmed by reproducing against the installed i18next
+      // package directly. Our own public-facing code stays the lowercase
+      // 'zh-hant' everywhere else (SUPPORTED_LANGUAGES, settings storage,
+      // backend LANGUAGE_CATALOG) — only this resources key needs the
+      // i18next-internal casing.
+      'zh-Hant': { translation: zhHant },
       ja: { translation: ja },
       ko: { translation: ko },
       es: { translation: es },
