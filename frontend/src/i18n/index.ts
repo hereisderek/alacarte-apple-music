@@ -4,20 +4,25 @@ import LanguageDetector from 'i18next-browser-languagedetector'
 
 import en from './locales/en.json'
 import zh from './locales/zh.json'
+import zhHant from './locales/zh-hant.json'
 import ja from './locales/ja.json'
 import ko from './locales/ko.json'
 import es from './locales/es.json'
 import fr from './locales/fr.json'
 
 // Small, curated set of UI languages — must match backend/lib/metadataLanguage.mjs's
-// LANGUAGE_CATALOG. Chinese ships as Simplified only for now (see README's
-// "Language support" section for the follow-up on Traditional Chinese).
-export const SUPPORTED_LANGUAGES = ['en', 'zh', 'ja', 'ko', 'es', 'fr'] as const
+// LANGUAGE_CATALOG. 'zh' is Simplified Chinese (kept as the bare code for
+// backward compatibility with existing installs/locale files) and 'zh-hant'
+// is Traditional Chinese — see metadataLanguage.mjs's LANGUAGE_CATALOG
+// comment and README's "Language support" section for why 'zh' wasn't
+// renamed to 'zh-Hans'.
+export const SUPPORTED_LANGUAGES = ['en', 'zh', 'zh-hant', 'ja', 'ko', 'es', 'fr'] as const
 export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number]
 
 export const LANGUAGE_NATIVE_LABELS: Record<SupportedLanguage, string> = {
   en: 'English',
   zh: '简体中文',
+  'zh-hant': '繁體中文',
   ja: '日本語',
   ko: '한국어',
   es: 'Español',
@@ -31,6 +36,7 @@ void i18n
     resources: {
       en: { translation: en },
       zh: { translation: zh },
+      'zh-hant': { translation: zhHant },
       ja: { translation: ja },
       ko: { translation: ko },
       es: { translation: es },
@@ -46,6 +52,17 @@ void i18n
       // (it lives in backend settings, not just localStorage).
       order: ['localStorage', 'navigator'],
       caches: ['localStorage'],
+      // Without this, i18next's own region-stripping (nonExplicitSupportedLngs)
+      // would reduce every zh-* browser locale — including zh-TW/zh-HK/zh-Hant-* —
+      // down to the bare 'zh', so Traditional-Chinese browsers would silently
+      // auto-detect into the Simplified translation. Bucket by script/region
+      // first, using the same Hant-vs-bare split as metadataLanguage.mjs's
+      // STOREFRONT_HOME_LANGUAGE convention, before i18next's own matching runs.
+      convertDetectedLanguage: (lng: string) => {
+        const lower = lng.toLowerCase()
+        if (!lower.startsWith('zh')) return lng
+        return lower.includes('hant') || /^zh-(tw|hk|mo)\b/.test(lower) ? 'zh-hant' : 'zh'
+      },
     },
     interpolation: { escapeValue: false },
   })

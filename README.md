@@ -124,12 +124,14 @@ Wrapper response type 4 is a generic StoreServices failure, not a credential dia
 
 ## Language support
 
-ALACarte separates two independent language preferences, both in **Settings → Library output**:
+ALACarte separates two independent language preferences:
 
-1. **Web interface language** — translates the app's own UI (navigation, and the language settings below). Choose an explicit language, or "Follow system default" to use your browser's language, falling back to English if it isn't one of the ones below or can't be detected. Built with [react-i18next](https://react.i18next.com/) + [i18next-browser-languagedetector](https://github.com/i18next/i18next-browser-languageDetector).
-2. **Accepted languages for music metadata** — an ordered preference list (drag to reorder, click a suggestion to add, × to remove) plus a **downloaded file naming language** mode. These control what language song/album/artist *names* are downloaded in — independent of the UI language above.
+1. **Location** — the very first control in **Settings → Catalog** — translates the app's own UI (every page: Home, Search, Downloads/Queue, Apple Music/cloud library, Following, Status, Settings, and shared components like modals and quality pickers). Choose an explicit language, or "Follow system default" to use your browser's language, falling back to English if it isn't one of the ones below or can't be detected. Built with [react-i18next](https://react.i18next.com/) + [i18next-browser-languagedetector](https://github.com/i18next/i18next-browser-languageDetector).
+2. **Accepted languages for music metadata** and **downloaded file naming language**, in **Settings → Library output** — an ordered preference list (drag to reorder, click a suggestion to add, × to remove) plus a naming mode. These control what language song/album/artist *names* are downloaded in — independent of the UI language above.
 
-Currently translated/supported: **English, Chinese (Simplified), Japanese, Korean, Spanish, French** — a deliberately small starter set rather than exhaustive coverage. Chinese ships as Simplified only for now; Traditional Chinese, and covering every remaining visible UI string beyond navigation/settings, are natural follow-ups.
+Currently translated/supported: **English, Chinese (Simplified), Chinese (Traditional), Japanese, Korean, Spanish, French** — the full UI is now translated, not just navigation/settings.
+
+**Simplified vs. Traditional Chinese codes:** Apple's own catalog API already uses BCP-47 script subtags for Chinese (see `STOREFRONT_HOME_LANGUAGE` in `backend/lib/metadataLanguage.mjs`, which has always used `zh-Hant-TW`/`zh-Hant-HK`). Under that scheme the original `zh` code here is really "zh-Hans" (Simplified). Rather than renaming it — which would silently break any existing install with `acceptedLanguages`/`uiLanguage` already set to `zh`, or the existing `zh.json` locale file — `zh` is kept as-is for Simplified Chinese, and `zh-hant` (lowercased, to match this app's other codes and its lowercase-normalizing settings validation) is added alongside it for Traditional Chinese. `detectScript()`'s cheap script-range check still can't tell Simplified from Traditional apart by character shape alone, so a detected Han-script original name is treated as matching either `zh` or `zh-hant` in your accepted-languages list.
 
 ### Naming language modes
 
@@ -157,10 +159,10 @@ When a naming mode other than "Display" is active, FLAC downloads also get the o
 
 ### Follow-up work
 
-- Cover every remaining visible UI string, not just navigation/settings.
-- Traditional Chinese, plus a handful more languages, in both the UI and accepted-languages list.
-- Per-track original-language naming for playlists and for "fill missing tracks" album backfills (currently display-only, to keep Apple API call volume flat for bulk flows).
+- A handful more UI languages beyond the current six.
+- A real per-character Hanzi-variant table (or a language-detection library), so "original if accepted" can distinguish Simplified from Traditional Chinese by script alone, instead of treating a detected Han-script name as matching either accepted-language code.
 - A real language-detection library, so "original if accepted" can distinguish Latin-script languages from one another instead of only CJK/Hangul vs. everything else.
+- Per-track original-language naming for playlists and for "fill missing tracks" album backfills (currently display-only, to keep Apple API call volume flat for bulk flows).
 - A storefront/home-locale map covering more than the storefronts already offered in the Storefront picker.
 
 ## Notes and limits

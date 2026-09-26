@@ -1,11 +1,13 @@
+import { useTranslation } from 'react-i18next'
+
 import type { QualityPreference } from '../api/client'
 import { cx } from '../lib/cx'
 
-export const QUALITY_OPTIONS: Array<{ value: QualityPreference; label: string; hint: string }> = [
-  { value: 'flac', label: 'FLAC', hint: 'Convert lossless downloads to FLAC' },
-  { value: 'alac', label: 'ALAC', hint: 'Keep Apple Lossless output' },
-  { value: 'atmos', label: 'Dolby Atmos', hint: 'Try Atmos when available' },
-  { value: 'aac', label: 'AAC', hint: 'Smaller lossy files' },
+export const QUALITY_OPTIONS: Array<{ value: QualityPreference; labelKey: string; hintKey: string }> = [
+  { value: 'flac', labelKey: 'qualityPicker.flacLabel', hintKey: 'qualityPicker.flacHint' },
+  { value: 'alac', labelKey: 'qualityPicker.alacLabel', hintKey: 'qualityPicker.alacHint' },
+  { value: 'atmos', labelKey: 'qualityPicker.atmosLabel', hintKey: 'qualityPicker.atmosHint' },
+  { value: 'aac', labelKey: 'qualityPicker.aacLabel', hintKey: 'qualityPicker.aacHint' },
 ]
 
 type Props = {
@@ -15,8 +17,9 @@ type Props = {
 }
 
 export function QualityPicker({ value, onChange, className }: Props) {
+  const { t } = useTranslation()
   return (
-    <div className={cx('grid gap-2', className)} role="radiogroup" aria-label="Download quality">
+    <div className={cx('grid gap-2', className)} role="radiogroup" aria-label={t('qualityPicker.ariaLabel')}>
       {QUALITY_OPTIONS.map((option) => {
         const selected = value === option.value
         return (
@@ -42,8 +45,8 @@ export function QualityPicker({ value, onChange, className }: Props) {
               )}
             />
             <span className="min-w-0">
-              <span className="block text-sm font-medium">{option.label}</span>
-              <span className="mt-0.5 block text-xs text-white/50">{option.hint}</span>
+              <span className="block text-sm font-medium">{t(option.labelKey)}</span>
+              <span className="mt-0.5 block text-xs text-white/50">{t(option.hintKey)}</span>
             </span>
           </button>
         )

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Download, Clock3, Badge as BadgeIcon, Check } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import {
   api,
@@ -36,6 +37,7 @@ function formatDur(ms: number | undefined) {
 }
 
 export function AlbumPage() {
+  const { t } = useTranslation()
   const { id } = useParams<{ id: string }>()
   const [album, setAlbum] = useState<AlbumDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -97,7 +99,7 @@ export function AlbumPage() {
                 id: r.album.id,
                 artistName: r.album.artistName,
                 name: r.album.name,
-                tracks: r.album.tracks.map((t) => ({ id: t.id, name: t.name, isrc: t.isrc })),
+                tracks: r.album.tracks.map((tr) => ({ id: tr.id, name: tr.name, isrc: tr.isrc })),
               },
               true,
             )
@@ -106,7 +108,7 @@ export function AlbumPage() {
       })
       .catch((err) => {
         if (!cancelled) {
-          setError(err.message || 'Failed to load')
+          setError(err.message || t('album.loadError'))
         }
       })
     return () => {
@@ -122,7 +124,7 @@ export function AlbumPage() {
           id: album.id,
           artistName: album.artistName,
           name: album.name,
-          tracks: album.tracks.map((t) => ({ id: t.id, name: t.name, isrc: t.isrc })),
+          tracks: album.tracks.map((tr) => ({ id: tr.id, name: tr.name, isrc: tr.isrc })),
         },
         false,
       )
@@ -142,7 +144,7 @@ export function AlbumPage() {
         await verifyAlbumPresence(album)
         return
       }
-      setError(err?.message || 'Enqueue failed')
+      setError(err?.message || t('album.enqueueFailed'))
     } finally {
       setEnqueueing(false)
     }
@@ -161,16 +163,16 @@ export function AlbumPage() {
     const offered = appSettings.versionOptions || []
     const options: Array<{ group: QualityGroup; quality?: QualityPreference; label: string }> = []
     if (offered.includes('atmos') && album.hasAtmos && !presentGroups.includes('atmos')) {
-      options.push({ group: 'atmos', quality: 'atmos', label: 'Get Atmos version' })
+      options.push({ group: 'atmos', quality: 'atmos', label: t('album.getAtmosVersion') })
     }
     if (offered.includes('lossless') && !presentGroups.includes('lossless') && (album.hasLossless ?? true)) {
-      options.push({ group: 'lossless', quality: 'flac', label: 'Get lossless version' })
+      options.push({ group: 'lossless', quality: 'flac', label: t('album.getLosslessVersion') })
     }
     if (offered.includes('aac') && !presentGroups.includes('aac')) {
-      options.push({ group: 'aac', quality: 'aac', label: 'Get AAC version' })
+      options.push({ group: 'aac', quality: 'aac', label: t('album.getAacVersion') })
     }
     return options
-  }, [album, alreadyInLibrary, presentGroups, appSettings])
+  }, [album, alreadyInLibrary, presentGroups, appSettings, t])
   const [variantEnqueueing, setVariantEnqueueing] = useState<string | null>(null)
 
   const onVariantDownload = async (label: string, run: () => Promise<unknown>) => {
@@ -179,7 +181,7 @@ export function AlbumPage() {
       await run()
     } catch (err: any) {
       if (!/already in library/i.test(String(err?.message || ''))) {
-        setError(err?.message || 'Enqueue failed')
+        setError(err?.message || t('album.enqueueFailed'))
       }
       await verifyAlbumPresence(album)
     } finally {
@@ -187,18 +189,18 @@ export function AlbumPage() {
     }
   }
   const downloadButtonLabel = enqueueing
-    ? 'Queueing…'
+    ? t('album.queueing')
     : alreadyInLibrary
-    ? 'Already in library'
+    ? t('album.alreadyInLibrary')
     : existingJob?.status === 'done'
-    ? 'Already imported'
+    ? t('album.alreadyImported')
     : existingJob?.status === 'queued'
-    ? 'Queued'
+    ? t('album.queued')
     : existingJob?.status === 'running'
-    ? 'Downloading…'
+    ? t('album.downloading')
     : partialState && missingCount > 0
-    ? `Fill missing tracks · ${missingCount}`
-    : 'Download'
+    ? t('album.fillMissingTracks', { count: missingCount })
+    : t('album.download')
 
   return (
     <div className="mx-auto w-full max-w-6xl pt-4 md:pt-6">
@@ -227,7 +229,7 @@ export function AlbumPage() {
               animate={{ x: (isMobile ? false : vinylHovered) ? '140px' : 0 }}
               transition={vinylSpring}
             >
-              <div className="text-xs uppercase tracking-wider text-white/55 mb-1">Album</div>
+              <div className="text-xs uppercase tracking-wider text-white/55 mb-1">{t('album.albumLabel')}</div>
               <h1 className="text-2xl md:text-4xl font-bold tracking-tight">{stripYear(album.name)}</h1>
               <div className="mt-1 text-white/70">
                 <ResolvedMediaLink
@@ -239,7 +241,7 @@ export function AlbumPage() {
                   {album.artistName}
                 </ResolvedMediaLink>
                 {album.year ? ` · ${album.year}` : ''}
-                {album.trackCount ? ` · ${album.trackCount} tracks` : ''}
+                {album.trackCount ? ` · ${t('album.trackCount', { count: album.trackCount })}` : ''}
               </div>
               {album.artists && album.artists.length > 1 && (
                 <div className="mt-2 flex flex-wrap gap-2 text-sm text-white/65">
@@ -251,11 +253,11 @@ export function AlbumPage() {
                 </div>
               )}
               <div className="mt-2 flex flex-wrap gap-1.5">
-                {album.hasHiRes && <Badge>Hi-Res Lossless</Badge>}
-                {album.hasLossless && !album.hasHiRes && <Badge>Lossless</Badge>}
-                {album.hasAtmos && <Badge>Dolby Atmos</Badge>}
-                {album.contentRating === 'explicit' && <Badge>Explicit</Badge>}
-                {album.contentRating === 'clean' && <Badge>Clean</Badge>}
+                {album.hasHiRes && <Badge>{t('album.hiResLossless')}</Badge>}
+                {album.hasLossless && !album.hasHiRes && <Badge>{t('album.lossless')}</Badge>}
+                {album.hasAtmos && <Badge>{t('album.dolbyAtmos')}</Badge>}
+                {album.contentRating === 'explicit' && <Badge>{t('album.explicit')}</Badge>}
+                {album.contentRating === 'clean' && <Badge>{t('album.clean')}</Badge>}
                 {album.genreNames.slice(0, 2).map((g) => (
                   <Badge key={g}>{g}</Badge>
                 ))}
@@ -298,7 +300,7 @@ export function AlbumPage() {
                       disabled={variantEnqueueing === option.label || existingJob?.status === 'running'}
                       className="border-white/20 bg-white/5 hover:bg-white/10 disabled:opacity-50"
                     >
-                      {variantEnqueueing === option.label ? 'Queueing…' : option.label}
+                      {variantEnqueueing === option.label ? t('album.queueing') : option.label}
                     </Button>
                   ))}
                 </div>
@@ -310,41 +312,41 @@ export function AlbumPage() {
             <div className="mt-2 border-t border-white/10 pt-4">
               <div className="grid grid-cols-[2rem_1fr_auto_2.25rem] md:grid-cols-[2rem_1fr_8rem_5rem_2.25rem] gap-x-3 gap-y-0 text-xs uppercase tracking-wider text-white/40 border-b border-white/5 py-2">
                 <div>#</div>
-                <div>Title</div>
-                <div className="hidden md:block">Artist</div>
+                <div>{t('album.title')}</div>
+                <div className="hidden md:block">{t('album.artist')}</div>
                 <div className="text-right"><Clock3 className="h-3.5 w-3.5 inline" /></div>
                 <div />
               </div>
-              {album.tracks.map((t) => {
-                const tArtistId = t.artistName === album.artistName 
-                  ? primaryArtistId 
-                  : album.artists?.find(a => a.name === t.artistName)?.id
-                const trackDownloaded = Boolean(trackPresence?.tracks?.[t.id])
+              {album.tracks.map((track) => {
+                const tArtistId = track.artistName === album.artistName
+                  ? primaryArtistId
+                  : album.artists?.find(a => a.name === track.artistName)?.id
+                const trackDownloaded = Boolean(trackPresence?.tracks?.[track.id])
                 const trackJob = trackDownloaded
                   ? null
                   : jobs.find(
                       (j) =>
-                        (j.songId === t.id ||
+                        (j.songId === track.id ||
                           (j.albumId === album.id && j.kind === 'album')) &&
                         (j.status === 'queued' || j.status === 'running'),
                     ) || null
 
                 return (
                 <StaggeredItem
-                  key={t.id}
+                  key={track.id}
                   className="group/track grid grid-cols-[2rem_1fr_auto_2.25rem] md:grid-cols-[2rem_1fr_8rem_5rem_2.25rem] gap-x-3 py-2.5 items-center border-b border-white/5 hover:bg-accent/[0.05] transition-colors rounded-[6px]"
                 >
-                  <div className="text-white/45 tabular-nums text-sm">{t.trackNumber ?? '—'}</div>
+                  <div className="text-white/45 tabular-nums text-sm">{track.trackNumber ?? '—'}</div>
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">{t.name}</div>
+                    <div className="truncate text-sm font-medium">{track.name}</div>
                     <div className="md:hidden truncate text-xs text-white/50">
                       <ResolvedMediaLink
                         kind="artist"
                         artistId={tArtistId}
-                        artistName={t.artistName}
+                        artistName={track.artistName}
                         className="hover:text-accent transition-colors"
                       >
-                        {t.artistName}
+                        {track.artistName}
                       </ResolvedMediaLink>
                     </div>
                   </div>
@@ -352,16 +354,16 @@ export function AlbumPage() {
                     <ResolvedMediaLink
                       kind="artist"
                       artistId={tArtistId}
-                      artistName={t.artistName}
+                      artistName={track.artistName}
                       className="hover:text-accent transition-colors"
                     >
-                      {t.artistName}
+                      {track.artistName}
                     </ResolvedMediaLink>
                   </div>
                   <div className="text-right text-sm text-white/55 tabular-nums">
-                    {formatDur(t.durationMs)}
-                    {t.hasHiRes && (
-                      <BadgeIcon className="h-3.5 w-3.5 text-accent inline ml-1.5" aria-label="Hi-Res" />
+                    {formatDur(track.durationMs)}
+                    {track.hasHiRes && (
+                      <BadgeIcon className="h-3.5 w-3.5 text-accent inline ml-1.5" aria-label={t('album.hiRes')} />
                     )}
                   </div>
                   <div className="flex items-center justify-end">
@@ -369,12 +371,12 @@ export function AlbumPage() {
                       job={trackJob}
                       size="sm"
                       blocked={trackDownloaded}
-                      ariaLabel={`Download ${t.name}`}
+                      ariaLabel={t('album.downloadTrack', { name: track.name })}
                       onStart={async () => {
                         try {
                           const quality = await chooseDownloadQuality()
                           if (quality === false) return false
-                          await api.enqueueSong(t.id, album.id, undefined, quality)
+                          await api.enqueueSong(track.id, album.id, undefined, quality)
                           return true
                         } catch (err: any) {
                           if (/already in library/i.test(String(err?.message || ''))) {

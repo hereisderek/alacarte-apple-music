@@ -200,7 +200,7 @@ export type PublicSettings = {
   namingLanguageMode: NamingLanguageMode
 }
 
-export type UiLanguage = 'system' | 'en' | 'zh' | 'ja' | 'ko' | 'es' | 'fr'
+export type UiLanguage = 'system' | 'en' | 'zh' | 'zh-hant' | 'ja' | 'ko' | 'es' | 'fr'
 export type NamingLanguageMode = 'display' | 'original-if-accepted' | 'dual'
 
 export type AutoCheckFrequency =

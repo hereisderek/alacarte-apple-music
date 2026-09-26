@@ -11,6 +11,7 @@ import {
   ListFilter,
   ListOrdered,
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { api, type LibraryAlbum, type LibraryPlaylist, type LibrarySingle } from '../api/client'
 import { Card } from '../components/Card'
@@ -91,6 +92,7 @@ function SkeletonCard() {
 }
 
 export function LibraryPage() {
+  const { t } = useTranslation()
   const [albums, setAlbums] = useState<LibraryAlbum[]>([])
   const [singles, setSingles] = useState<LibrarySingle[]>([])
   const [playlists, setPlaylists] = useState<LibraryPlaylist[]>([])
@@ -112,7 +114,7 @@ export function LibraryPage() {
       setPlaylists(r.playlists || [])
       if (syncPresence) await refreshLibraryPresence()
     } catch (err: any) {
-      setError(err?.message || 'Failed to load library')
+      setError(err?.message || t('library.loadFailed'))
     } finally {
       setLoading(false)
     }
@@ -233,7 +235,7 @@ export function LibraryPage() {
         }
         await refreshLibraryPresence()
       } catch (err: any) {
-        setError(err?.message || 'Delete failed')
+        setError(err?.message || t('library.deleteFailed'))
         if (target.kind === 'album') {
           setAlbums((prev) =>
             prev.some((x) => x.id === target.item.id) ? prev : [...prev, target.item as LibraryAlbum],
@@ -262,19 +264,19 @@ export function LibraryPage() {
       <header className="space-y-3">
         <div className="flex items-center justify-between gap-3">
           <div className="text-sm text-white/60">
-            {totals.albums} album{totals.albums === 1 ? '' : 's'} · {totals.playlists} playlist
-            {totals.playlists === 1 ? '' : 's'} · {totals.singles} single
-            {totals.singles === 1 ? '' : 's'}
+            {t('library.albumCount', { count: totals.albums })} ·{' '}
+            {t('library.playlistCount', { count: totals.playlists })} ·{' '}
+            {t('library.singleCount', { count: totals.singles })}
           </div>
           <Button onClick={() => load(true)}>
-            <RefreshCw className="h-4 w-4" /> Refresh
+            <RefreshCw className="h-4 w-4" /> {t('library.refresh')}
           </Button>
         </div>
 
         <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
           <div>
             <label htmlFor="library-filter" className="sr-only">
-              Filter library items
+              {t('library.filterLabel')}
             </label>
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
@@ -283,7 +285,7 @@ export function LibraryPage() {
                 type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Filter this library page"
+                placeholder={t('library.filterPlaceholder')}
                 className="h-10 w-full rounded-app border border-white/10 bg-white/[0.03] pl-9 pr-3 text-sm text-white/90 placeholder:text-white/40 transition-colors hover:border-white/20 focus:border-[rgba(var(--accent),0.45)] focus:outline-none focus:ring-2 focus:ring-[rgba(var(--accent),0.2)]"
               />
             </div>
@@ -291,7 +293,7 @@ export function LibraryPage() {
 
           <div className="flex items-center gap-2 md:justify-end md:self-start">
             <label htmlFor="library-sort" className="sr-only">
-              Sort library items
+              {t('library.sortLabel')}
             </label>
             <div className="relative min-w-[210px]">
               <ListFilter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/45" />
@@ -301,10 +303,10 @@ export function LibraryPage() {
                 onChange={(e) => setSortBy(e.target.value as LibrarySort)}
                 className="h-10 w-full appearance-none rounded-app border border-white/10 bg-white/[0.03] pl-9 pr-9 text-sm text-white/90 transition-colors hover:border-white/20 focus:border-[rgba(var(--accent),0.45)] focus:outline-none focus:ring-2 focus:ring-[rgba(var(--accent),0.2)]"
               >
-                <option value="date-desc">Date added (newest)</option>
-                <option value="date-asc">Date added (oldest)</option>
-                <option value="name">Name</option>
-                <option value="artist">Artist</option>
+                <option value="date-desc">{t('library.sortDateNewest')}</option>
+                <option value="date-asc">{t('library.sortDateOldest')}</option>
+                <option value="name">{t('library.sortName')}</option>
+                <option value="artist">{t('library.sortArtist')}</option>
               </select>
             </div>
           </div>
@@ -340,12 +342,12 @@ export function LibraryPage() {
           >
             <section>
               <h2 className="text-sm font-semibold uppercase tracking-wider text-white/50 mb-3 flex items-center gap-2">
-                <Disc3 className="h-4 w-4" /> Albums
+                <Disc3 className="h-4 w-4" /> {t('library.albums')}
               </h2>
               {albums.length === 0 ? (
-                <Card className="p-6 text-sm text-white/55">No albums found.</Card>
+                <Card className="p-6 text-sm text-white/55">{t('library.noAlbumsFound')}</Card>
               ) : visibleAlbums.length === 0 ? (
-                <Card className="p-6 text-sm text-white/55">No albums match your filter.</Card>
+                <Card className="p-6 text-sm text-white/55">{t('library.noAlbumsMatch')}</Card>
               ) : (
                 <StaggeredList className="flex flex-col gap-2">
                   <AnimatePresence initial={false}>
@@ -395,13 +397,13 @@ export function LibraryPage() {
                             </ResolvedMediaLink>{' '}
                             ·{' '}
                             {a.hasLyrics && a.lyricsCount === a.trackCount
-                              ? `${a.trackCount} tracks with lyrics`
-                              : `${a.trackCount} tracks${a.hasLyrics ? ` · ${a.lyricsCount} with lyrics` : ''}`}
+                              ? t('library.tracksWithLyrics', { count: a.trackCount })
+                              : `${t('library.tracks', { count: a.trackCount })}${a.hasLyrics ? ` · ${t('library.withLyricsCount', { count: a.lyricsCount })}` : ''}`}
                           </div>
                         </div>
                         <Button onClick={() => removeAlbum(a)} disabled={Boolean(busy[a.id])}>
                           <Trash2 className="h-4 w-4" />
-                          {busy[a.id] ? 'Deleting…' : 'Delete'}
+                          {busy[a.id] ? t('library.deleting') : t('library.delete')}
                         </Button>
                       </Card>
                       </motion.div>
@@ -413,12 +415,12 @@ export function LibraryPage() {
 
             <section>
               <h2 className="text-sm font-semibold uppercase tracking-wider text-white/50 mb-3 flex items-center gap-2">
-                <ListOrdered className="h-4 w-4" /> Playlists
+                <ListOrdered className="h-4 w-4" /> {t('library.playlists')}
               </h2>
               {playlists.length === 0 ? (
-                <Card className="p-6 text-sm text-white/55">No playlists found.</Card>
+                <Card className="p-6 text-sm text-white/55">{t('library.noPlaylistsFound')}</Card>
               ) : visiblePlaylists.length === 0 ? (
-                <Card className="p-6 text-sm text-white/55">No playlists match your filter.</Card>
+                <Card className="p-6 text-sm text-white/55">{t('library.noPlaylistsMatch')}</Card>
               ) : (
                 <StaggeredList className="flex flex-col gap-2">
                   <AnimatePresence initial={false}>
@@ -442,12 +444,12 @@ export function LibraryPage() {
                           <div className="min-w-0 flex-1">
                             <div className="text-sm font-medium truncate">{p.playlistName}</div>
                             <div className="text-xs text-white/55 truncate">
-                              {p.trackCount} {p.trackCount === 1 ? 'entry' : 'entries'} · {p.fileName}
+                              {t('library.entryCount', { count: p.trackCount })} · {p.fileName}
                             </div>
                           </div>
                           <Button onClick={() => removePlaylist(p)} disabled={Boolean(busy[p.id])}>
                             <Trash2 className="h-4 w-4" />
-                            {busy[p.id] ? 'Deleting…' : 'Delete'}
+                            {busy[p.id] ? t('library.deleting') : t('library.delete')}
                           </Button>
                         </Card>
                       </motion.div>
@@ -459,12 +461,12 @@ export function LibraryPage() {
 
             <section>
               <h2 className="text-sm font-semibold uppercase tracking-wider text-white/50 mb-3 flex items-center gap-2">
-                <Music2 className="h-4 w-4" /> Singles
+                <Music2 className="h-4 w-4" /> {t('library.singles')}
               </h2>
               {singles.length === 0 ? (
-                <Card className="p-6 text-sm text-white/55">No singles found.</Card>
+                <Card className="p-6 text-sm text-white/55">{t('library.noSinglesFound')}</Card>
               ) : visibleSingles.length === 0 ? (
-                <Card className="p-6 text-sm text-white/55">No singles match your filter.</Card>
+                <Card className="p-6 text-sm text-white/55">{t('library.noSinglesMatch')}</Card>
               ) : (
                 <StaggeredList className="flex flex-col gap-2">
                   <AnimatePresence initial={false}>
@@ -503,14 +505,14 @@ export function LibraryPage() {
                             'inline-flex min-h-11 shrink-0 select-none items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm font-medium',
                             s.hasLyrics ? 'text-emerald-300' : 'text-white/45',
                           )}
-                          title={s.hasLyrics ? 'Lyrics sidecar available' : 'No lyrics sidecar'}
+                          title={s.hasLyrics ? t('library.lyricsSidecarAvailable') : t('library.noLyricsSidecar')}
                         >
                           <FileText className="h-3.5 w-3.5" />
-                          {s.hasLyrics ? 'Lyrics' : 'No lyrics'}
+                          {s.hasLyrics ? t('library.lyrics') : t('library.noLyrics')}
                         </div>
                         <Button onClick={() => removeSong(s)} disabled={Boolean(busy[s.id])}>
                           <Trash2 className="h-4 w-4" />
-                          {busy[s.id] ? 'Deleting…' : 'Delete'}
+                          {busy[s.id] ? t('library.deleting') : t('library.delete')}
                         </Button>
                       </Card>
                       </motion.div>
@@ -527,54 +529,54 @@ export function LibraryPage() {
         open={Boolean(deleteTarget)}
         onClose={closeDeleteModal}
         className="max-w-md p-6"
-        label="Confirm delete"
+        label={t('library.confirmDeleteLabel')}
         placement="center"
       >
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <Badge variant="bad">
               <AlertCircle className="h-3.5 w-3.5" />
-              Confirm delete
+              {t('library.confirmDeleteBadge')}
             </Badge>
           </div>
 
           {deleteTarget?.kind === 'album' ? (
             <>
               <h3 className="text-lg font-semibold leading-tight">
-                Delete album "{deleteTarget.item.albumName}"?
+                {t('library.deleteAlbumTitle', { name: deleteTarget.item.albumName })}
               </h3>
               <p className="text-sm text-white/60">
-                This removes all tracks and lyrics in this album folder for {deleteTarget.item.artistName}.
+                {t('library.deleteAlbumBody', { artist: deleteTarget.item.artistName })}
               </p>
             </>
           ) : deleteTarget?.kind === 'song' ? (
             <>
               <h3 className="text-lg font-semibold leading-tight">
-                Delete "{deleteTarget.item.songName}"?
+                {t('library.deleteSongTitle', { name: deleteTarget.item.songName })}
               </h3>
               <p className="text-sm text-white/60">
-                This removes the song file and its lyrics sidecar from your library.
+                {t('library.deleteSongBody')}
               </p>
             </>
           ) : deleteTarget?.kind === 'playlist' ? (
             <>
               <h3 className="text-lg font-semibold leading-tight">
-                Delete playlist "{deleteTarget.item.playlistName}"?
+                {t('library.deletePlaylistTitle', { name: deleteTarget.item.playlistName })}
               </h3>
               <p className="text-sm text-white/60">
-                {`This removes the .m3u8 file and any audio folder under Playlists/${deleteTarget.item.playlistName}/ via the library API.`}
+                {t('library.deletePlaylistBody', { name: deleteTarget.item.playlistName })}
               </p>
             </>
           ) : null}
 
           <div className="flex justify-end gap-2">
-            <Button onClick={closeDeleteModal}>Cancel</Button>
+            <Button onClick={closeDeleteModal}>{t('library.cancel')}</Button>
             <Button
               onClick={confirmDelete}
               disabled={!deleteTarget}
               className="border-rose-400/35 bg-rose-500/[0.18] text-rose-300 hover:border-rose-400/50 hover:bg-rose-500/[0.28] hover:text-rose-200"
             >
-              Delete
+              {t('library.delete')}
             </Button>
           </div>
         </div>

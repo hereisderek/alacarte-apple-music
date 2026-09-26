@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { CheckCircle2, AlertCircle, Loader2, XCircle } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useTranslation } from 'react-i18next'
 
 import { api } from '../api/client'
 import { useQueue } from '../hooks/useQueue'
@@ -36,6 +37,7 @@ function SkeletonCard() {
 }
 
 export function HomePage() {
+  const { t } = useTranslation()
   const { active, recent, loading } = useQueue()
   const recentList = recent.slice(0, 50)
   const [confirmAbortAll, setConfirmAbortAll] = useState(false)
@@ -45,7 +47,7 @@ export function HomePage() {
     <div className="mx-auto w-full max-w-6xl pt-4 md:pt-6 space-y-8">
       <section>
         <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
-          Good listening
+          {t('home.title')}
         </h1>
       </section>
 
@@ -61,7 +63,7 @@ export function HomePage() {
             <section>
               <div className="mb-3">
                 <h2 className="text-lg font-semibold flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 text-accent" /> Active
+                  <Loader2 className="h-4 w-4 text-accent" /> {t('home.active')}
                 </h2>
               </div>
               <div className="flex flex-col gap-2">
@@ -71,7 +73,7 @@ export function HomePage() {
             <section>
               <div className="mb-3">
                 <h2 className="text-lg font-semibold flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-400" /> Recently imported
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400" /> {t('home.recentlyImported')}
                 </h2>
               </div>
               <div className="flex flex-col gap-2">
@@ -91,7 +93,7 @@ export function HomePage() {
             <section>
               <div className="mb-3 flex items-center justify-between gap-3">
                 <h2 className="text-lg font-semibold flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 text-accent" /> Active
+                  <Loader2 className="h-4 w-4 text-accent" /> {t('home.active')}
                 </h2>
                 {active.length > 0 && (
                   <Button
@@ -99,13 +101,13 @@ export function HomePage() {
                     className="border-rose-400/35 bg-rose-500/[0.18] text-rose-300 hover:border-rose-400/50 hover:bg-rose-500/[0.28] hover:text-rose-200"
                   >
                     <XCircle className="h-4 w-4" />
-                    Abort all
+                    {t('home.abortAll')}
                   </Button>
                 )}
               </div>
               {active.length === 0 ? (
                 <Card className="p-6 text-sm text-white/55">
-                  Nothing downloading right now.
+                  {t('home.noActiveDownloads')}
                 </Card>
               ) : (
                 <StaggeredList className="flex flex-col gap-2">
@@ -121,13 +123,13 @@ export function HomePage() {
             <section>
               <div className="mb-3">
                 <h2 className="text-lg font-semibold flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-400" /> Recently imported
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400" /> {t('home.recentlyImported')}
                 </h2>
               </div>
               {recentList.length === 0 ? (
                 <Card className="flex items-center gap-2 p-6 text-sm text-white/55">
                   <AlertCircle className="h-4 w-4" />
-                  No completed downloads yet.
+                  {t('home.noRecentDownloads')}
                 </Card>
               ) : (
                 <StaggeredList className="flex flex-col gap-2">
@@ -149,25 +151,25 @@ export function HomePage() {
           if (!abortingAll) setConfirmAbortAll(false)
         }}
         className="max-w-md p-6"
-        label="Confirm abort all"
+        label={t('home.confirmAbortAllLabel')}
         placement="center"
       >
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <Badge variant="bad">
               <XCircle className="h-3.5 w-3.5" />
-              Abort downloads
+              {t('home.abortDownloadsBadge')}
             </Badge>
           </div>
           <h3 className="text-lg font-semibold leading-tight">
-            Abort {active.length} active download{active.length === 1 ? '' : 's'}?
+            {t('home.abortConfirmTitle', { count: active.length })}
           </h3>
           <p className="text-sm text-white/60">
-            This cancels every queued and running download. Completed history is kept.
+            {t('home.abortConfirmBody')}
           </p>
           <div className="flex justify-end gap-2">
             <Button onClick={() => setConfirmAbortAll(false)} disabled={abortingAll}>
-              Cancel
+              {t('home.cancel')}
             </Button>
             <Button
               onClick={async () => {
@@ -182,7 +184,7 @@ export function HomePage() {
               disabled={abortingAll || active.length === 0}
               className="border-rose-400/35 bg-rose-500/[0.18] text-rose-300 hover:border-rose-400/50 hover:bg-rose-500/[0.28] hover:text-rose-200"
             >
-              {abortingAll ? 'Aborting…' : 'Abort all'}
+              {abortingAll ? t('home.aborting') : t('home.abortAll')}
             </Button>
           </div>
         </div>

@@ -4,9 +4,24 @@
 // Deliberately a small, curated set rather than exhaustive i18n coverage —
 // see README's "Language support" section for what's covered today and what
 // a follow-up pass would add.
+//
+// Chinese naming: Apple's own catalog API already uses BCP-47 script
+// subtags for Chinese — see STOREFRONT_HOME_LANGUAGE below, which has always
+// used 'zh-Hant-TW'/'zh-Hant-HK' rather than plain 'zh'. Under that scheme
+// the original 'zh' code here is really "zh-Hans" (Simplified). We keep the
+// bare 'zh' code as-is rather than renaming it to 'zh-Hans', so existing
+// installs with `acceptedLanguages`/`uiLanguage` already set to 'zh' (and
+// the existing frontend/src/i18n/locales/zh.json) keep working unchanged;
+// 'zh-hant' is added alongside it as a new, distinct code for Traditional
+// Chinese — lowercased (unlike Apple's own 'zh-Hant-TW' locale tags used
+// below) to match every other code in this catalog and because
+// settingsStore.mjs's normalizeAcceptedLanguages() lowercases incoming
+// codes before checking them against this set. Must stay in sync with
+// frontend/src/i18n's SUPPORTED_LANGUAGES.
 export const LANGUAGE_CATALOG = [
   { code: 'en', label: 'English' },
   { code: 'zh', label: 'Chinese (Simplified)' },
+  { code: 'zh-hant', label: 'Chinese (Traditional)' },
   { code: 'ja', label: 'Japanese' },
   { code: 'ko', label: 'Korean' },
   { code: 'es', label: 'Spanish' },
@@ -84,6 +99,17 @@ export function detectScript(text) {
   return null
 }
 
+// ponytail: Han-script detection can't tell Simplified from Traditional
+// apart (that needs a real per-character variant table, not a cheap regex
+// range) — upgrade path is a proper Hanzi-variant table or a language-detection
+// library, see README. Until then, a detected 'zh' script is treated as
+// matching either accepted-language code, since we genuinely don't know
+// which variant the text is in.
+function scriptMatchesAccepted(script, acceptedCode) {
+  if (script === 'zh') return acceptedCode === 'zh' || acceptedCode === 'zh-hant'
+  return script === acceptedCode
+}
+
 /**
  * Resolve the final metadata name (song / album / artist) for the user's
  * naming-language preference.
@@ -107,7 +133,7 @@ export function resolveMetadataName({
 
   if (mode === 'original-if-accepted') {
     const script = detectScript(original)
-    if (script && acceptedLanguages.includes(script)) return original
+    if (script && acceptedLanguages.some((l) => scriptMatchesAccepted(script, l))) return original
     return display
   }
   if (mode === 'dual') {

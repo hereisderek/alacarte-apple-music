@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import {
   Search as SearchIcon,
   X,
@@ -49,6 +50,7 @@ function parseCats(param: string | null): Category[] {
 }
 
 export function SearchPage() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const urlQ = params.get('q') ?? ''
@@ -73,7 +75,7 @@ export function SearchPage() {
   const trimmed = useMemo(() => q.trim(), [q])
 
   useEffect(() => {
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       setParams(
         (prev) => {
           const next = new URLSearchParams(prev)
@@ -84,7 +86,7 @@ export function SearchPage() {
         { replace: true },
       )
     }, 250)
-    return () => clearTimeout(t)
+    return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q])
 
@@ -98,7 +100,7 @@ export function SearchPage() {
     if (cached) setResults(cached)
 
     const ctl = new AbortController()
-    const t = setTimeout(async () => {
+    const timer = setTimeout(async () => {
       setLoading(true)
       setError(null)
       try {
@@ -117,14 +119,14 @@ export function SearchPage() {
         resultCache.set(trimmed, next)
         setResults(next)
       } catch (err: any) {
-        if (!ctl.signal.aborted) setError(err?.message || 'Search failed')
+        if (!ctl.signal.aborted) setError(err?.message || t('search.searchFailed'))
       } finally {
         if (!ctl.signal.aborted) setLoading(false)
       }
     }, cached ? 0 : 300)
     return () => {
       ctl.abort()
-      clearTimeout(t)
+      clearTimeout(timer)
     }
   }, [trimmed, navigate])
 
@@ -177,7 +179,7 @@ export function SearchPage() {
           type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Artists, albums, songs, playlists, or Apple Music links…"
+          placeholder={t('search.searchPlaceholder')}
           className="pl-12 pr-12 text-base"
           autoCapitalize="off"
           autoCorrect="off"
@@ -188,7 +190,7 @@ export function SearchPage() {
             type="button"
             onClick={() => setQ('')}
             className="absolute right-3 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full flex items-center justify-center bg-white/5 hover:bg-white/10"
-            aria-label="Clear"
+            aria-label={t('search.clearAriaLabel')}
           >
             <X className="h-4 w-4" />
           </button>
@@ -201,23 +203,23 @@ export function SearchPage() {
         <Card className="p-8 text-center text-white/55">
           <SearchIcon className="h-8 w-8 mx-auto mb-2 opacity-40" />
           <div className="text-sm">
-            Try searching for an artist, album, or song — or paste an Apple Music link.
+            {t('search.emptyStateHint')}
           </div>
         </Card>
       )}
 
       {trimmed && (
         <>
-          <div className="flex flex-wrap gap-2" role="group" aria-label="Filter results">
-            <CatPill label="Show all" icon={ListChecks} active={allCatsSelected} onClick={selectAllCats} />
-            <CatPill label="Albums" icon={Disc3} active={!allCatsSelected && catSet.has('albums')} onClick={() => toggleCat('albums')} count={results.albums.length} />
-            <CatPill label="Artists" icon={UserRound} active={!allCatsSelected && catSet.has('artists')} onClick={() => toggleCat('artists')} count={results.artists.length} />
-            <CatPill label="Songs" icon={Music2} active={!allCatsSelected && catSet.has('songs')} onClick={() => toggleCat('songs')} count={results.songs.length} />
-            <CatPill label="Playlists" icon={ListMusic} active={!allCatsSelected && catSet.has('playlists')} onClick={() => toggleCat('playlists')} count={results.playlists.length} />
+          <div className="flex flex-wrap gap-2" role="group" aria-label={t('search.filterResultsAriaLabel')}>
+            <CatPill label={t('search.showAll')} icon={ListChecks} active={allCatsSelected} onClick={selectAllCats} />
+            <CatPill label={t('search.albums')} icon={Disc3} active={!allCatsSelected && catSet.has('albums')} onClick={() => toggleCat('albums')} count={results.albums.length} />
+            <CatPill label={t('search.artists')} icon={UserRound} active={!allCatsSelected && catSet.has('artists')} onClick={() => toggleCat('artists')} count={results.artists.length} />
+            <CatPill label={t('search.songs')} icon={Music2} active={!allCatsSelected && catSet.has('songs')} onClick={() => toggleCat('songs')} count={results.songs.length} />
+            <CatPill label={t('search.playlists')} icon={ListMusic} active={!allCatsSelected && catSet.has('playlists')} onClick={() => toggleCat('playlists')} count={results.playlists.length} />
           </div>
 
           {catSet.has('albums') && (
-            <Section title={`Albums${loading ? ' · searching' : ''}`} empty={results.albums.length === 0 && !loading}>
+            <Section title={loading ? t('search.albumsSearching') : t('search.albums')} empty={results.albums.length === 0 && !loading}>
               <StaggeredList className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
                 {results.albums.map((a) => (
                   <StaggeredItem key={a.id}>
@@ -229,7 +231,7 @@ export function SearchPage() {
           )}
 
           {catSet.has('artists') && (
-            <Section title="Artists" empty={results.artists.length === 0}>
+            <Section title={t('search.artists')} empty={results.artists.length === 0}>
               <StaggeredList className="flex flex-wrap gap-2">
                 {results.artists.map((a) => (
                   <StaggeredItem key={a.id}>
@@ -243,7 +245,7 @@ export function SearchPage() {
           )}
 
           {catSet.has('songs') && (
-            <Section title="Songs" empty={results.songs.length === 0}>
+            <Section title={t('search.songs')} empty={results.songs.length === 0}>
               <StaggeredList className="flex flex-col gap-1">
                 {results.songs
                   .slice(0, cats.length === 1 ? 50 : 10)
@@ -257,7 +259,7 @@ export function SearchPage() {
           )}
 
           {catSet.has('playlists') && (
-            <Section title={`Playlists${loading ? ' · searching' : ''}`} empty={results.playlists.length === 0 && !loading}>
+            <Section title={loading ? t('search.playlistsSearching') : t('search.playlists')} empty={results.playlists.length === 0 && !loading}>
               <StaggeredList className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
                 {results.playlists.map((p) => (
                   <StaggeredItem key={p.id}>
@@ -316,6 +318,7 @@ function Section({ title, children, empty }: { title: string; empty?: boolean; c
 }
 
 function SongRow({ song }: { song: Song }) {
+  const { t } = useTranslation()
   const { jobs } = useQueue()
   const { chooseDownloadQuality, qualityPrompt } = useDownloadQualityPrompt()
   const {
@@ -416,7 +419,7 @@ function SongRow({ song }: { song: Song }) {
                 throw err
               }
             }}
-            ariaLabel={`Download ${song.name}`}
+            ariaLabel={t('search.downloadAriaLabel', { name: song.name })}
             blocked={alreadyInLibrary}
             className={cx(
               touchMode

@@ -1,6 +1,9 @@
+import { useTranslation } from 'react-i18next'
+
 import type { HealthReport } from '../api/client'
 import { cx } from '../lib/cx'
 import { Badge } from './Badge'
+import i18n from '../i18n'
 
 type Props = {
   health: HealthReport | null
@@ -9,9 +12,10 @@ type Props = {
 }
 
 export function HealthPill({ health, loading, variant = 'default' }: Props) {
+  const { t } = useTranslation()
   const shellClass = variant === 'shell' ? 'h-10 px-3.5 text-[0.8125rem] leading-none group-hover:text-accent group-hover:border-[rgba(var(--accent),0.3)] group-hover:bg-[rgba(var(--accent),0.12)]' : ''
   if (loading || !health) {
-    return <Badge className={shellClass}>Checking…</Badge>
+    return <Badge className={shellClass}>{t('healthPill.checking')}</Badge>
   }
   if (health.ok) {
     if (health.wrapper?.stallRecent) {
@@ -19,32 +23,32 @@ export function HealthPill({ health, loading, variant = 'default' }: Props) {
         <Badge
           variant="warn"
           className={shellClass}
-          title="Download wrapper stalled and was auto-recovered."
+          title={t('healthPill.stalledRecoveredTitle')}
         >
-          ● Recovered
+          ● {t('healthPill.recovered')}
         </Badge>
       )
     }
-    return <Badge variant="ok" className={shellClass}>● Ready</Badge>
+    return <Badge variant="ok" className={shellClass}>● {t('healthPill.ready')}</Badge>
   }
   const wrapperDown = isWrapperDown(health)
-  let label = 'Issue'
-  let title = 'Something is not ready'
+  let label = t('healthPill.issue')
+  let title = t('healthPill.somethingNotReady')
   if (wrapperDown) {
-    label = 'Sign in required'
-    title = 'Apple Music wrapper is offline — add credentials in Settings.'
+    label = t('healthPill.signInRequired')
+    title = t('healthPill.wrapperOfflineTitle')
   } else if (!health.appleToken?.ok) {
-    label = 'Apple token'
-    title = 'Could not fetch the public Apple Music bearer token.'
+    label = t('healthPill.appleToken')
+    title = t('healthPill.appleTokenTitle')
   } else if (!health.music?.ok) {
-    label = 'Music folder'
-    title = 'Music output folder is not writable.'
+    label = t('healthPill.musicFolder')
+    title = t('healthPill.musicFolderTitle')
   } else {
     const partial: string[] = []
     if (!health.wrapper?.decrypt?.ok) partial.push('decrypt')
     if (!health.wrapper?.m3u8?.ok) partial.push('m3u8')
     if (!health.wrapper?.account?.ok) partial.push('account')
-    label = `Wrapper: ${partial.join(', ')}`
+    label = t('healthPill.wrapperPartial', { detail: partial.join(', ') })
     title = label
   }
   return (
@@ -72,6 +76,6 @@ export function getHealthPillTarget(health: HealthReport | null): string {
 }
 
 export function getHealthPillAriaLabel(health: HealthReport | null): string {
-  if (!health) return 'Open status'
-  return isWrapperDown(health) ? 'Open settings' : 'Open status'
+  if (!health) return i18n.t('healthPill.openStatus')
+  return isWrapperDown(health) ? i18n.t('healthPill.openSettings') : i18n.t('healthPill.openStatus')
 }

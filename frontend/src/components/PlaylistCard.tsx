@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 
 import { api, artworkSrcSet, artworkUrl, type Playlist } from '../api/client'
 import { cx } from '../lib/cx'
@@ -18,6 +19,7 @@ type Props = {
 }
 
 export function PlaylistCard({ playlist, href, libraryId = null, userCreatedBadge = false }: Props) {
+  const { t } = useTranslation()
   const { jobs } = useQueue()
   const { ready, isPlaylistInLibrary, verifyPlaylistPresence } = useLibraryPresence()
   const touchMode = useTouchMode()
@@ -79,12 +81,12 @@ export function PlaylistCard({ playlist, href, libraryId = null, userCreatedBadg
             <div className="absolute top-2 left-2 z-10 flex flex-col items-start gap-1">
               {blocked && (
                 <div className="rounded bg-emerald-500/90 backdrop-blur-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm ring-1 ring-white/20">
-                  In Library
+                  {t('playlistCard.inLibrary')}
                 </div>
               )}
               {userCreatedBadge && !blocked && (
                 <div className="rounded bg-black/80 backdrop-blur-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white/85 shadow-sm ring-1 ring-white/15">
-                  Yours
+                  {t('playlistCard.yours')}
                 </div>
               )}
             </div>
@@ -112,7 +114,7 @@ export function PlaylistCard({ playlist, href, libraryId = null, userCreatedBadg
                 throw err
               }
             }}
-            ariaLabel={`Download ${playlist.name}`}
+            ariaLabel={t('playlistCard.download', { name: playlist.name })}
             blocked={blocked}
             className={cx(
               busyOrDone || touchMode
@@ -131,7 +133,9 @@ export function PlaylistCard({ playlist, href, libraryId = null, userCreatedBadg
         </div>
         <div className="truncate text-xs text-white/60">
           {playlist.curatorName}
-          {typeof playlist.trackCount === 'number' ? ` · ${playlist.trackCount} tracks` : ''}
+          {typeof playlist.trackCount === 'number'
+            ? ` · ${t('playlistCard.trackCount', { count: playlist.trackCount })}`
+            : ''}
         </div>
       </div>
     </Card>

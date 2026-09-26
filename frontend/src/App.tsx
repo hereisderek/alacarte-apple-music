@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Route, Routes, useLocation, Link } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
+import { useTranslation } from 'react-i18next'
 
 import { HomePage } from './pages/Home'
 import { SearchPage } from './pages/Search'
@@ -48,6 +49,7 @@ function limitsFromState(state: AuthState): AuthLimits {
 }
 
 export default function App() {
+  const { t } = useTranslation()
   const [gate, setGate] = useState<AuthGate>({ status: 'loading' })
   const [bootError, setBootError] = useState<string | null>(null)
 
@@ -71,7 +73,7 @@ export default function App() {
       // before any authed UI gets a chance to render.
       setGate({ status: 'login', ...limitsFromState(state) })
     } catch (err) {
-      setBootError(err instanceof Error ? err.message : 'Unable to reach authentication service')
+      setBootError(err instanceof Error ? err.message : t('app.unableToReachAuth'))
       setGate({ status: 'loading' })
     }
   }, [])
@@ -98,14 +100,14 @@ export default function App() {
       <div className="min-h-dvh w-full bg-[var(--bg)] flex items-center justify-center px-4">
         {bootError ? (
           <div className="w-full max-w-md rounded-app border border-white/10 bg-white/[0.03] p-5 text-center space-y-3">
-            <p className="text-sm text-rose-300">Couldn’t load authentication state.</p>
+            <p className="text-sm text-rose-300">{t('app.couldNotLoadAuthState')}</p>
             <p className="text-xs text-white/60 break-words">{bootError}</p>
             <button
               type="button"
               onClick={refresh}
               className="inline-flex min-h-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] px-4 text-sm text-white/85 hover:border-[rgba(var(--accent),0.3)] hover:text-[rgb(var(--accent))]"
             >
-              Retry
+              {t('app.retry')}
             </button>
           </div>
         ) : (

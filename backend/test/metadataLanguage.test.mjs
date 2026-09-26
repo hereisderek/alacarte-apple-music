@@ -76,6 +76,26 @@ test('resolveMetadataName: dual mode appends the original name in parentheses', 
   assert.equal(name, 'Bubbles (泡沫)')
 })
 
+test('resolveMetadataName: original-if-accepted treats a detected zh script as matching either zh or zh-hant', () => {
+  // detectScript can't tell Simplified from Traditional apart (see its
+  // ponytail comment), so either accepted-language code should count.
+  const acceptedViaHant = resolveMetadataName({
+    mode: 'original-if-accepted',
+    displayName: 'Bubbles',
+    originalName: '泡沫',
+    acceptedLanguages: ['zh-hant'],
+  })
+  assert.equal(acceptedViaHant, '泡沫')
+
+  const acceptedViaHans = resolveMetadataName({
+    mode: 'original-if-accepted',
+    displayName: 'Bubbles',
+    originalName: '泡沫',
+    acceptedLanguages: ['zh'],
+  })
+  assert.equal(acceptedViaHans, '泡沫')
+})
+
 test('homeLanguageForStorefront covers common storefronts and is case-insensitive', () => {
   assert.equal(homeLanguageForStorefront('jp'), 'ja-JP')
   assert.equal(homeLanguageForStorefront('TW'), 'zh-Hant-TW')

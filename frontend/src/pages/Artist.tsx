@@ -8,6 +8,7 @@ import {
     X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
+import { useTranslation } from "react-i18next";
 
 import {
     api,
@@ -33,6 +34,7 @@ import { useActivityFeed } from "../hooks/useActivityFeed";
 import { useAppSettings } from "../hooks/useAppSettings";
 
 export function ArtistPage() {
+    const { t } = useTranslation();
     const { id } = useParams<{ id: string }>();
     const [artist, setArtist] = useState<ArtistT | null>(null);
     const [albums, setAlbums] = useState<Album[]>([]);
@@ -64,14 +66,14 @@ export function ArtistPage() {
 
     useEffect(() => {
         if (!queuedCount) return;
-        const t = setTimeout(() => setQueuedCount(0), 6000);
-        return () => clearTimeout(t);
+        const timer = setTimeout(() => setQueuedCount(0), 6000);
+        return () => clearTimeout(timer);
     }, [queuedCount]);
 
     useEffect(() => {
         if (!followBanner) return;
-        const t = setTimeout(() => setFollowBanner(null), 6000);
-        return () => clearTimeout(t);
+        const timer = setTimeout(() => setFollowBanner(null), 6000);
+        return () => clearTimeout(timer);
     }, [followBanner]);
 
     useEffect(() => {
@@ -91,7 +93,7 @@ export function ArtistPage() {
             })
             .catch((err) => {
                 if (!cancelled) {
-                    setError(err.message || "Failed to load");
+                    setError(err.message || t("artist.loadError"));
                 }
             });
         return () => {
@@ -140,7 +142,7 @@ export function ArtistPage() {
             setQueuedCount(downloadNow ? result.queued.length : 0);
             setFollowBanner("followed");
         } catch (err: any) {
-            setError(err.message || "Failed to follow artist");
+            setError(err.message || t("artist.failedToFollow"));
         } finally {
             setFollowSubmitting(false);
         }
@@ -156,7 +158,7 @@ export function ArtistPage() {
             setFollowing(false);
             setFollowBanner("unfollowed");
         } catch (err: any) {
-            setError(err.message || "Failed to unfollow artist");
+            setError(err.message || t("artist.failedToUnfollow"));
         } finally {
             setFollowSubmitting(false);
         }
@@ -179,19 +181,18 @@ export function ArtistPage() {
                         className="flex items-center justify-between gap-3 rounded-app border border-[rgba(var(--accent),0.35)] bg-[rgba(var(--accent),0.10)] px-4 py-2.5 text-sm text-white/90 backdrop-blur-[10px]"
                     >
                         <div>
-                            Queued <b>{queuedCount}</b> album
-                            {queuedCount === 1 ? "" : "s"}.{" "}
+                            {t("artist.queuedAlbums", { count: queuedCount })}{" "}
                             <Link
                                 to="/"
                                 className="font-medium text-[rgb(var(--accent))] underline underline-offset-2 transition-colors hover:text-white"
                             >
-                                Open activity
+                                {t("artist.openActivity")}
                             </Link>
                         </div>
                         <button
                             type="button"
                             onClick={() => setQueuedCount(0)}
-                            aria-label="Dismiss"
+                            aria-label={t("artist.dismiss")}
                             className="shrink-0 inline-flex h-[30px] w-[30px] items-center justify-center rounded-full border border-[rgba(var(--accent),0.25)] bg-[rgba(var(--accent),0.08)] text-white/75 transition-[background,border-color,color] duration-[250ms] ease-smooth hover:border-[rgba(var(--accent),0.45)] hover:bg-[rgba(var(--accent),0.18)] hover:text-white"
                         >
                             <X className="h-3.5 w-3.5" />
@@ -218,18 +219,18 @@ export function ArtistPage() {
                         <div>
                             {followBanner === "unfollowed" ? (
                                 <>
-                                    <b>{artist?.name || "Artist"}</b>{" "}
-                                    unfollowed.
+                                    <b>{artist?.name || t("artist.artistLabel")}</b>{" "}
+                                    {t("artist.unfollowed")}
                                 </>
                             ) : (
                                 <>
-                                    <b>{artist?.name || "Artist"}</b> is now
-                                    followed.{" "}
+                                    <b>{artist?.name || t("artist.artistLabel")}</b>{" "}
+                                    {t("artist.isNowFollowed")}{" "}
                                     <Link
                                         to="/following"
                                         className="font-medium text-[rgb(var(--accent))] underline underline-offset-2 transition-colors hover:text-white"
                                     >
-                                        Open Following
+                                        {t("artist.openFollowing")}
                                     </Link>
                                 </>
                             )}
@@ -237,7 +238,7 @@ export function ArtistPage() {
                         <button
                             type="button"
                             onClick={() => setFollowBanner(null)}
-                            aria-label="Dismiss"
+                            aria-label={t("artist.dismiss")}
                             className="shrink-0 inline-flex h-[30px] w-[30px] items-center justify-center rounded-full border border-[rgba(var(--accent),0.25)] bg-[rgba(var(--accent),0.08)] text-white/75 transition-[background,border-color,color] duration-[250ms] ease-smooth hover:border-[rgba(var(--accent),0.45)] hover:bg-[rgba(var(--accent),0.18)] hover:text-white"
                         >
                             <X className="h-3.5 w-3.5" />
@@ -250,7 +251,7 @@ export function ArtistPage() {
                 <>
                     <header>
                         <div className="text-xs uppercase tracking-wider text-white/55 mb-1">
-                            Artist
+                            {t("artist.artistLabel")}
                         </div>
                         <h1 className="text-3xl md:text-4xl font-bold tracking-tight">
                             {artist.name}
@@ -270,7 +271,7 @@ export function ArtistPage() {
                                     className="border-rose-300/30 bg-rose-500/10 text-rose-200 hover:border-rose-300/50 hover:bg-rose-500/20 hover:text-rose-100"
                                 >
                                     <UserRoundMinus className="h-4 w-4" />
-                                    Unfollow
+                                    {t("artist.unfollow")}
                                 </Button>
                             ) : (
                                 <Button
@@ -278,24 +279,24 @@ export function ArtistPage() {
                                     disabled={followSubmitting}
                                 >
                                     <UserRoundCheck className="h-4 w-4" />
-                                    Follow
+                                    {t("artist.follow")}
                                 </Button>
                             )}
                             {albums.length > 0 && (
                                 <Button onClick={() => setModalOpen(true)}>
                                     <ListChecks className="h-4 w-4" />
-                                    Download multiple
+                                    {t("artist.downloadMultiple")}
                                 </Button>
                             )}
                         </div>
                     </header>
                     <section>
                         <h2 className="text-sm font-semibold uppercase tracking-wider text-white/50 mb-3">
-                            Albums
+                            {t("artist.albums")}
                         </h2>
                         {albums.length === 0 ? (
                             <Card className="p-6 text-sm text-white/55">
-                                No albums found.
+                                {t("artist.noAlbumsFound")}
                             </Card>
                         ) : (
                             <StaggeredList className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
@@ -312,7 +313,7 @@ export function ArtistPage() {
             <SelectDownloadsModal
                 open={modalOpen}
                 onClose={() => setModalOpen(false)}
-                artistName={artist?.name || "Artist"}
+                artistName={artist?.name || t("artist.artistLabel")}
                 albums={albums}
                 inLibraryMap={inLibraryAlbums}
                 onQueued={(n) => setQueuedCount(n)}
@@ -320,7 +321,7 @@ export function ArtistPage() {
             <Modal
                 open={followModalOpen}
                 onClose={() => setFollowModalOpen(false)}
-                label="Follow artist"
+                label={t("artist.followArtist")}
                 placement="center"
                 className="!max-w-[40rem]"
             >
@@ -331,29 +332,25 @@ export function ArtistPage() {
                         </div>
                         <div className="min-w-0">
                             <div className="text-xs uppercase tracking-wider text-white/55">
-                                Follow artist
+                                {t("artist.followArtist")}
                             </div>
                             <h2 className="mt-1 text-lg font-semibold text-white">
-                                {artist?.name || "Artist"}
+                                {artist?.name || t("artist.artistLabel")}
                             </h2>
                             <p className="mt-2 text-sm text-white/60">
-                                Track{" "}
-                                {releaseScopeLabel(
-                                    followReleaseScope,
-                                ).toLowerCase()}{" "}
-                                for future releases, with the option to download
-                                matching releases now.
+                                {t("artist.trackScopeForFutureReleases", {
+                                    scope: releaseScopeLabel(followReleaseScope).toLowerCase(),
+                                })}
                             </p>
                         </div>
                     </div>
                     <div className="mt-5">
                         <div className="mb-3">
                             <div className="text-xs uppercase tracking-wider text-white/55">
-                                Release scope
+                                {t("artist.releaseScope")}
                             </div>
                             <div className="mt-1 text-sm text-white/60">
-                                Choose what this follow should watch and
-                                download.
+                                {t("artist.chooseWhatToWatch")}
                             </div>
                         </div>
                         <ReleaseScopePicker
@@ -365,11 +362,10 @@ export function ArtistPage() {
                         <div className="mt-5">
                             <div className="mb-3">
                                 <div className="text-xs uppercase tracking-wider text-white/55">
-                                    Download quality
+                                    {t("artist.downloadQuality")}
                                 </div>
                                 <div className="mt-1 text-sm text-white/60">
-                                    Applies if you download the current
-                                    discography now.
+                                    {t("artist.appliesIfDownloadDiscographyNow")}
                                 </div>
                             </div>
                             <QualityPicker
@@ -384,19 +380,19 @@ export function ArtistPage() {
                             disabled={followSubmitting}
                             variant="ghost"
                         >
-                            Cancel
+                            {t("artist.cancel")}
                         </Button>
                         <Button
                             onClick={() => followArtist(false)}
                             disabled={followSubmitting}
                         >
-                            Future releases only
+                            {t("artist.futureReleasesOnly")}
                         </Button>
                         <Button
                             onClick={() => followArtist(true)}
                             disabled={followSubmitting}
                         >
-                            Download matching releases
+                            {t("artist.downloadMatchingReleases")}
                         </Button>
                     </div>
                 </div>
@@ -404,7 +400,7 @@ export function ArtistPage() {
             <Modal
                 open={unfollowModalOpen}
                 onClose={() => setUnfollowModalOpen(false)}
-                label="Unfollow artist"
+                label={t("artist.unfollowArtist")}
                 placement="center"
                 className="!max-w-[36rem]"
             >
@@ -415,14 +411,13 @@ export function ArtistPage() {
                         </div>
                         <div className="min-w-0">
                             <div className="text-xs uppercase tracking-wider text-white/55">
-                                Unfollow artist
+                                {t("artist.unfollowArtist")}
                             </div>
                             <h2 className="mt-1 text-lg font-semibold text-white">
-                                {artist?.name || "Artist"}
+                                {artist?.name || t("artist.artistLabel")}
                             </h2>
                             <p className="mt-2 text-sm text-white/60">
-                                Stop watching for new releases? Your existing
-                                downloads stay in the library.
+                                {t("artist.stopWatchingConfirm")}
                             </p>
                         </div>
                     </div>
@@ -432,7 +427,7 @@ export function ArtistPage() {
                             disabled={followSubmitting}
                             variant="ghost"
                         >
-                            Cancel
+                            {t("artist.cancel")}
                         </Button>
                         <Button
                             onClick={unfollowArtist}
@@ -440,7 +435,7 @@ export function ArtistPage() {
                             className="border-rose-300/30 bg-rose-500/10 text-rose-200 hover:border-rose-300/50 hover:bg-rose-500/20 hover:text-rose-100"
                         >
                             <UserRoundMinus className="h-4 w-4" />
-                            Unfollow
+                            {t("artist.unfollow")}
                         </Button>
                     </div>
                 </div>

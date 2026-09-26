@@ -7,7 +7,9 @@ import {
   RefreshCw,
 } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { useTranslation } from 'react-i18next'
 
+import i18n from '../i18n'
 import type { HealthReport } from '../api/client'
 import { Badge } from '../components/Badge'
 import { Card } from '../components/Card'
@@ -22,6 +24,7 @@ import {
 import { useHealth } from '../hooks/useHealth'
 
 export function StatusPage() {
+  const { t } = useTranslation()
   const { health, loading: healthLoading } = useHealth(10000)
   const {
     loading,
@@ -55,19 +58,19 @@ export function StatusPage() {
       <section className="space-y-3">
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
-            Status
+            {t('status.title')}
           </h1>
         </div>
       </section>
 
       <section className="grid gap-3 md:grid-cols-3">
         <MetricCard
-          label="Backend stream"
+          label={t('status.backendStream')}
           value={streamLabel(streamStatus)}
           detail={
             latestEventAt
-              ? `Last event ${formatRelativeTime(latestEventAt)}`
-              : 'No events yet'
+              ? t('status.lastEvent', { time: formatRelativeTime(latestEventAt) })
+              : t('status.noEventsYet')
           }
           tone={streamTone(streamStatus)}
           icon={
@@ -76,21 +79,21 @@ export function StatusPage() {
           spin={streamStatus !== 'open'}
         />
         <MetricCard
-          label="Active jobs"
+          label={t('status.activeJobs')}
           value={String(activeJobs.length)}
           detail={
             activeJobs[0]?.message ||
             activeJobs[0]?.currentTrack ||
-            (activeJobs.length > 0 ? 'Downloads are currently running' : 'No active jobs')
+            (activeJobs.length > 0 ? t('status.downloadsRunning') : t('status.noActiveJobs'))
           }
           tone={activeJobs.length > 0 ? 'info' : 'success'}
           icon={activeJobs.length > 0 ? Loader2 : CheckCircle2}
           spin={activeJobs.length > 0}
         />
         <MetricCard
-          label="Recent failures"
+          label={t('status.recentFailures')}
           value={String(recentFailures.length)}
-          detail={recentFailures[0]?.error || 'No recent failed jobs'}
+          detail={recentFailures[0]?.error || t('status.noRecentFailures')}
           tone={recentFailures.length > 0 ? 'error' : 'success'}
           icon={recentFailures.length > 0 ? AlertCircle : CheckCircle2}
         />
@@ -102,12 +105,12 @@ export function StatusPage() {
             <div className="border-b border-white/[0.06] px-5 py-4">
               <div className="flex items-center gap-2 text-sm font-medium text-white/80">
                 <Activity className="h-4 w-4 text-accent" />
-                System health
+                {t('status.systemHealth')}
               </div>
             </div>
             <div className="grid gap-2 px-5 py-4">
               {healthLoading || !health ? (
-                <div className="text-sm text-white/55">Checking system status…</div>
+                <div className="text-sm text-white/55">{t('status.checkingSystemStatus')}</div>
               ) : (
                 healthRows.map((row) => (
                   <div
@@ -124,7 +127,7 @@ export function StatusPage() {
                     </div>
                     {!row.ok && (
                       <span className="max-w-[48%] truncate text-right text-xs text-rose-300/90">
-                        {row.hint || row.error || 'Unavailable'}
+                        {row.hint || row.error || t('status.unavailable')}
                       </span>
                     )}
                   </div>
@@ -137,15 +140,15 @@ export function StatusPage() {
             <div className="border-b border-white/[0.06] px-5 py-4">
               <div className="flex items-center gap-2 text-sm font-medium text-white/80">
                 <Loader2 className="h-4 w-4 text-accent" />
-                Active work
+                {t('status.activeWork')}
               </div>
             </div>
             <div className="space-y-3 px-5 py-4">
               {loading ? (
-                <div className="text-sm text-white/55">Loading recent job state…</div>
+                <div className="text-sm text-white/55">{t('status.loadingRecentJobState')}</div>
               ) : activeJobs.length === 0 ? (
                 <div className="rounded-[18px] border border-white/[0.05] bg-white/[0.025] px-4 py-4 text-sm text-white/55">
-                  No active jobs.
+                  {t('status.noActiveJobsPeriod')}
                 </div>
               ) : (
                 activeJobs.slice(0, 6).map((job) => (
@@ -159,11 +162,11 @@ export function StatusPage() {
                           {job.artist} — {job.albumTitle}
                         </div>
                         <div className="mt-1 truncate text-xs text-white/55">
-                          {job.message || job.currentTrack || (job.status === 'queued' ? 'Queued' : 'Running')}
+                          {job.message || job.currentTrack || (job.status === 'queued' ? t('status.queued') : t('status.running'))}
                         </div>
                       </div>
                       <Badge variant={job.status === 'queued' ? 'warn' : 'accent'}>
-                        {job.status === 'queued' ? 'Queued' : 'Running'}
+                        {job.status === 'queued' ? t('status.queued') : t('status.running')}
                       </Badge>
                     </div>
                     <div className="mt-3">
@@ -178,19 +181,19 @@ export function StatusPage() {
           <section className="space-y-3">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-semibold text-white">Activity feed</h2>
+                <h2 className="text-lg font-semibold text-white">{t('status.activityFeed')}</h2>
               </div>
               <Badge
                 variant={feedItems[0]?.severity === 'error' ? 'bad' : 'accent'}
                 className="whitespace-nowrap text-[0.6875rem] md:text-xs"
               >
-                {feedItems.length} events
+                {t('status.eventCount', { count: feedItems.length })}
               </Badge>
             </div>
 
             {feedItems.length === 0 ? (
               <Card className="p-6 text-sm text-white/55">
-                No activity yet.
+                {t('status.noActivityYet')}
               </Card>
             ) : (
               <AnimatePresence initial={false}>
@@ -224,7 +227,7 @@ export function StatusPage() {
                     <span className="h-3 w-3 rounded-full bg-emerald-400/90 shadow-[0_0_18px_rgba(74,222,128,0.34)]" />
                   </div>
                   <div>
-                    <div className="text-sm font-medium text-white/85">Backend log</div>
+                    <div className="text-sm font-medium text-white/85">{t('status.backendLog')}</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -239,8 +242,8 @@ export function StatusPage() {
                       }}
                       className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.06] px-2.5 py-1 text-xs font-medium text-white/75 transition-colors duration-[200ms] ease-smooth hover:border-[rgba(var(--accent),0.25)] hover:bg-[rgba(var(--accent),0.12)] hover:text-[rgb(var(--accent))]"
                     >
-                      <span className="md:hidden">Latest</span>
-                      <span className="hidden md:inline">Jump to latest</span>
+                      <span className="md:hidden">{t('status.latest')}</span>
+                      <span className="hidden md:inline">{t('status.jumpToLatest')}</span>
                     </button>
                   )}
                   <Badge variant={streamStatus === 'open' ? 'ok' : streamStatus === 'reconnecting' ? 'warn' : 'accent'}>
@@ -257,7 +260,7 @@ export function StatusPage() {
             >
               {terminalLines.length === 0 ? (
                 <div className="flex h-full min-h-[320px] items-center justify-center px-6 text-center text-sm text-white/45">
-                  Waiting for backend events.
+                  {t('status.waitingForBackendEvents')}
                 </div>
               ) : (
                 <div className="space-y-1.5">
@@ -349,7 +352,7 @@ function buildHealthRows(health: HealthReport | null) {
 
   const items: Array<{ label: string; ok: boolean; error?: string | null; hint?: string }> = [
     {
-      label: 'Apple Music token',
+      label: i18n.t('status.appleMusicToken'),
       ok: health.appleToken.ok,
       error: health.appleToken.error,
     },
@@ -357,24 +360,24 @@ function buildHealthRows(health: HealthReport | null) {
 
   if (wrapperAllDown) {
     items.push({
-      label: 'Apple Music wrapper',
+      label: i18n.t('status.appleMusicWrapper'),
       ok: false,
-      hint: 'Offline. Re-authenticate in Settings to bring the wrapper back.',
+      hint: i18n.t('status.wrapperOfflineHint'),
     })
   } else {
     items.push(
       {
-        label: 'Decryption wrapper',
+        label: i18n.t('status.decryptionWrapper'),
         ok: health.wrapper.decrypt.ok,
         error: health.wrapper.decrypt.error,
       },
       {
-        label: 'M3U8 stream service',
+        label: i18n.t('status.m3u8StreamService'),
         ok: health.wrapper.m3u8.ok,
         error: health.wrapper.m3u8.error,
       },
       {
-        label: 'Account service',
+        label: i18n.t('status.accountService'),
         ok: health.wrapper.account.ok,
         error: health.wrapper.account.error,
       },
@@ -382,7 +385,7 @@ function buildHealthRows(health: HealthReport | null) {
   }
 
   items.push({
-    label: `Music path (${health.music.path})`,
+    label: i18n.t('status.musicPath', { path: health.music.path }),
     ok: health.music.ok,
     error: health.music.error,
   })
@@ -391,9 +394,9 @@ function buildHealthRows(health: HealthReport | null) {
 }
 
 function streamLabel(status: 'connecting' | 'open' | 'reconnecting') {
-  if (status === 'open') return 'Live'
-  if (status === 'reconnecting') return 'Reconnecting'
-  return 'Connecting'
+  if (status === 'open') return i18n.t('status.streamLive')
+  if (status === 'reconnecting') return i18n.t('status.streamReconnecting')
+  return i18n.t('status.streamConnecting')
 }
 
 function streamTone(status: 'connecting' | 'open' | 'reconnecting'): ActivitySeverity | 'success' {
@@ -456,10 +459,10 @@ function sourceClassName(source: ActivityTerminalLine['source']) {
 
 function formatRelativeTime(ts: number) {
   const diff = Date.now() - ts
-  if (diff < 10_000) return 'just now'
-  if (diff < 60_000) return `${Math.round(diff / 1000)}s ago`
-  if (diff < 3_600_000) return `${Math.round(diff / 60_000)}m ago`
-  if (diff < 86_400_000) return `${Math.round(diff / 3_600_000)}h ago`
+  if (diff < 10_000) return i18n.t('status.relativeJustNow')
+  if (diff < 60_000) return i18n.t('status.relativeSecondsAgo', { count: Math.round(diff / 1000) })
+  if (diff < 3_600_000) return i18n.t('status.relativeMinutesAgo', { count: Math.round(diff / 60_000) })
+  if (diff < 86_400_000) return i18n.t('status.relativeHoursAgo', { count: Math.round(diff / 3_600_000) })
   return formatClockTime(ts)
 }
 

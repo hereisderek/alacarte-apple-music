@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import type { QualityPreference } from '../api/client'
 import { Button } from '../components/Button'
@@ -11,6 +12,7 @@ type PendingPrompt = {
 }
 
 export function useDownloadQualityPrompt() {
+  const { t } = useTranslation()
   const settings = useAppSettings()
   const [selected, setSelected] = useState<QualityPreference>('flac')
   const [pending, setPending] = useState<PendingPrompt | null>(null)
@@ -42,24 +44,24 @@ export function useDownloadQualityPrompt() {
       open={pending !== null}
       onClose={close}
       placement="center"
-      label="Choose download quality"
+      label={t('downloadQualityPrompt.chooseDownloadQuality')}
       className="!max-w-[30rem]"
     >
       <div className="p-6">
         <div>
-          <div className="text-xs uppercase tracking-wider text-white/55">Download quality</div>
-          <h2 className="mt-1 text-lg font-semibold text-white">Choose quality</h2>
+          <div className="text-xs uppercase tracking-wider text-white/55">{t('downloadQualityPrompt.chooseDownloadQuality')}</div>
+          <h2 className="mt-1 text-lg font-semibold text-white">{t('downloadQualityPrompt.chooseQuality')}</h2>
           <p className="mt-2 text-sm text-white/60">
-            This applies only to the download you are starting now.
+            {t('downloadQualityPrompt.appliesToThisDownloadOnly')}
           </p>
         </div>
         <QualityPicker value={selected} onChange={setSelected} className="mt-5" />
         <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button onClick={close} variant="ghost">
-            Cancel
+            {t('downloadQualityPrompt.cancel')}
           </Button>
           <Button onClick={confirm}>
-            Queue download
+            {t('downloadQualityPrompt.queueDownload')}
           </Button>
         </div>
       </div>

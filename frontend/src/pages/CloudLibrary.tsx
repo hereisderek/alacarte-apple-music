@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
+import { useTranslation } from 'react-i18next'
 import {
   Cloud,
   CloudDownload,
@@ -84,7 +85,26 @@ const fetchers = {
   songs: api.cloudLibrarySongs,
 }
 
+type TFn = (key: string, opts?: Record<string, unknown>) => string
+
+function kindLowerLabel(t: TFn, kind: TabKey) {
+  return kind === 'albums'
+    ? t('cloudLibrary.albumsLower')
+    : kind === 'playlists'
+      ? t('cloudLibrary.playlistsLower')
+      : t('cloudLibrary.songsLower')
+}
+
+function kindSingularLabel(t: TFn, kind: TabKey) {
+  return kind === 'albums'
+    ? t('cloudLibrary.kindSingularAlbum')
+    : kind === 'playlists'
+      ? t('cloudLibrary.kindSingularPlaylist')
+      : t('cloudLibrary.kindSingularSong')
+}
+
 export function CloudLibraryPage() {
+  const { t } = useTranslation()
   const [searchParams, setSearchParams] = useSearchParams()
   const tabParam = searchParams.get('tab')
   const activeTab: TabKey = isTabKey(tabParam) ? tabParam : 'albums'
@@ -192,7 +212,7 @@ export function CloudLibraryPage() {
             ...prev[kind],
             loading: false,
             loadingMore: false,
-            error: err?.message || 'Failed to load',
+            error: err?.message || t('cloudLibrary.failedToLoad'),
           },
         }))
       } finally {
@@ -270,7 +290,7 @@ export function CloudLibraryPage() {
     } catch (err: any) {
       setTabs((prev) => ({
         ...prev,
-        [kind]: { ...prev[kind], error: err?.message || 'Bulk download failed' },
+        [kind]: { ...prev[kind], error: err?.message || t('cloudLibrary.bulkDownloadFailed') },
       }))
     } finally {
       setBulkRunning(null)
@@ -281,7 +301,7 @@ export function CloudLibraryPage() {
   if (healthLoading) {
     return (
       <div className="mx-auto w-full max-w-7xl pt-6">
-        <Card className="p-6 text-sm text-white/55">Checking Apple Music access…</Card>
+        <Card className="p-6 text-sm text-white/55">{t('cloudLibrary.checkingAccess')}</Card>
       </div>
     )
   }
@@ -310,24 +330,24 @@ export function CloudLibraryPage() {
             className="flex items-center justify-between gap-3 rounded-app border border-[rgba(var(--accent),0.35)] bg-[rgba(var(--accent),0.10)] px-4 py-2.5 text-sm text-white/90 backdrop-blur-[10px]"
           >
             <div>
-              Queued <b>{bulkBanner.queued}</b> {bulkBanner.kind}.
+              {t('cloudLibrary.queuedPrefix')} <b>{bulkBanner.queued}</b> {kindLowerLabel(t, bulkBanner.kind)}.
               {bulkBanner.skippedExisting > 0 && (
-                <span className="text-white/60"> · {bulkBanner.skippedExisting} already in library</span>
+                <span className="text-white/60"> · {t('cloudLibrary.alreadyInLibrary', { count: bulkBanner.skippedExisting })}</span>
               )}
               {bulkBanner.unsupported > 0 && (
-                <span className="text-white/60"> · {bulkBanner.unsupported} not downloadable</span>
+                <span className="text-white/60"> · {t('cloudLibrary.notDownloadable', { count: bulkBanner.unsupported })}</span>
               )}{' '}
               <Link
                 to="/"
                 className="font-medium text-[rgb(var(--accent))] underline underline-offset-2 transition-colors hover:text-white"
               >
-                Open activity
+                {t('cloudLibrary.openActivity')}
               </Link>
             </div>
             <button
               type="button"
               onClick={() => setBulkBanner(null)}
-              aria-label="Dismiss"
+              aria-label={t('cloudLibrary.dismissAriaLabel')}
               className="shrink-0 inline-flex h-[30px] w-[30px] items-center justify-center rounded-full border border-[rgba(var(--accent),0.25)] bg-[rgba(var(--accent),0.08)] text-white/75 transition-[background,border-color,color] duration-[250ms] ease-smooth hover:border-[rgba(var(--accent),0.45)] hover:bg-[rgba(var(--accent),0.18)] hover:text-white"
             >
               <X className="h-3.5 w-3.5" />
@@ -339,13 +359,13 @@ export function CloudLibraryPage() {
       <section className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold tracking-tight text-white md:text-3xl">
-            Apple Music
+            {t('cloudLibrary.pageTitle')}
           </h1>
         </div>
         <div className="flex w-full flex-wrap items-center justify-start gap-2 md:w-auto md:justify-end">
           <Button onClick={refresh} disabled={activeState.loading} className="whitespace-nowrap">
             <RefreshCw className={activeState.loading ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
-            Refresh
+            {t('cloudLibrary.refresh')}
           </Button>
           {hasItems && (
             <Button
@@ -358,13 +378,13 @@ export function CloudLibraryPage() {
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
                   {bulkProgress
-                    ? `Queueing ${bulkProgress.queued}/${bulkProgress.scanned}…`
-                    : 'Queueing…'}
+                    ? t('cloudLibrary.queueingProgress', { queued: bulkProgress.queued, scanned: bulkProgress.scanned })
+                    : t('cloudLibrary.queueing')}
                 </>
               ) : (
                 <>
                   <CloudDownload className="h-4 w-4" />
-                  Download all
+                  {t('cloudLibrary.downloadAll')}
                 </>
               )}
             </Button>
@@ -372,23 +392,23 @@ export function CloudLibraryPage() {
         </div>
       </section>
 
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Library section">
+      <div className="flex flex-wrap gap-2" role="group" aria-label={t('cloudLibrary.librarySectionAriaLabel')}>
         <CatPill
-          label="Albums"
+          label={t('cloudLibrary.albumsLabel')}
           icon={Disc3}
           active={activeTab === 'albums'}
           onClick={() => setActiveTab('albums')}
           count={tabs.albums.total ?? tabs.albums.items.length}
         />
         <CatPill
-          label="Playlists"
+          label={t('cloudLibrary.playlistsLabel')}
           icon={ListMusic}
           active={activeTab === 'playlists'}
           onClick={() => setActiveTab('playlists')}
           count={tabs.playlists.total ?? tabs.playlists.items.length}
         />
         <CatPill
-          label="Songs"
+          label={t('cloudLibrary.songsLabel')}
           icon={Music2}
           active={activeTab === 'songs'}
           onClick={() => setActiveTab('songs')}
@@ -407,9 +427,9 @@ export function CloudLibraryPage() {
             <div className="flex h-12 w-12 items-center justify-center rounded-full border border-[rgba(var(--accent),0.25)] bg-[rgba(var(--accent),0.10)] text-[rgb(var(--accent))]">
               <Cloud className="h-5 w-5" />
             </div>
-            <h2 className="text-xl font-semibold text-white">Nothing here yet.</h2>
+            <h2 className="text-xl font-semibold text-white">{t('cloudLibrary.emptyTitle')}</h2>
             <p className="text-sm text-white/60">
-              Save some {activeTab} in Apple Music and they'll show up here.
+              {t('cloudLibrary.emptyBody', { kind: kindLowerLabel(t, activeTab) })}
             </p>
           </div>
         </Card>
@@ -425,7 +445,7 @@ export function CloudLibraryPage() {
       {activeState.loadingMore && (
         <div className="flex justify-center py-4 text-xs text-white/50">
           <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-          Loading more…
+          {t('cloudLibrary.loadingMore')}
         </div>
       )}
 
@@ -433,7 +453,7 @@ export function CloudLibraryPage() {
         open={confirmKind !== null}
         onClose={() => setConfirmKind(null)}
         placement="center"
-        label="Confirm download all"
+        label={t('cloudLibrary.confirmDownloadAllLabel')}
         className="!max-w-[26rem]"
       >
         <div className="p-6">
@@ -446,21 +466,22 @@ export function CloudLibraryPage() {
             </div>
             <div className="min-w-0">
               <h2 className="text-base font-semibold text-white">
-                Download all {confirmKind}?
+                {confirmKind ? t('cloudLibrary.downloadAllHeading', { kind: kindLowerLabel(t, confirmKind) }) : ''}
               </h2>
               <p className="mt-1 text-sm text-white/60">
-                Queues every {confirmKind?.replace(/s$/, '')} in your Apple Music library
-                {totalLabel ? ` (~${totalLabel} item${totalLabel === 1 ? '' : 's'})` : ''}.
-                Items already in your local library are skipped automatically.
+                {t('cloudLibrary.confirmDescription', {
+                  kind: confirmKind ? kindSingularLabel(t, confirmKind) : '',
+                  itemsNote: totalLabel ? t('cloudLibrary.confirmItemsNote', { count: totalLabel }) : '',
+                })}
               </p>
             </div>
           </div>
           {appSettings?.promptForDownloadQuality && (
             <div className="mt-5">
               <div className="mb-3">
-                <div className="text-xs uppercase tracking-wider text-white/55">Download quality</div>
+                <div className="text-xs uppercase tracking-wider text-white/55">{t('cloudLibrary.downloadQualityLabel')}</div>
                 <div className="mt-1 text-sm text-white/60">
-                  Applies to every item queued by this action.
+                  {t('cloudLibrary.downloadQualityHint')}
                 </div>
               </div>
               <QualityPicker value={bulkQuality} onChange={setBulkQuality} />
@@ -468,14 +489,14 @@ export function CloudLibraryPage() {
           )}
           <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button onClick={() => setConfirmKind(null)} variant="ghost">
-              Cancel
+              {t('cloudLibrary.cancel')}
             </Button>
             <Button
               onClick={startDownloadAll}
               className="bg-[rgba(var(--accent),0.18)] border-[rgba(var(--accent),0.4)] text-white hover:bg-[rgba(var(--accent),0.28)] hover:text-white"
             >
               <Download className="h-4 w-4" />
-              Queue {totalLabel ? `~${totalLabel}` : 'all'}
+              {totalLabel ? t('cloudLibrary.queueCount', { count: totalLabel }) : t('cloudLibrary.queueAll')}
             </Button>
           </div>
         </div>
@@ -493,18 +514,19 @@ function NotConnectedScreen({
   error?: string
   onRetry: () => void
 }) {
+  const { t } = useTranslation()
   const headline =
     reason === 'token-rejected'
-      ? 'Your media-user-token was rejected'
+      ? t('cloudLibrary.tokenRejectedHeadline')
       : reason === 'probe-failed'
-        ? 'Couldn\u2019t reach Apple Music'
-        : 'Connect your Apple Music account'
+        ? t('cloudLibrary.probeFailedHeadline')
+        : t('cloudLibrary.connectAccountHeadline')
   const body =
     reason === 'token-rejected'
-      ? 'Apple rejected the saved token. Refresh it in Settings — it expires periodically.'
+      ? t('cloudLibrary.tokenRejectedBody')
       : reason === 'probe-failed'
-        ? error || 'Network or token error while probing the Apple Music library.'
-        : 'To list your saved library here, paste your media-user-token in Settings. Without it, ALACarte can only fetch the public catalog.'
+        ? error || t('cloudLibrary.probeFailedBody')
+        : t('cloudLibrary.connectAccountBody')
   return (
     <div className="mx-auto w-full max-w-3xl pt-6">
       <Card className="relative overflow-hidden p-8 md:p-10">
@@ -520,11 +542,11 @@ function NotConnectedScreen({
               to="/settings"
               className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm font-medium text-white/80 transition-all hover:border-[rgba(var(--accent),0.3)] hover:bg-[rgba(var(--accent),0.12)] hover:text-[rgb(var(--accent))]"
             >
-              Open Settings
+              {t('cloudLibrary.openSettings')}
             </Link>
             <Button onClick={onRetry} variant="ghost">
               <RefreshCw className="h-4 w-4" />
-              Retry
+              {t('cloudLibrary.retry')}
             </Button>
           </div>
         </div>
@@ -627,6 +649,7 @@ function AlbumGrid({ items }: { items: CloudLibraryAlbum[] }) {
 }
 
 function CloudAlbumTile({ item }: { item: CloudLibraryAlbum }) {
+  const { t } = useTranslation()
   const { isAlbumInLibrary } = useLibraryPresence()
   const localAlbum = { id: item.catalogId || item.libraryId, name: item.name, artistName: item.artistName }
   const alreadyInLibrary = isAlbumInLibrary(localAlbum)
@@ -637,7 +660,7 @@ function CloudAlbumTile({ item }: { item: CloudLibraryAlbum }) {
         title={item.name}
         subtitle={item.artistName}
         artworkTemplate={item.artworkTemplate}
-        kind={alreadyInLibrary ? 'In Library' : 'Unavailable'}
+        kind={alreadyInLibrary ? t('cloudLibrary.inLibrary') : t('cloudLibrary.unavailable')}
         variant={alreadyInLibrary ? 'ok' : 'muted'}
       />
     )
@@ -698,6 +721,7 @@ function SongList({ items }: { items: CloudLibrarySong[] }) {
 }
 
 function CloudSongRow({ song }: { song: CloudLibrarySong }) {
+  const { t } = useTranslation()
   const { jobs } = useQueue()
   const { chooseDownloadQuality, qualityPrompt } = useDownloadQualityPrompt()
   const { isAlbumInLibrary, isSongInLibrary, verifySongPresence, verifyAlbumPresence, ready } =
@@ -763,11 +787,11 @@ function CloudSongRow({ song }: { song: CloudLibrarySong }) {
       </div>
       {alreadyInLibrary ? (
         <div className="shrink-0 pr-1">
-          <Badge variant="ok">In library</Badge>
+          <Badge variant="ok">{t('cloudLibrary.inLibraryLower')}</Badge>
         </div>
       ) : !song.catalogId ? (
         <div className="shrink-0 pr-1">
-          <Badge variant="muted">Unavailable</Badge>
+          <Badge variant="muted">{t('cloudLibrary.unavailable')}</Badge>
         </div>
       ) : (
         <div className="shrink-0 pr-1">
@@ -789,7 +813,7 @@ function CloudSongRow({ song }: { song: CloudLibrarySong }) {
                 throw err
               }
             }}
-            ariaLabel={`Download ${song.name}`}
+            ariaLabel={t('cloudLibrary.downloadAriaLabel', { name: song.name })}
           />
         </div>
       )}
@@ -808,7 +832,7 @@ function UnsupportedTile({
   title: string
   subtitle: string
   artworkTemplate: string | null
-  kind: 'Unavailable' | 'User-created' | 'In Library'
+  kind: string
   variant?: 'muted' | 'ok'
 }) {
   const thumb = artworkUrl(artworkTemplate, 600)
