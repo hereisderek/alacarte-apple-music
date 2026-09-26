@@ -1,0 +1,34 @@
+{
+  "nav": {
+    "home": "Accueil",
+    "browse": "Explorer",
+    "search": "Rechercher",
+    "downloads": "Téléchargements",
+    "appleMusic": "Apple Music",
+    "following": "Abonnements",
+    "system": "Système",
+    "status": "État",
+    "settings": "Réglages",
+    "signOut": "Se déconnecter",
+    "confirmSignOut": "Se déconnecter ?",
+    "cancel": "Annuler"
+  },
+  "topbar": {
+    "search": "Rechercher",
+    "home": "Accueil",
+    "library": "Bibliothèque"
+  },
+  "settings": {
+    "libraryOutput": "Sortie de la bibliothèque",
+    "webInterfaceLanguage": "Langue de l'interface web",
+    "followSystemDefault": "Suivre la langue du système",
+    "acceptedLanguages": "Langues acceptées pour les métadonnées musicales",
+    "acceptedLanguagesHelp": "Une liste de préférence ordonnée — la première est la plus préférée. Le mode de nommage ci-dessous s'en sert pour décider quand conserver un nom dans la langue d'origine.",
+    "acceptedLanguagesPlaceholder": "Saisissez une langue…",
+    "acceptedLanguagesEmpty": "Aucune langue ajoutée — les noms dans la langue d'origine ne sont jamais préférés.",
+    "namingLanguageMode": "Langue de nommage des fichiers téléchargés",
+    "namingModeDisplay": "Utiliser ma langue d'affichage, avec repli sur la langue d'origine si aucune traduction n'existe",
+    "namingModeOriginalIfAccepted": "Utiliser la langue d'origine si elle figure dans ma liste acceptée, sinon revenir à ma langue d'affichage",
+    "namingModeDual": "Utiliser ma langue d'affichage et ajouter aussi le nom dans la langue d'origine quand les deux existent et diffèrent"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "nav": {
+    "home": "Home",
+    "browse": "Browse",
+    "search": "Search",
+    "downloads": "Downloads",
+    "appleMusic": "Apple Music",
+    "following": "Following",
+    "system": "System",
+    "status": "Status",
+    "settings": "Settings",
+    "signOut": "Sign Out",
+    "confirmSignOut": "Sign out?",
+    "cancel": "Cancel"
+  },
+  "topbar": {
+    "search": "Search",
+    "home": "Home",
+    "library": "Library"
+  },
+  "settings": {
+    "libraryOutput": "Library output",
+    "webInterfaceLanguage": "Web interface language",
+    "followSystemDefault": "Follow system default",
+    "acceptedLanguages": "Accepted languages for music metadata",
+    "acceptedLanguagesHelp": "An ordered preference list — first is most preferred. Used by the naming mode below to decide when to keep an original-language name.",
+    "acceptedLanguagesPlaceholder": "Type a language…",
+    "acceptedLanguagesEmpty": "No languages added — original-language names are never preferred.",
+    "namingLanguageMode": "Downloaded file naming language",
+    "namingModeDisplay": "Use my display language for names, falling back to the original language if no translation exists",
+    "namingModeOriginalIfAccepted": "Use the original language if it's in my accepted list, otherwise fall back to my display language",
+    "namingModeDual": "Use my display language, and append the original-language name too when both exist and differ"
+  }
+}

@@ -15,10 +15,12 @@ import {
   User as UserIcon,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useTranslation } from 'react-i18next'
 
 import { api, type EffectiveCheckInterval, type PublicSettings, type TagBackfillStatus } from '../api/client'
 import { setAppSettingsCache } from '../hooks/useAppSettings'
 import { useEventStream } from '../hooks/useEventStream'
+import { SUPPORTED_LANGUAGES, LANGUAGE_NATIVE_LABELS } from '../i18n'
 
 import { Card } from '../components/Card'
 import { Badge } from '../components/Badge'
@@ -27,7 +29,27 @@ import { Input } from '../components/Input'
 import { Modal } from '../components/Modal'
 import { ProgressBar } from '../components/ProgressBar'
 import { StaggeredList, StaggeredItem } from '../components/StaggeredList'
+import { LanguageChipInput, type LanguageOption } from '../components/LanguageChipInput'
 import { cx } from '../lib/cx'
+
+// Must match backend/lib/metadataLanguage.mjs's LANGUAGE_CATALOG.
+const ACCEPTED_LANGUAGE_OPTIONS: LanguageOption[] = [
+  { code: 'en', label: 'English' },
+  { code: 'zh', label: 'Chinese (Simplified) · 中文' },
+  { code: 'ja', label: 'Japanese · 日本語' },
+  { code: 'ko', label: 'Korean · 한국어' },
+  { code: 'es', label: 'Spanish · Español' },
+  { code: 'fr', label: 'French · Français' },
+]
+
+const NAMING_LANGUAGE_MODE_OPTIONS: Array<{
+  value: PublicSettings['namingLanguageMode']
+  labelKey: string
+}> = [
+  { value: 'display', labelKey: 'settings.namingModeDisplay' },
+  { value: 'original-if-accepted', labelKey: 'settings.namingModeOriginalIfAccepted' },
+  { value: 'dual', labelKey: 'settings.namingModeDual' },
+]
 
 
 const isFake = true
@@ -97,6 +119,7 @@ const AUTO_DOWNLOAD_FREQUENCY_OPTIONS: Array<{
 ]
 
 export function SettingsPage() {
+  const { t } = useTranslation()
   const [settings, setSettings] = useState<PublicSettings | null>(null)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -240,7 +263,7 @@ export function SettingsPage() {
         </StaggeredItem>
 
         <StaggeredItem>
-          <SettingsCard icon={<FolderOpen className="h-4 w-4" />} title="Library output">
+          <SettingsCard icon={<FolderOpen className="h-4 w-4" />} title={t('settings.libraryOutput')}>
             <div className="space-y-4">
               <label className="flex flex-col gap-1.5 md:flex-row md:items-start md:gap-3">
                 <span className="text-sm text-white/70 md:w-32 md:pt-2">Quality</span>
@@ -382,6 +405,63 @@ export function SettingsPage() {
 
                 </div>
               </label>
+
+              <div className="border-t border-white/[0.06] pt-4">
+                <label className="flex flex-col gap-1.5 md:flex-row md:items-center md:gap-3">
+                  <span className="text-sm text-white/70 md:w-32">
+                    {t('settings.webInterfaceLanguage')}
+                  </span>
+                  <select
+                    value={settings.uiLanguage}
+                    onChange={(e) => update({ uiLanguage: e.target.value as PublicSettings['uiLanguage'] })}
+                    className="w-full rounded-app border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-white outline-none transition-[border-color,background,box-shadow] duration-[250ms] ease-smooth focus:border-[rgba(var(--accent),0.45)] focus:bg-[rgba(var(--accent),0.04)] focus:shadow-[0_0_0_3px_rgba(var(--accent),0.18)] md:flex-1"
+                  >
+                    <option value="system" className="bg-zinc-900">
+                      {t('settings.followSystemDefault')}
+                    </option>
+                    {SUPPORTED_LANGUAGES.map((code) => (
+                      <option key={code} value={code} className="bg-zinc-900">
+                        {LANGUAGE_NATIVE_LABELS[code]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div>
+                <div className="text-sm text-white/70">{t('settings.acceptedLanguages')}</div>
+                <div className="mt-1 text-[13px] text-white/45">{t('settings.acceptedLanguagesHelp')}</div>
+                <div className="mt-2">
+                  <LanguageChipInput
+                    value={settings.acceptedLanguages}
+                    onChange={(next) => update({ acceptedLanguages: next })}
+                    options={ACCEPTED_LANGUAGE_OPTIONS}
+                    placeholder={t('settings.acceptedLanguagesPlaceholder')}
+                    emptyHint={t('settings.acceptedLanguagesEmpty')}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="text-sm font-medium">{t('settings.namingLanguageMode')}</div>
+                <div className="mt-2 space-y-2" role="radiogroup" aria-label={t('settings.namingLanguageMode')}>
+                  {NAMING_LANGUAGE_MODE_OPTIONS.map((option) => (
+                    <label
+                      key={option.value}
+                      className="flex cursor-pointer items-start gap-3 rounded-app border border-white/[0.06] bg-white/[0.02] p-3 hover:bg-white/[0.04]"
+                    >
+                      <input
+                        type="radio"
+                        name="namingLanguageMode"
+                        checked={settings.namingLanguageMode === option.value}
+                        onChange={() => update({ namingLanguageMode: option.value })}
+                        className="mt-0.5 shrink-0"
+                      />
+                      <span className="text-[13px] text-white/80">{t(option.labelKey)}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
             </div>
           </SettingsCard>
         </StaggeredItem>

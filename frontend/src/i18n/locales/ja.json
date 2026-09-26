@@ -1,0 +1,34 @@
+{
+  "nav": {
+    "home": "ホーム",
+    "browse": "見つける",
+    "search": "検索",
+    "downloads": "ダウンロード",
+    "appleMusic": "Apple Music",
+    "following": "フォロー中",
+    "system": "システム",
+    "status": "ステータス",
+    "settings": "設定",
+    "signOut": "サインアウト",
+    "confirmSignOut": "サインアウトしますか？",
+    "cancel": "キャンセル"
+  },
+  "topbar": {
+    "search": "検索",
+    "home": "ホーム",
+    "library": "ライブラリ"
+  },
+  "settings": {
+    "libraryOutput": "ライブラリ出力",
+    "webInterfaceLanguage": "ウェブ画面の言語",
+    "followSystemDefault": "システム設定に従う",
+    "acceptedLanguages": "楽曲メタデータの許容言語",
+    "acceptedLanguagesHelp": "優先順のリストです（先頭ほど優先）。下の命名モードが、元の言語名を残すかどうかの判断に使います。",
+    "acceptedLanguagesPlaceholder": "言語を入力…",
+    "acceptedLanguagesEmpty": "言語が追加されていません。元の言語名は優先されません。",
+    "namingLanguageMode": "ダウンロードファイルの命名言語",
+    "namingModeDisplay": "表示言語で名付け、翻訳がない場合は元の言語にフォールバック",
+    "namingModeOriginalIfAccepted": "元の言語が許容リストにあればそれを使用し、なければ表示言語にフォールバック",
+    "namingModeDual": "表示言語を使い、両方が存在し異なる場合は元の言語名も併記"
+  }
+}

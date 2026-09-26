@@ -1,0 +1,34 @@
+{
+  "nav": {
+    "home": "主页",
+    "browse": "浏览",
+    "search": "搜索",
+    "downloads": "下载",
+    "appleMusic": "Apple Music",
+    "following": "关注",
+    "system": "系统",
+    "status": "状态",
+    "settings": "设置",
+    "signOut": "退出登录",
+    "confirmSignOut": "确定要退出登录吗？",
+    "cancel": "取消"
+  },
+  "topbar": {
+    "search": "搜索",
+    "home": "主页",
+    "library": "资料库"
+  },
+  "settings": {
+    "libraryOutput": "资料库输出",
+    "webInterfaceLanguage": "网页界面语言",
+    "followSystemDefault": "跟随系统设置",
+    "acceptedLanguages": "音乐元数据接受语言",
+    "acceptedLanguagesHelp": "按优先级排序的列表——排在最前的最优先。下方的命名方式会用它来判断何时保留原始语言名称。",
+    "acceptedLanguagesPlaceholder": "输入语言…",
+    "acceptedLanguagesEmpty": "尚未添加任何语言——不会优先使用原始语言名称。",
+    "namingLanguageMode": "下载文件命名语言",
+    "namingModeDisplay": "使用我的显示语言命名，若无翻译则回退到原始语言",
+    "namingModeOriginalIfAccepted": "如果原始语言在我的接受列表中则使用原始语言，否则回退到我的显示语言",
+    "namingModeDual": "使用我的显示语言，并在两者存在且不同时附加原始语言名称"
+  }
+}

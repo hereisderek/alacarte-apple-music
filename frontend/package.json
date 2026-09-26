@@ -11,9 +11,12 @@
   },
   "dependencies": {
     "framer-motion": "^12.38.0",
+    "i18next": "^24.2.0",
+    "i18next-browser-languagedetector": "^8.0.2",
     "lucide-react": "^0.469.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-i18next": "^15.4.0",
     "react-router-dom": "^7.1.1"
   },
   "devDependencies": {

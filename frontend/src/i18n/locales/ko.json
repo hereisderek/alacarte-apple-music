@@ -1,0 +1,34 @@
+{
+  "nav": {
+    "home": "홈",
+    "browse": "둘러보기",
+    "search": "검색",
+    "downloads": "다운로드",
+    "appleMusic": "Apple Music",
+    "following": "팔로잉",
+    "system": "시스템",
+    "status": "상태",
+    "settings": "설정",
+    "signOut": "로그아웃",
+    "confirmSignOut": "로그아웃하시겠습니까?",
+    "cancel": "취소"
+  },
+  "topbar": {
+    "search": "검색",
+    "home": "홈",
+    "library": "보관함"
+  },
+  "settings": {
+    "libraryOutput": "라이브러리 출력",
+    "webInterfaceLanguage": "웹 인터페이스 언어",
+    "followSystemDefault": "시스템 설정 따르기",
+    "acceptedLanguages": "음악 메타데이터 허용 언어",
+    "acceptedLanguagesHelp": "우선순위 목록입니다 (맨 앞이 가장 선호됨). 아래 명명 방식이 원어 이름을 유지할지 결정하는 데 사용합니다.",
+    "acceptedLanguagesPlaceholder": "언어 입력…",
+    "acceptedLanguagesEmpty": "추가된 언어가 없습니다 — 원어 이름이 우선되지 않습니다.",
+    "namingLanguageMode": "다운로드 파일 이름 언어",
+    "namingModeDisplay": "표시 언어로 이름 짓기, 번역이 없으면 원어로 대체",
+    "namingModeOriginalIfAccepted": "원어가 허용 목록에 있으면 원어 사용, 아니면 표시 언어로 대체",
+    "namingModeDual": "표시 언어를 사용하고, 둘 다 존재하며 다를 경우 원어 이름도 함께 표기"
+  }
+}

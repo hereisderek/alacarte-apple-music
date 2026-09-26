@@ -17,6 +17,8 @@ import { HealthPill, getHealthPillTarget, getHealthPillAriaLabel } from './compo
 import { PageWrapper } from './components/PageWrapper'
 import { AuthScreen } from './components/AuthScreen'
 import { useHealth } from './hooks/useHealth'
+import { useAppSettings } from './hooks/useAppSettings'
+import { applyUiLanguage } from './i18n'
 import { api, type AuthState, setUnauthorizedHandler } from './api/client'
 
 type AuthLimits = {
@@ -133,6 +135,15 @@ export default function App() {
 function AuthedApp() {
   const { health, loading } = useHealth()
   const location = useLocation()
+  const settings = useAppSettings()
+
+  // The UI-language setting lives in backend settings (so it follows the
+  // user across browsers/devices), not just localStorage — apply it to
+  // i18next whenever settings load or change. 'system' means "follow the
+  // browser's language", which i18next-browser-languagedetector handles.
+  useEffect(() => {
+    applyUiLanguage(settings?.uiLanguage)
+  }, [settings?.uiLanguage])
 
   return (
     <div className="min-h-dvh w-full flex flex-col">

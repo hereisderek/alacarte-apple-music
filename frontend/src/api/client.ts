@@ -195,7 +195,13 @@ export type PublicSettings = {
   namingConvention: 'apple' | 'qobuz'
   versionOptionsEnabled: boolean
   versionOptions: QualityGroup[]
+  uiLanguage: UiLanguage
+  acceptedLanguages: string[]
+  namingLanguageMode: NamingLanguageMode
 }
+
+export type UiLanguage = 'system' | 'en' | 'zh' | 'ja' | 'ko' | 'es' | 'fr'
+export type NamingLanguageMode = 'display' | 'original-if-accepted' | 'dual'
 
 export type AutoCheckFrequency =
   | 'auto'
