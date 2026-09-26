@@ -225,17 +225,28 @@ export function readAudioIdentityTagsSync(filePath) {
 }
 
 /**
- * Write ISRC / BARCODE vorbis comments into a FLAC via an ffmpeg stream-copy
- * remux (lossless, keeps all existing metadata). Fail-soft: returns false on
- * any problem and never touches the original file on failure.
+ * Write ISRC / BARCODE (and optional extra) vorbis comments into a FLAC via
+ * an ffmpeg stream-copy remux (lossless, keeps all existing metadata).
+ * Fail-soft: returns false on any problem and never touches the original
+ * file on failure.
+ *
+ * `extra` is an arbitrary string-keyed map of additional Vorbis comment
+ * fields to set — used by the Library Output language feature to stamp
+ * ORIGINAL_TITLE / ORIGINAL_ALBUM / ORIGINAL_ARTIST (see queue.mjs). Vorbis
+ * comments accept any field name, so this reuses the same identity-tag
+ * remux instead of a separate write path.
  */
-export function writeAudioIdentityTags(filePath, { isrc, upc } = {}) {
+export function writeAudioIdentityTags(filePath, { isrc, upc, extra } = {}) {
   let tmp = null
   try {
     if (!/\.flac$/i.test(filePath)) return false
     const isrcNorm = normalizeIsrc(isrc)
     const upcNorm = normalizeUpc(upc)
-    if (!isrcNorm && !upcNorm) return false
+    const extraEntries =
+      extra && typeof extra === 'object'
+        ? Object.entries(extra).filter(([, v]) => v != null && String(v).trim())
+        : []
+    if (!isrcNorm && !upcNorm && extraEntries.length === 0) return false
     tmp = path.join(
       path.dirname(filePath),
       `.${path.basename(filePath)}.stamp-tmp.flac`,
@@ -243,6 +254,9 @@ export function writeAudioIdentityTags(filePath, { isrc, upc } = {}) {
     const args = ['-y', '-nostdin', '-i', filePath, '-map_metadata', '0', '-c', 'copy']
     if (isrcNorm) args.push('-metadata', `ISRC=${isrcNorm}`)
     if (upcNorm) args.push('-metadata', `BARCODE=${upcNorm}`)
+    for (const [key, value] of extraEntries) {
+      args.push('-metadata', `${key}=${String(value).trim()}`)
+    }
     args.push(tmp)
     const res = spawnSync('ffmpeg', args, {
       encoding: 'utf8',

@@ -38,6 +38,8 @@ import { getDb } from './db.mjs'
 import { normalizeForMatchKey } from './libraryMatchKey.mjs'
 import { writeAudioIdentityTags } from './audioTags.mjs'
 import { probeWrapperPorts } from './wrapperHealth.mjs'
+import { resolveMetadataName } from './metadataLanguage.mjs'
+import { getOriginalAlbumMeta, getOriginalPlaylistMeta } from './originalMetadataCache.mjs'
 
 const MUSIC_ROOT = process.env.AMDL_MUSIC_PATH || '/music'
 const STAGING_ROOT_OUTSIDE = '/tmp/alacarte-staging'
@@ -171,6 +173,115 @@ function setConversionEnabled(progressState, enabled) {
   progressState.convertEnabled = Boolean(enabled)
   progressState.convertTotal = enabled ? Math.max(1, progressState.downloadTotal) : 0
   progressState.convertDone = 0
+}
+
+/**
+ * Resolve album / artist / per-track naming for the user's naming-language
+ * preference (settings.namingLanguageMode + settings.acceptedLanguages).
+ *
+ * Mode 'display' (the default) is exactly today's behavior and returns
+ * immediately with zero extra Apple API calls. The other two modes need a
+ * second, home-locale copy of the album to learn the "original" name — that
+ * lookup is paced and cached (see originalMetadataCache.mjs) so it never
+ * multiplies per-track API traffic.
+ */
+async function resolveAlbumNaming({ settings, storefront, albumId, meta }) {
+  const mode = settings?.namingLanguageMode || 'display'
+  const fallback = {
+    albumTitle: meta?.name ? stripTrailingYear(meta.name) : null,
+    artist: meta?.artistName || null,
+    originalAlbumTitle: null,
+    originalArtist: null,
+    trackNameOverrides: [],
+  }
+  if (mode === 'display' || !meta) return fallback
+
+  const original = await getOriginalAlbumMeta({ storefront, albumId })
+  if (!original) return fallback
+
+  const acceptedLanguages = Array.isArray(settings?.acceptedLanguages)
+    ? settings.acceptedLanguages
+    : []
+  const displayAlbumTitle = stripTrailingYear(meta.name)
+  const originalAlbumTitleRaw = stripTrailingYear(original.name)
+
+  const albumTitle = resolveMetadataName({
+    mode,
+    displayName: displayAlbumTitle,
+    originalName: originalAlbumTitleRaw,
+    acceptedLanguages,
+  })
+  const artist = resolveMetadataName({
+    mode,
+    displayName: meta.artistName,
+    originalName: original.artistName,
+    acceptedLanguages,
+  })
+
+  const originalById = new Map((original.tracks || []).map((t) => [t.id, t]))
+  const trackNameOverrides = (meta.tracks || []).map((t) => {
+    const originalTrack = originalById.get(t.id)
+    const resolvedName = resolveMetadataName({
+      mode,
+      displayName: t.name,
+      originalName: originalTrack?.name,
+      acceptedLanguages,
+    })
+    return {
+      id: t.id,
+      name: t.name, // display name — matches the name amdp itself writes
+      trackNumber: t.trackNumber,
+      isrc: t.isrc || null,
+      resolvedName,
+      originalName: originalTrack?.name || null,
+    }
+  })
+
+  return {
+    albumTitle: albumTitle || displayAlbumTitle,
+    artist: artist || meta.artistName,
+    originalAlbumTitle:
+      originalAlbumTitleRaw && originalAlbumTitleRaw !== displayAlbumTitle
+        ? originalAlbumTitleRaw
+        : null,
+    originalArtist:
+      original.artistName && original.artistName !== meta.artistName
+        ? original.artistName
+        : null,
+    trackNameOverrides,
+  }
+}
+
+/**
+ * Rename downloaded audio files (and their .lrc/.ttml sidecars) in place so
+ * their filenames reflect the resolved naming-language preference instead of
+ * whatever display-language name amdp itself embedded. Mirrors the qobuz
+ * naming-convention rename block right above each call site. Fail-soft.
+ */
+async function renameTrackFilesForLanguage(albumPath, overrides) {
+  if (!overrides?.length) return
+  let files
+  try {
+    files = await fsp.readdir(albumPath)
+  } catch {
+    return
+  }
+  for (const fn of files) {
+    if (!/\.(flac|m4a|mp3|lrc|ttml)$/i.test(fn)) continue
+    const track = matchTrackForFile(fn, overrides)
+    if (!track?.resolvedName || track.resolvedName === track.name) continue
+    if (!fn.includes(track.name)) continue
+    const newName = fn.split(track.name).join(track.resolvedName)
+    if (newName === fn) continue
+    try {
+      const dst = path.join(albumPath, newName)
+      if (!(await fsp.stat(dst).catch(() => null))) {
+        await fsp.rename(path.join(albumPath, fn), dst)
+      }
+    } catch (err) {
+      console.error('language rename failed:', err.message)
+    }
+  }
 }
 
 export function listJobs() {
@@ -414,6 +525,13 @@ export async function enqueueAlbum({ albumId, storefront, quality, expectedArtis
     console.error('album metadata lookup failed', err.message)
   }
 
+  const naming = await resolveAlbumNaming({
+    settings,
+    storefront: storefront || settings.storefront,
+    albumId,
+    meta,
+  })
+
   let missingTracks = null
   let variant = null
   if (meta?.artistName && meta?.name && Array.isArray(meta?.tracks) && meta.tracks.length > 0) {
@@ -450,9 +568,12 @@ export async function enqueueAlbum({ albumId, storefront, quality, expectedArtis
     status: 'queued',
     progress: 0,
     albumId,
-    albumTitle: stripTrailingYear(meta?.name) || 'Unknown album',
+    albumTitle: naming.albumTitle || 'Unknown album',
     albumName: meta?.name || null,
-    artist: meta?.artistName || 'Unknown artist',
+    artist: naming.artist || 'Unknown artist',
+    originalAlbumTitle: naming.originalAlbumTitle,
+    originalArtist: naming.originalArtist,
+    trackNameOverrides: naming.trackNameOverrides,
     artistId: expectedArtistId || meta?.artistId || null,
     year: meta?.year || null,
     artworkUrl: meta?.artworkTemplate
@@ -522,6 +643,47 @@ export async function enqueuePlaylist({ playlistId, libraryId, storefront, quali
     console.error('playlist metadata lookup failed', err.message)
   }
 
+  // Playlist titles/curators get the same display-vs-original resolution as
+  // albums (one extra paced+cached lookup, only when the mode needs it).
+  // Per-track playlist renaming is deliberately not done here — see README's
+  // "Language support" follow-up section: a playlist can span many artists
+  // and storefronts, so per-track original-name lookups would multiply
+  // Apple API calls in exactly the way the rate-limit constraint warns
+  // against.
+  let playlistTitle = meta?.name || null
+  let curatorName = meta?.curatorName || null
+  let originalPlaylistTitle = null
+  const namingMode = settings.namingLanguageMode || 'display'
+  if (namingMode !== 'display' && meta) {
+    try {
+      const original = await getOriginalPlaylistMeta({
+        storefront: storefront || settings.storefront,
+        playlistId,
+      })
+      if (original) {
+        const acceptedLanguages = Array.isArray(settings.acceptedLanguages)
+          ? settings.acceptedLanguages
+          : []
+        playlistTitle = resolveMetadataName({
+          mode: namingMode,
+          displayName: meta.name,
+          originalName: original.name,
+          acceptedLanguages,
+        })
+        curatorName = resolveMetadataName({
+          mode: namingMode,
+          displayName: meta.curatorName,
+          originalName: original.curatorName,
+          acceptedLanguages,
+        })
+        originalPlaylistTitle =
+          original.name && original.name !== meta.name ? original.name : null
+      }
+    } catch (err) {
+      console.error('playlist original-language lookup failed', err.message)
+    }
+  }
+
   const job = {
     id,
     kind: 'playlist',
@@ -533,8 +695,9 @@ export async function enqueuePlaylist({ playlistId, libraryId, storefront, quali
     sourceUrl:
       meta?.url ||
       `https://music.apple.com/${encodeURIComponent(storefront || settings.storefront || 'us')}/playlist/_/${encodeURIComponent(playlistId)}`,
-    albumTitle: meta?.name || 'Unknown playlist',
-    artist: meta?.curatorName || 'Apple Music',
+    albumTitle: playlistTitle || 'Unknown playlist',
+    artist: curatorName || 'Apple Music',
+    originalAlbumTitle: originalPlaylistTitle,
     artistId: meta?.curatorId || null,
     year: null,
     artworkUrl: meta?.artworkTemplate
@@ -711,6 +874,14 @@ export async function enqueueSong({ songId, albumId, storefront, quality, follow
     throw alreadyInLibraryError('Already in library')
   }
 
+  const naming = await resolveAlbumNaming({
+    settings,
+    storefront: sf,
+    albumId: resolvedAlbumId,
+    meta,
+  })
+  const trackOverride = naming.trackNameOverrides.find((t) => t.id === songId) || null
+
   const job = {
     id,
     kind: 'song',
@@ -719,8 +890,13 @@ export async function enqueueSong({ songId, albumId, storefront, quality, follow
     albumId: resolvedAlbumId,
     songId,
     followedPlaylistId: followedPlaylistId || null,
-    albumTitle: trackName,
-    artist: meta?.artistName || 'Unknown artist',
+    albumTitle: trackOverride?.resolvedName || trackName,
+    resolvedAlbumTitle: naming.albumTitle,
+    originalAlbumTitle: naming.originalAlbumTitle,
+    originalArtist: naming.originalArtist,
+    originalTrackTitle: trackOverride?.originalName || null,
+    trackNameOverrides: trackOverride ? [trackOverride] : [],
+    artist: naming.artist || 'Unknown artist',
     artistId: meta?.artistId || null,
     year: meta?.year || null,
     artworkUrl: meta?.artworkTemplate
@@ -807,7 +983,13 @@ export async function initQueue() {
   setImmediate(tickQueue)
 }
 
-export const __test__ = { persistJob, restorePersistedJobs, matchTrackForFile }
+export const __test__ = {
+  persistJob,
+  restorePersistedJobs,
+  matchTrackForFile,
+  resolveAlbumNaming,
+  renameTrackFilesForLanguage,
+}
 
 // Stamp ISRC/BARCODE tags onto downloaded FLACs so presence matching has an
 // artist-name-independent anchor (collab albums import under a different
@@ -833,15 +1015,28 @@ function matchTrackForFile(fileName, tracks) {
   )
 }
 
-async function stampAlbumIdentityTags(dir, upc, tracks) {
+async function stampAlbumIdentityTags(dir, upc, tracks, { originalAlbum, originalArtist } = {}) {
   try {
     const entries = await fsp.readdir(dir)
     for (const name of entries) {
       if (!/\.flac$/i.test(name)) continue
       const track = matchTrackForFile(name, tracks)
       const isrc = track?.isrc || null
-      if (!isrc && !upc) continue
-      writeAudioIdentityTags(path.join(dir, name), { isrc, upc })
+      const extra = {}
+      // track.originalName is only present when tracks === job.trackNameOverrides
+      // (naming mode 'original-if-accepted'/'dual'); plain job.trackIsrcs
+      // entries don't carry it, so this is a no-op in 'display' mode.
+      if (track?.originalName && track.originalName !== track.name) {
+        extra.ORIGINAL_TITLE = track.originalName
+      }
+      if (originalAlbum) extra.ORIGINAL_ALBUM = originalAlbum
+      if (originalArtist) extra.ORIGINAL_ARTIST = originalArtist
+      if (!isrc && !upc && Object.keys(extra).length === 0) continue
+      writeAudioIdentityTags(path.join(dir, name), {
+        isrc,
+        upc,
+        extra: Object.keys(extra).length ? extra : undefined,
+      })
     }
   } catch (err) {
     console.error('identity tag stamping failed:', err.message)
@@ -973,6 +1168,14 @@ async function runJob(job) {
 
     const isSong = job.kind === 'song'
     const isPlaylist = job.kind === 'playlist'
+    // In the default 'display' mode, finalDir naming must stay byte-for-byte
+    // identical to pre-language-feature behavior: the actual folder amdp put
+    // on disk (firstArtist.name / firstAlbum.name), not our own catalog
+    // fetch's name, in case the two differ in some edge case (sanitization,
+    // an explicit-tag suffix, etc). Only override with the resolved
+    // job.artist / job.albumTitle when a naming-language mode actually
+    // requires it.
+    const useLanguageNaming = (settings.namingLanguageMode || 'display') !== 'display'
     const baseUrl = `https://music.apple.com/${encodeURIComponent(job.storefront)}/album/_/${encodeURIComponent(job.albumId)}`
     const playlistUrl =
       job.sourceUrl ||
@@ -1180,7 +1383,11 @@ async function runJob(job) {
     }
 
     if (!isSong && !isPlaylist) {
-      await stampAlbumIdentityTags(albumPath, job.upc, job.trackIsrcs)
+      const tagTracks = job.trackNameOverrides?.length ? job.trackNameOverrides : job.trackIsrcs
+      await stampAlbumIdentityTags(albumPath, job.upc, tagTracks, {
+        originalAlbum: job.originalAlbumTitle,
+        originalArtist: job.originalArtist,
+      })
     }
 
     if (!isSong) {
@@ -1205,11 +1412,13 @@ async function runJob(job) {
       // Songs import straight into their parent album folder so every
       // download lands in the same Artist/Album/Track structure with the
       // original amdp filenames (and their embedded metadata) preserved.
-      const albumDirName = firstAlbum.name.replace(/\s*\(\d{4}\)\s*$/, '')
+      const albumDirName =
+        (useLanguageNaming && job.resolvedAlbumTitle) ||
+        firstAlbum.name.replace(/\s*\(\d{4}\)\s*$/, '')
       const rawAlbumName = applyNamingConvention(albumDirName, convention)
       finalDir = await computeFinalDir(
         MUSIC_ROOT,
-        firstArtist.name,
+        (useLanguageNaming && job.artist) || firstArtist.name,
         rawAlbumName,
         job.year,
       )
@@ -1229,6 +1438,10 @@ async function runJob(job) {
             }
           }
         }
+      }
+
+      if (settings.namingLanguageMode !== 'display' && job.trackNameOverrides?.length) {
+        await renameTrackFilesForLanguage(albumPath, job.trackNameOverrides)
       }
 
       const movedFiles = await fsp.readdir(albumPath)
@@ -1252,23 +1465,28 @@ async function runJob(job) {
         }
       }
       await copyFolderArtIfAny(albumPath, finalDir)
-      if (job.isrc || job.upc) {
+      const songExtra = {}
+      if (job.originalTrackTitle) songExtra.ORIGINAL_TITLE = job.originalTrackTitle
+      if (job.originalAlbumTitle) songExtra.ORIGINAL_ALBUM = job.originalAlbumTitle
+      if (job.originalArtist) songExtra.ORIGINAL_ARTIST = job.originalArtist
+      if (job.isrc || job.upc || Object.keys(songExtra).length > 0) {
         for (const fn of audioFiles) {
           writeAudioIdentityTags(path.join(finalDir, fn), {
             isrc: job.isrc,
             upc: job.upc,
+            extra: Object.keys(songExtra).length ? songExtra : undefined,
           })
         }
       }
       await writeVersionMarker(finalDir, job.quality, { ifMissing: true })
     } else {
-      const rawAlbumName = applyNamingConvention(
-        firstAlbum.name.replace(/\s*\(\d{4}\)\s*$/, ''),
-        convention,
-      )
+      const albumDirName =
+        (useLanguageNaming && job.albumTitle) ||
+        firstAlbum.name.replace(/\s*\(\d{4}\)\s*$/, '')
+      const rawAlbumName = applyNamingConvention(albumDirName, convention)
       finalDir = await computeFinalDir(
         MUSIC_ROOT,
-        firstArtist.name,
+        (useLanguageNaming && job.artist) || firstArtist.name,
         rawAlbumName,
         job.year,
       )
@@ -1291,6 +1509,10 @@ async function runJob(job) {
             }
           }
         }
+      }
+
+      if (settings.namingLanguageMode !== 'display' && job.trackNameOverrides?.length) {
+        await renameTrackFilesForLanguage(albumPath, job.trackNameOverrides)
       }
 
       progressState.finalizeProgress = Math.max(progressState.finalizeProgress, 0.75)
