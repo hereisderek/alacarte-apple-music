@@ -50,14 +50,35 @@ void i18n
     interpolation: { escapeValue: false },
   })
 
+// The exact localStorage key i18next-browser-languagedetector's default
+// 'localStorage' cache uses (see its lookupLocalStorage option, which
+// defaults to this name). applyUiLanguage below has to know it explicitly
+// so it can clear a stale explicit pick when the user switches back to
+// "Follow system default" — see the comment there for why.
+const DETECTOR_CACHE_KEY = 'i18nextLng'
+
 /**
  * Apply the user's uiLanguage setting ('system' | one of SUPPORTED_LANGUAGES).
  * 'system' re-runs browser-language detection (falling back to English when
  * the browser's language isn't one of the translated ones or can't be
  * detected — i18next's fallbackLng handles that automatically).
+ *
+ * The detector's cache ('localStorage', checked before 'navigator' — see the
+ * `detection.order` above) is exactly what makes an explicit pick sticky
+ * across reloads. That means switching back to "system" has to clear it
+ * first: otherwise `changeLanguage(undefined)` just re-reads the previous
+ * explicit pick out of localStorage instead of ever reaching
+ * navigator.language, and "Follow system default" silently stops following
+ * the system.
  */
 export function applyUiLanguage(uiLanguage: string | null | undefined) {
   if (!uiLanguage || uiLanguage === 'system') {
+    try {
+      window.localStorage.removeItem(DETECTOR_CACHE_KEY)
+    } catch {
+      // Private browsing / blocked storage — detection still runs below,
+      // it just won't be cached for next time.
+    }
     void i18n.changeLanguage(undefined)
     return
   }
