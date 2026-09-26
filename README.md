@@ -122,6 +122,47 @@ Wrapper response type 4 is a generic StoreServices failure, not a credential dia
 - The queue survives page refreshes but not container restarts.
 - If a job fails (network hiccup, decryption glitch), you can re-queue it manually.
 
+## Language support
+
+ALACarte separates two independent language preferences, both in **Settings → Library output**:
+
+1. **Web interface language** — translates the app's own UI (navigation, and the language settings below). Choose an explicit language, or "Follow system default" to use your browser's language, falling back to English if it isn't one of the ones below or can't be detected. Built with [react-i18next](https://react.i18next.com/) + [i18next-browser-languagedetector](https://github.com/i18next/i18next-browser-languageDetector).
+2. **Accepted languages for music metadata** — an ordered preference list (drag to reorder, click a suggestion to add, × to remove) plus a **downloaded file naming language** mode. These control what language song/album/artist *names* are downloaded in — independent of the UI language above.
+
+Currently translated/supported: **English, Chinese (Simplified), Japanese, Korean, Spanish, French** — a deliberately small starter set rather than exhaustive coverage. Chinese ships as Simplified only for now; Traditional Chinese, and covering every remaining visible UI string beyond navigation/settings, are natural follow-ups.
+
+### Naming language modes
+
+Given a song whose original (Chinese) name is `泡沫` and whose Apple-translated name in your configured catalog `language` is `Bubbles`:
+
+| Mode | Behavior | Result |
+|------|----------|--------|
+| **Display** (default) | Use your display language, falling back to the original if Apple has no translation. | `Bubbles` |
+| **Original if accepted** | Use the original-language name if that language is in your accepted list; otherwise fall back to display. | `泡沫` if `zh` is in your accepted list, else `Bubbles` |
+| **Dual** | Use the display name, and append the original in parentheses when they differ. | `Bubbles (泡沫)` |
+
+This applies to song title, album title, and artist/singer name, everywhere those drive folder/file naming — see `backend/lib/queue.mjs`'s `resolveAlbumNaming`. The default mode never triggers this pipeline, so a fresh install behaves exactly as before this feature existed.
+
+**How "original language" is determined:** since Apple's catalog API only localizes on request, ALACarte fetches one extra copy of the album/playlist in the storefront's own home-locale language (see `STOREFRONT_HOME_LANGUAGE` in `backend/lib/metadataLanguage.mjs`) and compares it against your display-language copy. This is a heuristic, not a metadata field Apple actually provides — a storefront missing from that map, or content whose original language doesn't match its storefront, will just fall back to display naming. Which script a name is in (for deciding whether it's "accepted") is detected by a small, dependency-free character-range check (`detectScript`) that reliably tells Chinese/Japanese/Korean apart, but can't distinguish Latin-script languages (English vs. Spanish vs. French) from one another — a real language-detection library would be needed for that.
+
+**Rate limits:** the extra home-locale lookup only happens when a non-default naming mode is selected, is paced (a minimum gap between requests) and cached forever per album/playlist (an original-language name never changes) — see `backend/lib/originalMetadataCache.mjs`. It does not run at all for playlists' individual tracks or for the "fill missing tracks" flow, to avoid multiplying Apple API calls during bulk operations; those keep display-only naming for now.
+
+### Tags
+
+When a naming mode other than "Display" is active, FLAC downloads also get the original-language name(s) stamped as extra Vorbis comment fields (alongside the existing `ISRC`/`BARCODE` tags — see `backend/lib/audioTags.mjs`'s `writeAudioIdentityTags`):
+
+- `ORIGINAL_TITLE` — the track's original-language name (only set when it differs from what's embedded as the main title)
+- `ORIGINAL_ALBUM` — the album's original-language name
+- `ORIGINAL_ARTIST` — the artist's original-language name
+
+### Follow-up work
+
+- Cover every remaining visible UI string, not just navigation/settings.
+- Traditional Chinese, plus a handful more languages, in both the UI and accepted-languages list.
+- Per-track original-language naming for playlists and for "fill missing tracks" album backfills (currently display-only, to keep Apple API call volume flat for bulk flows).
+- A real language-detection library, so "original if accepted" can distinguish Latin-script languages from one another instead of only CJK/Hangul vs. everything else.
+- A storefront/home-locale map covering more than the storefronts already offered in the Storefront picker.
+
 ## Notes and limits
 
 **IP rate-limiting and proxies** Apple appears to rate-limit by IP if you query huge amounts of data at once. In my experience, this isn't a permanent ban, I got soft-blocked for about a day after downloading ~1500 songs. If you plan to archive massive collections, consider:
