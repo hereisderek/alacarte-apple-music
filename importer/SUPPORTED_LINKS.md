@@ -15,8 +15,8 @@ else needs to change.
 | KKBOX playlist (`kkbox.com/.../playlist/<id>`) | [`parsers/kkbox/`](parsers/kkbox/) | Best-effort | KKBOX fronts playlist pages with an AWS WAF bot challenge that a plain server-side request usually can't pass. Works when the challenge isn't triggered; fails with a clear message ("paste as plain text instead") otherwise. |
 | HOLIDAY KTV chart (`holiday.com.tw/SongInfo/SongList.aspx`) | [`parsers/generic-site/holiday.mjs`](parsers/generic-site/holiday.mjs) | Supported | Calls the page's own JSON chart API (`/Ashx/SongInfo.ashx`) directly — no HTML scraping. A chart, not a playlist, so it has no title of its own. |
 | Silverbox KTV rank (`silverbox.com.tw/rank/<n>/`) | [`parsers/generic-site/silverbox.mjs`](parsers/generic-site/silverbox.mjs) | Supported | Fully server-rendered page; parsed by matching `<li class="songItem">` rows. |
-| NetEase Cloud Music (网易云音乐) | — | Planned | No example link supplied yet. |
-| YouTube / YouTube Music | — | Planned | No example link supplied yet. |
+| NetEase Cloud Music (网易云音乐, `music.163.com`) | [`parsers/netease/`](parsers/netease/) | Supported | Reads official v6 playlist detail API with song detail batching; falls back to mobile `REDUX_STATE`. Large playlists without auth are limited by NetEase's API. |
+| YouTube / YouTube Music (`music.youtube.com`, `youtube.com`) | [`parsers/youtube/`](parsers/youtube/) | Supported | Extracts songs and artists from YouTube Music browse payload; falls back to YouTube playlist renderers. |
 | Other arbitrary chart/listing sites | [`parsers/generic-site/`](parsers/generic-site/) | Extend as needed | Each site gets its own profile file in this folder (see `holiday.mjs`/`silverbox.mjs` for the shape) — there's no generic scraper, since every site's markup is different. |
 
 ## Adding a platform

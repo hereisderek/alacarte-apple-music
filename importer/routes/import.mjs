@@ -22,6 +22,7 @@ importRouter.post('/', async (req, res) => {
     const session = await createImportSession({
       title: title || parsed.title || 'Imported playlist',
       tracks: parsed.tracks,
+      warnings: parsed.warnings,
     })
     res.status(202).json({ session: publicSession(session) })
   } catch (err) {

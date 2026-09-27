@@ -53,6 +53,8 @@ export type ImportItem = {
 
 export type ImportCounts = {
   total: number
+  processed?: number
+  added?: number
   pending: number
   queued: number
   done: number
@@ -66,6 +68,7 @@ export type ImportSession = {
   createdAt: number
   counts: ImportCounts
   items: ImportItem[]
+  warnings?: string[]
 }
 
 export const api = {

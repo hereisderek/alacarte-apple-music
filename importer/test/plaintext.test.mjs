@@ -21,6 +21,12 @@ test('parsePlainText keeps a title-only line searchable without an artist', () =
   assert.deepEqual(track.artists, [])
 })
 
+test('parsePlainText splits lines with no spaces around hyphen', () => {
+  const [track] = parsePlainText('甜甜的-周杰倫')
+  assert.equal(track.title, '甜甜的')
+  assert.deepEqual(track.artists, ['周杰倫'])
+})
+
 test('parsePlainText ignores blank lines', () => {
   const tracks = parsePlainText('七里香 - 周杰倫\n\n\n晴天 - 周杰倫\n')
   assert.equal(tracks.length, 2)

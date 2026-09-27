@@ -133,15 +133,17 @@ function ImporterApp() {
       <header>
         <h1 className="text-2xl font-semibold">Music Import</h1>
         <p className="text-neutral-400 text-sm mt-1">
-          Paste a song list (one "Title - Artist" per line) or a playlist link from Spotify, Qishui,
-          KKBOX, or a supported chart site.
+          Paste a song list (one per line, search terms, or "Title - Artist") or playlist links from NetEase (163.com),
+          YouTube Music, Spotify, Qishui, KKBOX, or supported chart sites.
         </p>
       </header>
 
       <form onSubmit={submit} className="space-y-3">
         <textarea
           className="w-full h-40 rounded bg-neutral-800 px-3 py-2 outline-none focus:ring-2 focus:ring-blue-600 font-mono text-sm"
-          placeholder={'七里香 - 周杰倫\n晴天 - 周杰倫\n\nor a link like https://open.spotify.com/playlist/...'}
+          placeholder={
+            '七里香 - 周杰倫\n甜甜的-周杰倫\n时光机\n\nor playlist links like:\nhttps://music.163.com/m/playlist?id=...\nhttps://music.youtube.com/playlist?list=...'
+          }
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
@@ -185,6 +187,19 @@ function SessionView({
         <Summary counts={session.counts} />
       </div>
 
+      {session.warnings && session.warnings.length > 0 && (
+        <div className="space-y-2">
+          {session.warnings.map((w, idx) => (
+            <div
+              key={idx}
+              className="rounded border border-amber-800/80 bg-amber-950/40 p-3 text-sm text-amber-200"
+            >
+              {w}
+            </div>
+          ))}
+        </div>
+      )}
+
       {needsReview.length > 0 && (
         <div className="rounded border border-amber-800 bg-amber-950/40 p-3 text-sm text-amber-200">
           {needsReview.length} track{needsReview.length === 1 ? '' : 's'} need a manual pick below.
@@ -206,8 +221,14 @@ function SessionView({
 }
 
 function Summary({ counts }: { counts: ImportSession['counts'] }) {
+  const processed = counts.processed ?? counts.total - counts.pending
+  const added = counts.added ?? counts.queued + counts.done
+
   return (
-    <div className="flex gap-2 text-xs">
+    <div className="flex flex-wrap items-center gap-2 text-xs">
+      <span className="font-mono bg-neutral-800 text-neutral-200 border border-neutral-700 rounded-full px-2.5 py-1">
+        {processed}/{added} (total: {counts.total})
+      </span>
       <Pill label={`${counts.done} done`} className="bg-green-900 text-green-200" />
       <Pill label={`${counts.queued} queued`} className="bg-blue-900 text-blue-200" />
       {counts.failed > 0 && <Pill label={`${counts.failed} failed`} className="bg-red-900 text-red-200" />}
@@ -245,7 +266,9 @@ function ItemRow({
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <span className={`rounded-full px-2 py-1 text-xs ${STATUS_CLASS[item.status]}`}>
-            {STATUS_LABEL[item.status]}
+            {item.status === 'notfound' && item.candidates?.length > 0
+              ? 'To review'
+              : STATUS_LABEL[item.status]}
           </span>
           {needsReview && (
             <button

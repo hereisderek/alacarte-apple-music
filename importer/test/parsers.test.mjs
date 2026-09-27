@@ -74,3 +74,59 @@ test('qishui _ROUTER_DATA extraction survives trailing minified JS on the same l
   assert.equal(data.loaderData.playlist_page.playlistInfo.title, '老歌')
   assert.equal(data.loaderData.playlist_page.medias[0].entity.track.name, '光辉岁月')
 })
+
+test('matchesNetease and extractNeteaseId handle various NetEase URL formats', async () => {
+  const { matchesNetease, extractNeteaseId } = await import('../parsers/netease/index.mjs')
+  const u1 = 'https://music.163.com/m/playlist?id=14001963540&creatorId=515683122'
+  const u2 = 'https://music.163.com/playlist?id=14001963540'
+  const u3 = 'https://y.music.163.com/m/playlist?id=14001963540'
+  assert.equal(matchesNetease(u1), true)
+  assert.equal(matchesNetease(u2), true)
+  assert.equal(matchesNetease(u3), true)
+  assert.equal(extractNeteaseId(u1), '14001963540')
+  assert.equal(extractNeteaseId(u2), '14001963540')
+  assert.equal(extractNeteaseId(u3), '14001963540')
+})
+
+test('matchesYoutube and extractYoutubeListId handle YouTube and YouTube Music URLs', async () => {
+  const { matchesYoutube, extractYoutubeListId } = await import('../parsers/youtube/index.mjs')
+  const u1 = 'https://music.youtube.com/playlist?list=PLMnjabcOo1AGVzNR_ANsouSWKX2t-Gn3P'
+  const u2 = 'https://www.youtube.com/playlist?list=PLMnjabcOo1AGVzNR_ANsouSWKX2t-Gn3P'
+  assert.equal(matchesYoutube(u1), true)
+  assert.equal(matchesYoutube(u2), true)
+  assert.equal(extractYoutubeListId(u1), 'PLMnjabcOo1AGVzNR_ANsouSWKX2t-Gn3P')
+  assert.equal(extractYoutubeListId(u2), 'PLMnjabcOo1AGVzNR_ANsouSWKX2t-Gn3P')
+})
+
+test('parseInput parses mixed input with plain text lines and handles duplicate URLs', async () => {
+  const { parseInput } = await import('../parsers/index.mjs')
+  const input = `
+https://music.163.com/m/playlist?id=14001963540&creatorId=515683122
+https://music.163.com/m/playlist?id=14001963540&creatorId=515683122
+
+彩虹 - 周杰倫
+甜甜的-周杰倫
+时光机
+`
+  const result = await parseInput({ text: input })
+  assert.ok(result.tracks.length >= 3)
+  // Check the plain text tracks at the end
+  const titles = result.tracks.map((t) => t.title)
+  assert.ok(titles.includes('彩虹'))
+  assert.ok(titles.includes('甜甜的'))
+  assert.ok(titles.includes('时光机'))
+})
+
+test('parseInput survives individual URL failure and preserves remaining items', async () => {
+  const { parseInput } = await import('../parsers/index.mjs')
+  const input = `
+https://open.spotify.com/playlist/non_existent_fake_playlist_404
+晴天 - 周杰倫
+`
+  const result = await parseInput({ text: input })
+  assert.equal(result.tracks.length, 1)
+  assert.equal(result.tracks[0].title, '晴天')
+  assert.ok(result.warnings.length > 0)
+  assert.match(result.warnings[0], /Failed to parse link/)
+})
+

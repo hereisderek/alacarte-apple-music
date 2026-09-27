@@ -39,15 +39,27 @@ function publicSession(session) {
     queuePosition: idx === -1 ? undefined : idx,
     counts: computeCounts(session),
     items: session.items.map((item) => ({ ...item })),
+    warnings: session.warnings || [],
   }
 }
 
 function computeCounts(session) {
-  const counts = { total: session.items.length, pending: 0, queued: 0, done: 0, failed: 0, notfound: 0 }
+  const counts = {
+    total: session.items.length,
+    processed: 0,
+    added: 0,
+    pending: 0,
+    queued: 0,
+    done: 0,
+    failed: 0,
+    notfound: 0,
+  }
   for (const item of session.items) {
     if (item.status in counts) counts[item.status] += 1
     else counts.pending += 1
   }
+  counts.processed = session.items.length - counts.pending
+  counts.added = counts.queued + counts.done
   return counts
 }
 
@@ -69,7 +81,7 @@ export function getSession(id) {
 
 export { publicSession }
 
-export async function createImportSession({ title, tracks }) {
+export async function createImportSession({ title, tracks, warnings }) {
   let id = shortId()
   while (sessions.has(id)) id = shortId() // vanishingly unlikely, cheap to guard anyway
 
@@ -78,6 +90,7 @@ export async function createImportSession({ title, tracks }) {
     title: title || 'Imported playlist',
     createdAt: Date.now(),
     updatedAt: Date.now(),
+    warnings: warnings || [],
     items: tracks.map((t, index) => ({
       index,
       raw: t.raw || [t.title, ...(t.artists || [])].filter(Boolean).join(' - '),
@@ -135,7 +148,7 @@ async function runMatching(session) {
     try {
       const query = [item.parsedTitle, ...(item.parsedArtists || [])].filter(Boolean).join(' ')
       const candidates = await searchSongs({ q: query, limit: 5 })
-      const result = pickBestMatch(candidates)
+      const result = pickBestMatch(candidates, { query, parsedArtists: item.parsedArtists })
       item.candidates = result.candidates
       if (result.status === 'matched') {
         await queueItem(session, item, result.chosen)
