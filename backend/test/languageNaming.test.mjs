@@ -11,6 +11,9 @@ process.env.AMDL_CONFIG_DIR = tmpDir
 process.env.AMDL_SECRET_KEY = crypto.randomBytes(32).toString('hex')
 
 const { __test__ } = await import('../lib/queue.mjs')
+const { __setStorefrontLookupForTests } = await import('../lib/originalMetadataCache.mjs')
+// no Apple requests from tests: storefronts resolve to no known home language
+__setStorefrontLookupForTests(async () => null)
 const { resolveAlbumNaming, renameTrackFilesForLanguage } = __test__
 
 test('resolveAlbumNaming: display mode is a pure no-op fast path (no Apple API call, no storefront needed)', async () => {
@@ -36,7 +39,7 @@ test('resolveAlbumNaming: unmapped storefront falls back to display-only naming'
   const meta = { name: 'Something', artistName: 'Artist', tracks: [] }
   const result = await resolveAlbumNaming({
     settings: { namingLanguageMode: 'dual', acceptedLanguages: [] },
-    storefront: 'zz', // not in STOREFRONT_HOME_LANGUAGE
+    storefront: 'zz', // Apple knows no home language for it
     albumId: '123',
     meta,
   })
@@ -89,3 +92,31 @@ test('resolveAlbumNaming: resolves localized artist name for CJK artist on Anglo
   assert.equal(result.artist, '五月天')
 })
 
+test('renameTrackFilesForLanguage keeps resolved names inside the album folder', async () => {
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'alacarte-lang-unsafe-'))
+  fs.writeFileSync(path.join(dir, '01. Bubbles.flac'), 'x')
+  await renameTrackFilesForLanguage(dir, [
+    { id: '1', name: 'Bubbles', trackNumber: 1, resolvedName: 'Bubbles (Part 1/2: 泡沫?)' },
+  ])
+  assert.deepEqual(fs.readdirSync(dir), ['01. Bubbles (Part 1_2_ 泡沫_).flac'])
+})
+
+test('renameTrackFilesForLanguage fits long dual-mode names in the filename limit', async () => {
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'alacarte-lang-long-'))
+  fs.writeFileSync(path.join(dir, '01. Bubbles.flac'), 'x')
+  const resolvedName = `Bubbles (${'泡'.repeat(150)})`
+  await renameTrackFilesForLanguage(dir, [{ id: '1', name: 'Bubbles', trackNumber: 1, resolvedName }])
+  const [renamed] = fs.readdirSync(dir)
+  assert.ok(renamed.startsWith('01. Bubbles (泡'), renamed)
+  assert.ok(renamed.endsWith('.flac'))
+  assert.ok(Buffer.byteLength(renamed) <= 255, `${Buffer.byteLength(renamed)} bytes`)
+})
+
+test('sanitizeSegment caps names by bytes as well as characters', async () => {
+  const { sanitizeSegment } = await import('../lib/libraryMatchKey.mjs')
+  assert.equal(sanitizeSegment('Random Access Memories'), 'Random Access Memories')
+  assert.equal(sanitizeSegment('a'.repeat(250)), 'a'.repeat(200))
+  const cjk = sanitizeSegment('泡'.repeat(200))
+  assert.ok(Buffer.byteLength(cjk) <= 230)
+  assert.equal(cjk, '泡'.repeat(76))
+})

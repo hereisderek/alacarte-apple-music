@@ -44,7 +44,7 @@
     "namingModeDual": "Use my display language, and append the original-language name too when both exist and differ",
     "cardAppleCredentials": "Apple ID credentials",
     "cardMediaUserToken": "media-user-token",
-    "cardCatalog": "Location",
+    "cardCatalog": "Catalog",
     "cardLibraryTags": "Library tags",
     "cardOtherVersions": "Other versions",
     "cardAutoDownloads": "Auto-downloads",

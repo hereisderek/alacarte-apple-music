@@ -5,9 +5,8 @@
 // see README's "Language support" section for what's covered today and what
 // a follow-up pass would add.
 //
-// Chinese naming: Apple's own catalog API already uses BCP-47 script
-// subtags for Chinese — see STOREFRONT_HOME_LANGUAGE below, which has always
-// used 'zh-Hant-TW'/'zh-Hant-HK' rather than plain 'zh'. Under that scheme
+// Chinese naming: Apple's own catalog API uses BCP-47 script subtags for
+// Chinese ('zh-Hans-CN', 'zh-Hant-TW', 'zh-Hant-HK') rather than plain 'zh'. Under that scheme
 // the original 'zh' code here is really "zh-Hans" (Simplified). We keep the
 // bare 'zh' code as-is rather than renaming it to 'zh-Hans', so existing
 // installs with `acceptedLanguages`/`uiLanguage` already set to 'zh' (and
@@ -49,7 +48,6 @@ export function toAppleLanguage(code) {
   }
   return trimmed
 }
-
 export const ACCEPTED_LANGUAGE_VALUES = new Set(LANGUAGE_CATALOG.map((l) => l.code))
 
 // UI language adds 'system' — "follow the browser's language, falling back
@@ -101,7 +99,6 @@ export const STOREFRONT_HOME_LANGUAGE = {
 export function homeLanguageForStorefront(storefront) {
   return STOREFRONT_HOME_LANGUAGE[String(storefront || '').toLowerCase()] || null
 }
-
 // Cheap, dependency-free script sniff — enough to tell CJK/Hangul originals
 // apart from everything else, which covers the stated use case (Chinese
 // original names surviving alongside an English display language). It can't

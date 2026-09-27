@@ -44,7 +44,7 @@
     "namingModeDual": "表示言語を使い、両方が存在し異なる場合は元の言語名も併記",
     "cardAppleCredentials": "Apple ID の認証情報",
     "cardMediaUserToken": "media-user-token",
-    "cardCatalog": "地域",
+    "cardCatalog": "カタログ",
     "cardLibraryTags": "ライブラリタグ",
     "cardOtherVersions": "他のバージョン",
     "cardAutoDownloads": "自動ダウンロード",

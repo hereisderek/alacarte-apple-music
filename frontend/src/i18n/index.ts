@@ -72,8 +72,8 @@ void i18n
       // would reduce every zh-* browser locale — including zh-TW/zh-HK/zh-Hant-* —
       // down to the bare 'zh', so Traditional-Chinese browsers would silently
       // auto-detect into the Simplified translation. Bucket by script/region
-      // first, using the same Hant-vs-bare split as metadataLanguage.mjs's
-      // STOREFRONT_HOME_LANGUAGE convention, before i18next's own matching runs.
+      // first, following Apple's zh-Hant-TW / zh-Hant-HK convention, before
+      // i18next's own matching runs.
       convertDetectedLanguage: (lng: string) => {
         const lower = lng.toLowerCase()
         if (!lower.startsWith('zh')) return lng
@@ -83,6 +83,13 @@ void i18n
     interpolation: { escapeValue: false },
   })
 
+// Keep <html lang> in step with the UI language, for screen readers and
+// the browser's own hyphenation and font selection.
+const syncHtmlLang = (lng?: string) => {
+  document.documentElement.lang = lng || 'en'
+}
+i18n.on('languageChanged', syncHtmlLang)
+syncHtmlLang(i18n.resolvedLanguage)
 // The exact localStorage key i18next-browser-languagedetector's default
 // 'localStorage' cache uses (see its lookupLocalStorage option, which
 // defaults to this name). applyUiLanguage below has to know it explicitly

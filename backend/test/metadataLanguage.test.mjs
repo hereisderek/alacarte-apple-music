@@ -105,6 +105,24 @@ test('homeLanguageForStorefront covers common storefronts and is case-insensitiv
   assert.equal(homeLanguageForStorefront(undefined), null)
 })
 
+test('storefront home language comes from Apple, cached per storefront', async () => {
+  const { storefrontHomeLanguage, __setStorefrontLookupForTests } = await import('../lib/originalMetadataCache.mjs')
+  const calls = []
+  __setStorefrontLookupForTests(async (id) => {
+    calls.push(id)
+    if (id === 'down') throw new Error('offline')
+    return { jp: 'ja', ch: 'de-CH', cn: 'zh-Hans-CN' }[id] || null
+  })
+  assert.equal(await storefrontHomeLanguage('JP'), 'ja')
+  assert.equal(await storefrontHomeLanguage('jp'), 'ja')
+  assert.equal(await storefrontHomeLanguage('ch'), 'de-CH')
+  assert.equal(await storefrontHomeLanguage(undefined), null)
+  assert.equal(await storefrontHomeLanguage('down'), null)
+  assert.equal(await storefrontHomeLanguage('down'), null)
+  // cached per storefront, but a failed lookup is retried
+  assert.deepEqual(calls, ['jp', 'ch', 'down', 'down'])
+})
+
 test('language value sets are consistent', () => {
   assert.ok(ACCEPTED_LANGUAGE_VALUES.has('zh'))
   assert.ok(ACCEPTED_LANGUAGE_VALUES.has('en'))
