@@ -74,11 +74,36 @@ const publicDir = path.join(__dirname, 'public')
 if (fs.existsSync(publicDir)) {
   root.use(express.static(publicDir, { index: false, maxAge: '1h' }))
   root.get(/^\/(?!api\/).*/, (_req, res) => {
-    res.sendFile(path.join(publicDir, 'index.html'))
+    let html = fs.readFileSync(path.join(publicDir, 'index.html'), 'utf8')
+    if (BASE_PATH !== '/' && !html.includes(`"${BASE_PATH}/assets/`)) {
+      html = html.replaceAll('="/assets/', `="${BASE_PATH}/assets/`)
+                 .replaceAll("='/assets/", `='${BASE_PATH}/assets/`)
+                 .replaceAll('="./assets/', `="${BASE_PATH}/assets/`)
+                 .replaceAll("='./assets/", `='${BASE_PATH}/assets/`)
+    }
+    if (BASE_PATH !== '/') {
+      const scriptTag = `<script>window.__BASE_PATH__=${JSON.stringify(BASE_PATH)};</script>`
+      if (html.includes('</head>')) {
+        html = html.replace('</head>', `${scriptTag}</head>`)
+      } else {
+        html = scriptTag + html
+      }
+    }
+    res.type('html').send(html)
   })
 } else {
   root.get('/', (_req, res) => {
     res.status(200).type('text/plain').send('alacarte importer running (frontend not bundled)')
+  })
+}
+
+if (BASE_PATH !== '/') {
+  app.get(BASE_PATH, (req, res, next) => {
+    if (req.path === BASE_PATH) {
+      const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''
+      return res.redirect(301, `${BASE_PATH}/${qs}`)
+    }
+    next()
   })
 }
 

@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react'
 // must match the BASE_PATH the server (and any reverse proxy in front of
 // it) is configured with — see importer/README.md.
 export default defineConfig({
-  base: process.env.VITE_BASE_PATH || '/',
+  base: process.env.VITE_BASE_PATH || './',
   plugins: [react()],
   build: {
     outDir: '../public',

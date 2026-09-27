@@ -1,9 +1,21 @@
-// BASE_URL is Vite's `base` config, always starting and ending with '/' —
-// this is what makes the app path-aware (see importer/README.md).
-const BASE = import.meta.env.BASE_URL
+declare global {
+  interface Window {
+    __BASE_PATH__?: string
+  }
+}
+
+// Support runtime-injected window.__BASE_PATH__ or build-time import.meta.env.BASE_URL
+function getBase(): string {
+  if (typeof window !== 'undefined' && window.__BASE_PATH__) {
+    const p = window.__BASE_PATH__.trim()
+    return p.endsWith('/') ? p : `${p}/`
+  }
+  const base = import.meta.env.BASE_URL || './'
+  return base.endsWith('/') ? base : `${base}/`
+}
 
 function apiUrl(path: string) {
-  return `${BASE}api/${path.replace(/^\/+/, '')}`
+  return `${getBase()}api/${path.replace(/^\/+/, '')}`
 }
 
 export class HttpError extends Error {

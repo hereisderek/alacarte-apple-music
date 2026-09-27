@@ -4,7 +4,7 @@ WORKDIR /app/frontend
 COPY importer/frontend/package*.json ./
 RUN npm install --no-audit --no-fund
 COPY importer/frontend ./
-ARG VITE_BASE_PATH=/
+ARG VITE_BASE_PATH=./
 ENV VITE_BASE_PATH=${VITE_BASE_PATH}
 RUN npm run build
 

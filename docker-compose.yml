@@ -92,7 +92,7 @@ services:
       context: .
       dockerfile: importer/Dockerfile
       args:
-        VITE_BASE_PATH: ${IMPORTER_BASE_PATH:-/}
+        VITE_BASE_PATH: ${IMPORTER_BASE_PATH:-./}
     container_name: alacarte-importer
     profiles: ["importer"]
     depends_on:
