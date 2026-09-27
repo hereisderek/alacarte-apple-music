@@ -17,6 +17,7 @@ import { useDownloadQualityPrompt } from '../hooks/useDownloadQualityPrompt'
 import { useQueue } from '../hooks/useQueue'
 import { useActivityFeed } from '../hooks/useActivityFeed'
 import { useAppSettings } from '../hooks/useAppSettings'
+import { AdmChip } from '../components/AdmChip'
 import { Badge } from '../components/Badge'
 import { ResolvedMediaLink } from '../components/ResolvedMediaLink'
 import { formatPercent } from '../lib/format'
@@ -401,6 +402,7 @@ export function PlaylistPage() {
                         {track.hasHiRes && (
                           <BadgeIcon className="h-3.5 w-3.5 text-accent inline ml-1.5" aria-label={t('playlist.hiRes')} />
                         )}
+                        {track.isAppleDigitalMaster && <AdmChip />}
                       </div>
                       <div className="md:hidden truncate text-xs text-white/50">
                         <ResolvedMediaLink

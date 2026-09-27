@@ -1,7 +1,10 @@
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
-import { spawnSync } from 'node:child_process'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+
+const execFileAsync = promisify(execFile)
 
 /**
  * Normalize ISRC: uppercase, strip hyphens/spaces.
@@ -20,12 +23,14 @@ export function normalizeUpc(value) {
 }
 
 /**
- * Read ISRC / UPC / BARCODE from a FLAC Vorbis comment block. Walks the
+ * Read ISRC / UPC / BARCODE from a FLAC Vorbis comment block or from the
+ * iTunes freeform atoms amdp writes into .m4a files. Walks the FLAC
  * metadata block chain with seeks, so comment blocks after large PICTURE
  * blocks are found too (ffmpeg remuxes reorder blocks). Fail-soft.
  */
 export async function readAudioIdentityTags(filePath) {
   const empty = { isrc: '', upc: '' }
+  if (/\.m4a$/i.test(filePath)) return readMp4IdentityTags(filePath)
   try {
     if (!/\.flac$/i.test(filePath)) return empty
     const fh = await fsp.open(filePath, 'r')
@@ -66,6 +71,86 @@ export async function readAudioIdentityTags(filePath) {
   } catch {
     return empty
   }
+}
+
+const MAX_MOOV_BYTES = 32 * 1024 * 1024
+
+// Top-level boxes are walked with seeks so a moov after a large mdat is
+// found without reading the audio.
+async function readMp4IdentityTags(filePath) {
+  const empty = { isrc: '', upc: '' }
+  let fh
+  try {
+    fh = await fsp.open(filePath, 'r')
+    const { size: fileSize } = await fh.stat()
+    const header = Buffer.alloc(16)
+    let offset = 0
+    for (let guard = 0; guard < 64 && offset + 8 <= fileSize; guard += 1) {
+      await fh.read(header, 0, 16, offset)
+      let size = header.readUInt32BE(0)
+      const type = header.toString('latin1', 4, 8)
+      let headerLen = 8
+      if (size === 1) {
+        size = Number(header.readBigUInt64BE(8))
+        headerLen = 16
+      } else if (size === 0) {
+        size = fileSize - offset
+      }
+      if (size < headerLen) return empty
+      if (type === 'moov') {
+        if (size > MAX_MOOV_BYTES) return empty
+        const moov = Buffer.alloc(size - headerLen)
+        await fh.read(moov, 0, moov.length, offset + headerLen)
+        return parseMp4MoovIdentity(moov)
+      }
+      offset += size
+    }
+    return empty
+  } catch {
+    return empty
+  } finally {
+    await fh?.close().catch(() => {})
+  }
+}
+
+function* mp4Boxes(buf, start = 0, end = buf.length) {
+  let o = start
+  while (o + 8 <= end) {
+    const size = buf.readUInt32BE(o)
+    if (size < 8 || o + size > end) return
+    yield { type: buf.toString('latin1', o + 4, o + 8), start: o + 8, end: o + size }
+    o += size
+  }
+}
+
+function findMp4Box(buf, start, end, type) {
+  for (const box of mp4Boxes(buf, start, end)) if (box.type === type) return box
+  return null
+}
+
+// moov > [udta >] meta (full box) > ilst > '----' { mean, name, data }
+export function parseMp4MoovIdentity(moov) {
+  const out = { isrc: '', upc: '' }
+  const udta = findMp4Box(moov, 0, moov.length, 'udta')
+  const meta =
+    (udta && findMp4Box(moov, udta.start, udta.end, 'meta')) ||
+    findMp4Box(moov, 0, moov.length, 'meta')
+  if (!meta) return out
+  const ilst = findMp4Box(moov, meta.start + 4, meta.end, 'ilst')
+  if (!ilst) return out
+  for (const item of mp4Boxes(moov, ilst.start, ilst.end)) {
+    if (item.type !== '----') continue
+    let name = ''
+    let value = ''
+    for (const child of mp4Boxes(moov, item.start, item.end)) {
+      if (child.type === 'name') name = moov.toString('utf8', child.start + 4, child.end)
+      if (child.type === 'data') value = moov.toString('utf8', child.start + 8, child.end)
+    }
+    const key = name.trim().toUpperCase()
+    if (key === 'ISRC' && !out.isrc) out.isrc = normalizeIsrc(value)
+    if ((key === 'UPC' || key === 'BARCODE') && !out.upc) out.upc = normalizeUpc(value)
+  }
+  return out
 }
 
 export function parseFlacIdentityTags(buf) {
@@ -236,70 +321,74 @@ export function readAudioIdentityTagsSync(filePath) {
  * comments accept any field name, so this reuses the same identity-tag
  * remux instead of a separate write path.
  */
-export function writeAudioIdentityTags(filePath, { isrc, upc, extra } = {}) {
-  let tmp = null
+// Writes to one file run one after another: downloads and the tag backfill
+// both stamp files, and a stamp remuxes through a fixed temp file name.
+const stampQueues = new Map()
+
+export function writeAudioIdentityTags(filePath, tags = {}) {
+  const key = path.resolve(filePath)
+  const previous = stampQueues.get(key) || Promise.resolve()
+  const run = previous.catch(() => {}).then(() => stampIdentityTags(filePath, tags))
+  stampQueues.set(key, run)
+  const release = () => {
+    if (stampQueues.get(key) === run) stampQueues.delete(key)
+  }
+  run.then(release, release)
+  return run
+}
+
+async function stampIdentityTags(filePath, { isrc, upc, extra } = {}) {
+  if (!/\.flac$/i.test(filePath)) return false
+  const isrcNorm = normalizeIsrc(isrc)
+  const upcNorm = normalizeUpc(upc)
+  const extraEntries =
+    extra && typeof extra === 'object'
+      ? Object.entries(extra).filter(([, v]) => v != null && String(v).trim())
+      : []
+  if (!isrcNorm && !upcNorm && extraEntries.length === 0) return false
+  const tmp = path.join(
+    path.dirname(filePath),
+    `.${path.basename(filePath)}.stamp-tmp.flac`,
+  )
+  const args = ['-y', '-nostdin', '-v', 'error', '-i', filePath, '-map_metadata', '0', '-c', 'copy']
+  if (isrcNorm) args.push('-metadata', `ISRC=${isrcNorm}`)
+  if (upcNorm) args.push('-metadata', `BARCODE=${upcNorm}`)
+  for (const [key, value] of extraEntries) {
+    args.push('-metadata', `${key}=${String(value).trim()}`)
+  }
+  args.push(tmp)
   try {
-    if (!/\.flac$/i.test(filePath)) return false
-    const isrcNorm = normalizeIsrc(isrc)
-    const upcNorm = normalizeUpc(upc)
-    const extraEntries =
-      extra && typeof extra === 'object'
-        ? Object.entries(extra).filter(([, v]) => v != null && String(v).trim())
-        : []
-    if (!isrcNorm && !upcNorm && extraEntries.length === 0) return false
-    tmp = path.join(
-      path.dirname(filePath),
-      `.${path.basename(filePath)}.stamp-tmp.flac`,
-    )
-    const args = ['-y', '-nostdin', '-i', filePath, '-map_metadata', '0', '-c', 'copy']
-    if (isrcNorm) args.push('-metadata', `ISRC=${isrcNorm}`)
-    if (upcNorm) args.push('-metadata', `BARCODE=${upcNorm}`)
-    for (const [key, value] of extraEntries) {
-      args.push('-metadata', `${key}=${String(value).trim()}`)
-    }
-    args.push(tmp)
-    const res = spawnSync('ffmpeg', args, {
-      encoding: 'utf8',
-      timeout: 60_000,
-    })
-    if (res.status !== 0 || !fs.existsSync(tmp)) {
-      fs.unlinkSync(tmp)
-      return false
-    }
-    fs.renameSync(tmp, filePath)
+    await execFileAsync('ffmpeg', args, { timeout: 60_000 })
+    await fsp.rename(tmp, filePath)
     return true
   } catch {
-    if (tmp) {
-      try {
-        fs.unlinkSync(tmp)
-      } catch {}
-    }
+    await fsp.rm(tmp, { force: true }).catch(() => {})
     return false
   }
 }
 
 /**
- * Read artist / album / title / album_artist tags via ffprobe. Fail-soft.
- * Vorbis comment keys come back in varying cases, so lookup is caseless.
+ * Read artist / album / title / album_artist / track / isrc tags via ffprobe.
+ * Fail-soft. Vorbis comment keys come back in varying cases, so lookup is
+ * caseless.
  */
-export function readAudioMetaTags(filePath) {
-  const empty = { artist: null, album: null, title: null, albumArtist: null }
+export async function readAudioMetaTags(filePath) {
+  const empty = { artist: null, album: null, title: null, albumArtist: null, track: null, isrc: null }
   try {
-    const res = spawnSync(
+    const { stdout } = await execFileAsync(
       'ffprobe',
       [
         '-v',
         'error',
         '-show_entries',
-        'format_tags=artist,album,title,album_artist',
+        'format_tags=artist,album,title,album_artist,track,isrc',
         '-of',
         'json',
         filePath,
       ],
-      { encoding: 'utf8', timeout: 10_000 },
+      { timeout: 10_000 },
     )
-    if (res.status !== 0 || !res.stdout) return empty
-    const raw = JSON.parse(res.stdout)?.format?.tags || {}
+    const raw = JSON.parse(stdout)?.format?.tags || {}
     const tags = {}
     for (const [key, value] of Object.entries(raw)) {
       tags[key.toLowerCase()] = value
@@ -311,6 +400,8 @@ export function readAudioMetaTags(filePath) {
       album: clean(tags.album),
       title: clean(tags.title),
       albumArtist: clean(tags.album_artist),
+      track: clean(tags.track),
+      isrc: clean(tags.isrc),
     }
   } catch {
     return empty

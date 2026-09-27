@@ -59,6 +59,7 @@ export type PlaylistTrack = {
   hasLossless?: boolean
   hasHiRes?: boolean
   hasAtmos?: boolean
+  isAppleDigitalMaster?: boolean
 }
 
 export type PlaylistDetail = Playlist & {
@@ -104,6 +105,7 @@ export type AlbumTrack = {
   hasLossless?: boolean
   hasHiRes?: boolean
   hasAtmos?: boolean
+  isAppleDigitalMaster?: boolean
 }
 
 export type AlbumDetail = Album & {
@@ -115,6 +117,7 @@ export type AlbumDetail = Album & {
   hasLossless: boolean
   hasHiRes: boolean
   hasAtmos: boolean
+  isAppleDigitalMaster?: boolean
   tracks: AlbumTrack[]
 }
 
@@ -161,6 +164,12 @@ export type HealthReport = {
     decrypt: { ok: boolean; error: string | null }
     m3u8: { ok: boolean; error: string | null }
     account: { ok: boolean; error: string | null }
+    supervisor?: {
+      mode: string
+      running: boolean
+      reason: 'lease_lost' | 'crashed' | 'exited' | null
+      restartInMs: number | null
+    } | null
   }
   appleToken: { ok: boolean; error: string | null }
   music: { path: string; ok: boolean; error?: string }
@@ -189,6 +198,8 @@ export type PublicSettings = {
   navidromeUrl: string
   navidromeUser: string | null
   hasNavidromeCreds: boolean
+  octoIntegrationEnabled: boolean
+  hasOctoIntegrationToken: boolean
   autoDownloadsEnabled: boolean
   autoDownloadCheckFrequency: AutoCheckFrequency
   stagingInsideMusicLibrary: boolean
@@ -527,6 +538,10 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(patch),
     }),
+  octoIntegrationToken: () =>
+    http<{ token: string | null }>('/api/settings/octo-integration/token'),
+  regenerateOctoIntegrationToken: () =>
+    http<{ token: string }>('/api/settings/octo-integration/token', { method: 'POST' }),
   saveAppleCreds: (email: string, password: string, autoLogin = true) =>
     http<{
       ok: boolean

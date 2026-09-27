@@ -190,7 +190,21 @@
     "confirmNewPassword": "確認新密碼",
     "passwordTooShort": "密碼：至少需 {{min}} 個字元。",
     "passwordsDontMatch": "密碼不一致。",
-    "failedToChangePassword": "無法變更密碼"
+    "failedToChangePassword": "無法變更密碼",
+    "cardOctoFiestaIntegration": "octo-fiesta 整合",
+    "octoIntegrationOn": "octo-fiesta 整合已開啟",
+    "octoIntegrationOff": "octo-fiesta 整合已關閉",
+    "tokenCopied": "已複製權杖",
+    "copyBlocked": "瀏覽器封鎖了複製，請點擊「顯示權杖」後手動複製",
+    "newTokenRegenerated": "已產生新權杖，請更新 octo-fiesta 中的 AppleMusic__ApiToken",
+    "letOctoFiestaUseAlacarte": "允許 octo-fiesta 使用 alacarte",
+    "octoFiestaLinkText": "filipton 的 octo-fiesta",
+    "octoFiestaDescription": "是一個 Navidrome 的 Subsonic 代理，可為你的音樂應用程式新增串流目錄。開啟後，當你播放或加星號時，會透過 alacarte 在其搜尋與下載中顯示 Apple Music。",
+    "octoFiestaSetupHint": "請在 octo-fiesta 中設定以下內容（使用 octo-fiesta 可連線到的 alacarte 位址）。兩者必須掛載相同的音樂資料夾。",
+    "hideToken": "隱藏權杖",
+    "showToken": "顯示權杖",
+    "copyToken": "複製權杖",
+    "regenerateToken": "重新產生權杖"
   },
   "album": {
     "loadError": "載入失敗",
@@ -216,7 +230,8 @@
     "title": "標題",
     "artist": "藝人",
     "hiRes": "Hi-Res",
-    "downloadTrack": "下載 {{name}}"
+    "downloadTrack": "下載 {{name}}",
+    "appleDigitalMaster": "Apple Digital Master"
   },
   "artist": {
     "loadError": "載入失敗",
@@ -279,7 +294,7 @@
     "artist": "藝人",
     "hiRes": "Hi-Res",
     "followPlaylist": "關注播放清單",
-    "followModalDescription": "ALACarte 會追蹤這個播放清單，並自動下載你加入其中的曲目。從播放清單中移除曲目不會刪除已下載的檔案。",
+    "followModalDescription": "alacarte 會監控此播放清單，並自動下載你新增的曲目。從播放清單中移除曲目不會影響資料庫中已下載的內容。",
     "downloadQuality": "下載音質",
     "appliesIfDownloadNow": "若你現在下載現有曲目，將套用此設定。",
     "cancel": "取消",
@@ -383,7 +398,11 @@
     "musicFolderTitle": "音樂輸出資料夾無法寫入。",
     "wrapperPartial": "Wrapper：{{detail}}",
     "openStatus": "開啟狀態頁面",
-    "openSettings": "開啟設定"
+    "openSettings": "開啟設定",
+    "paused": "已暫停",
+    "leaseLostTitle": "Apple Music 正在另一台裝置上使用此帳號播放。Wrapper 將在約 {{mins}} 分鐘後恢復，或在開始下載時立即恢復。",
+    "wrapperRestarting": "Wrapper 重新啟動中",
+    "wrapperRestartingTitle": "Apple Music wrapper 正在啟動。"
   },
   "qualityPicker": {
     "ariaLabel": "下載音質",
@@ -517,7 +536,7 @@
     "connectAccountHeadline": "連結你的 Apple Music 帳號",
     "tokenRejectedBody": "Apple 拒絕了已儲存的權杖。請至設定重新整理它——它會定期過期。",
     "probeFailedBody": "在探測 Apple Music 資料庫時發生網路或權杖錯誤。",
-    "connectAccountBody": "若要在此列出你已收藏的資料庫內容，請在設定中貼上你的 media-user-token。若沒有它，ALACarte 只能取得公開目錄。",
+    "connectAccountBody": "要在此處列出你已儲存的資料庫，請在設定中貼上你的 media-user-token。若未設定，alacarte 只能取得公開目錄。",
     "openSettings": "開啟設定",
     "retry": "重試",
     "inLibrary": "已在資料庫中",
@@ -555,7 +574,7 @@
     "emptyArtistsBody": "開啟藝人頁面並使用「關注」開始追蹤新專輯與單曲。",
     "emptyArtistsLink": "尋找藝人",
     "emptyPlaylistsTitle": "尚未關注任何播放清單。",
-    "emptyPlaylistsBody": "開啟你其中一個 Apple Music 播放清單（或任何 Apple 播放清單）並使用「關注」。ALACarte 會下載你加入其中的每首曲目。",
+    "emptyPlaylistsBody": "開啟你的其中一個 Apple Music 播放清單（或任何 Apple 播放清單）並使用關注。alacarte 會下載你新增的每一首曲目。",
     "emptyPlaylistsLink": "瀏覽雲端播放清單",
     "allTracksSaved": "所有曲目皆已儲存",
     "notInLibrary": "{{count}} 首不在資料庫中",
@@ -633,5 +652,10 @@
     "relativeSecondsAgo": "{{count}} 秒前",
     "relativeMinutesAgo": "{{count}} 分鐘前",
     "relativeHoursAgo": "{{count}} 小時前"
+  },
+  "admChip": {
+    "description": "Apple Digital Master：依 Apple 規格由高解析度母帶製作",
+    "ariaLabel": "Apple Digital Master",
+    "label": "ADM"
   }
 }

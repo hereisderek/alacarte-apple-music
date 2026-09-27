@@ -1,3 +1,4 @@
+import { hasValidApiToken } from './apiToken.mjs'
 import {
   getSessionVersion,
   isPasswordSet,
@@ -44,6 +45,7 @@ export function requireAuth() {
     if (AUTH_DISABLED) return next()
     if (!req.path.startsWith('/api/')) return next()
     if (ALWAYS_PUBLIC.has(req.path)) return next()
+    if (await hasValidApiToken(req)) return next()
 
     let passwordSet
     try {

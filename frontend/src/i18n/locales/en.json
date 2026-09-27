@@ -190,7 +190,21 @@
     "confirmNewPassword": "Confirm new password",
     "passwordTooShort": "Password: at least {{min}} characters.",
     "passwordsDontMatch": "Passwords don't match.",
-    "failedToChangePassword": "Failed to change password"
+    "failedToChangePassword": "Failed to change password",
+    "cardOctoFiestaIntegration": "octo-fiesta Integration",
+    "octoIntegrationOn": "octo-fiesta integration on",
+    "octoIntegrationOff": "octo-fiesta integration off",
+    "tokenCopied": "Token copied",
+    "copyBlocked": "Copy blocked by the browser, click Show token and copy it by hand",
+    "newTokenRegenerated": "New token, update AppleMusic__ApiToken in octo-fiesta",
+    "letOctoFiestaUseAlacarte": "Let octo-fiesta use alacarte",
+    "octoFiestaLinkText": "filipton's octo-fiesta",
+    "octoFiestaDescription": "is a Subsonic proxy for Navidrome that adds streaming catalogues to your music apps. With this on, it shows Apple Music in their search and downloads through alacarte when you play or star something.",
+    "octoFiestaSetupHint": "Set these in octo-fiesta (use an alacarte address octo-fiesta can reach). Both must mount the same music folder.",
+    "hideToken": "Hide token",
+    "showToken": "Show token",
+    "copyToken": "Copy token",
+    "regenerateToken": "Regenerate token"
   },
   "album": {
     "loadError": "Failed to load",
@@ -216,7 +230,8 @@
     "title": "Title",
     "artist": "Artist",
     "hiRes": "Hi-Res",
-    "downloadTrack": "Download {{name}}"
+    "downloadTrack": "Download {{name}}",
+    "appleDigitalMaster": "Apple Digital Master"
   },
   "artist": {
     "loadError": "Failed to load",
@@ -279,7 +294,7 @@
     "artist": "Artist",
     "hiRes": "Hi-Res",
     "followPlaylist": "Follow playlist",
-    "followModalDescription": "ALACarte will watch this playlist and automatically download tracks you add to it. Removing a track from the playlist keeps its download in your library.",
+    "followModalDescription": "alacarte will watch this playlist and automatically download tracks you add to it. Removing a track from the playlist keeps its download in your library.",
     "downloadQuality": "Download quality",
     "appliesIfDownloadNow": "Applies if you download the existing tracks now.",
     "cancel": "Cancel",
@@ -383,7 +398,11 @@
     "musicFolderTitle": "Music output folder is not writable.",
     "wrapperPartial": "Wrapper: {{detail}}",
     "openStatus": "Open status",
-    "openSettings": "Open settings"
+    "openSettings": "Open settings",
+    "paused": "Paused",
+    "leaseLostTitle": "Apple Music is playing on another device with this account. The wrapper resumes in about {{mins}} min, or right away when a download starts.",
+    "wrapperRestarting": "Wrapper restarting",
+    "wrapperRestartingTitle": "The Apple Music wrapper is starting up."
   },
   "qualityPicker": {
     "ariaLabel": "Download quality",
@@ -517,7 +536,7 @@
     "connectAccountHeadline": "Connect your Apple Music account",
     "tokenRejectedBody": "Apple rejected the saved token. Refresh it in Settings — it expires periodically.",
     "probeFailedBody": "Network or token error while probing the Apple Music library.",
-    "connectAccountBody": "To list your saved library here, paste your media-user-token in Settings. Without it, ALACarte can only fetch the public catalog.",
+    "connectAccountBody": "To list your saved library here, paste your media-user-token in Settings. Without it, alacarte can only fetch the public catalog.",
     "openSettings": "Open Settings",
     "retry": "Retry",
     "inLibrary": "In Library",
@@ -555,7 +574,7 @@
     "emptyArtistsBody": "Open an artist page and use Follow to start watching for new albums and singles.",
     "emptyArtistsLink": "Find artists",
     "emptyPlaylistsTitle": "No playlists followed yet.",
-    "emptyPlaylistsBody": "Open one of your Apple Music playlists (or any Apple playlist) and use Follow. ALACarte will download every track you add to it.",
+    "emptyPlaylistsBody": "Open one of your Apple Music playlists (or any Apple playlist) and use Follow. alacarte will download every track you add to it.",
     "emptyPlaylistsLink": "Browse cloud playlists",
     "allTracksSaved": "All tracks saved",
     "notInLibrary": "{{count}} not in library",
@@ -633,5 +652,10 @@
     "relativeSecondsAgo": "{{count}}s ago",
     "relativeMinutesAgo": "{{count}}m ago",
     "relativeHoursAgo": "{{count}}h ago"
+  },
+  "admChip": {
+    "description": "Apple Digital Master: mastered to Apple's spec from a high-resolution master",
+    "ariaLabel": "Apple Digital Master",
+    "label": "ADM"
   }
 }

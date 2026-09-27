@@ -190,7 +190,21 @@
     "confirmNewPassword": "Confirmer le nouveau mot de passe",
     "passwordTooShort": "Mot de passe : au moins {{min}} caractères.",
     "passwordsDontMatch": "Les mots de passe ne correspondent pas.",
-    "failedToChangePassword": "Échec du changement de mot de passe"
+    "failedToChangePassword": "Échec du changement de mot de passe",
+    "cardOctoFiestaIntegration": "Intégration octo-fiesta",
+    "octoIntegrationOn": "Intégration octo-fiesta activée",
+    "octoIntegrationOff": "Intégration octo-fiesta désactivée",
+    "tokenCopied": "Jeton copié",
+    "copyBlocked": "La copie a été bloquée par le navigateur ; cliquez sur Afficher le jeton et copiez-le manuellement",
+    "newTokenRegenerated": "Nouveau jeton généré, mettez à jour AppleMusic__ApiToken dans octo-fiesta",
+    "letOctoFiestaUseAlacarte": "Autoriser octo-fiesta à utiliser alacarte",
+    "octoFiestaLinkText": "octo-fiesta de filipton",
+    "octoFiestaDescription": "est un proxy Subsonic pour Navidrome qui ajoute des catalogues de streaming à vos applications musicales. Une fois activé, il affiche Apple Music dans leurs recherches et téléchargements via alacarte lorsque vous lisez ou mettez une étoile sur un titre.",
+    "octoFiestaSetupHint": "Configurez ceci dans octo-fiesta (utilisez une adresse alacarte accessible depuis octo-fiesta). Les deux doivent monter le même dossier de musique.",
+    "hideToken": "Masquer le jeton",
+    "showToken": "Afficher le jeton",
+    "copyToken": "Copier le jeton",
+    "regenerateToken": "Régénérer le jeton"
   },
   "album": {
     "loadError": "Échec du chargement",
@@ -216,7 +230,8 @@
     "title": "Titre",
     "artist": "Artiste",
     "hiRes": "Hi-Res",
-    "downloadTrack": "Télécharger {{name}}"
+    "downloadTrack": "Télécharger {{name}}",
+    "appleDigitalMaster": "Apple Digital Master"
   },
   "artist": {
     "loadError": "Échec du chargement",
@@ -279,7 +294,7 @@
     "artist": "Artiste",
     "hiRes": "Hi-Res",
     "followPlaylist": "Suivre la playlist",
-    "followModalDescription": "ALACarte surveillera cette playlist et téléchargera automatiquement les pistes que vous y ajoutez. Retirer une piste de la playlist conserve son téléchargement dans votre bibliothèque.",
+    "followModalDescription": "alacarte surveillera cette liste de lecture et téléchargera automatiquement les titres que vous y ajoutez. Retirer un titre de la liste conserve son téléchargement dans votre bibliothèque.",
     "downloadQuality": "Qualité de téléchargement",
     "appliesIfDownloadNow": "S'applique si vous téléchargez les pistes existantes maintenant.",
     "cancel": "Annuler",
@@ -383,7 +398,11 @@
     "musicFolderTitle": "Le dossier de sortie musicale n'est pas accessible en écriture.",
     "wrapperPartial": "Wrapper : {{detail}}",
     "openStatus": "Ouvrir l'état",
-    "openSettings": "Ouvrir les réglages"
+    "openSettings": "Ouvrir les réglages",
+    "paused": "En pause",
+    "leaseLostTitle": "Apple Music est en lecture sur un autre appareil avec ce compte. Le wrapper reprendra dans environ {{mins}} min, ou immédiatement au démarrage d'un téléchargement.",
+    "wrapperRestarting": "Redémarrage du wrapper",
+    "wrapperRestartingTitle": "Le wrapper Apple Music démarre."
   },
   "qualityPicker": {
     "ariaLabel": "Qualité de téléchargement",
@@ -517,7 +536,7 @@
     "connectAccountHeadline": "Connectez votre compte Apple Music",
     "tokenRejectedBody": "Apple a rejeté le jeton enregistré. Actualisez-le dans les réglages — il expire périodiquement.",
     "probeFailedBody": "Erreur réseau ou de jeton lors de l'interrogation de la bibliothèque Apple Music.",
-    "connectAccountBody": "Pour afficher ici votre bibliothèque enregistrée, collez votre media-user-token dans les réglages. Sans lui, ALACarte ne peut récupérer que le catalogue public.",
+    "connectAccountBody": "Pour afficher ici votre bibliothèque enregistrée, collez votre media-user-token dans les réglages. Sans cela, alacarte ne peut récupérer que le catalogue public.",
     "openSettings": "Ouvrir les réglages",
     "retry": "Réessayer",
     "inLibrary": "Dans la bibliothèque",
@@ -555,7 +574,7 @@
     "emptyArtistsBody": "Ouvrez la page d'un artiste et utilisez Suivre pour commencer à surveiller les nouveaux albums et singles.",
     "emptyArtistsLink": "Trouver des artistes",
     "emptyPlaylistsTitle": "Aucune playlist suivie pour le moment.",
-    "emptyPlaylistsBody": "Ouvrez l'une de vos playlists Apple Music (ou n'importe quelle playlist Apple) et utilisez Suivre. ALACarte téléchargera chaque piste que vous y ajoutez.",
+    "emptyPlaylistsBody": "Ouvrez l'une de vos listes de lecture Apple Music (ou toute liste Apple) et utilisez Suivre. alacarte téléchargera chaque titre que vous y ajoutez.",
     "emptyPlaylistsLink": "Parcourir les playlists cloud",
     "allTracksSaved": "Toutes les pistes enregistrées",
     "notInLibrary": "{{count}} absentes de la bibliothèque",
@@ -633,5 +652,10 @@
     "relativeSecondsAgo": "il y a {{count}} s",
     "relativeMinutesAgo": "il y a {{count}} min",
     "relativeHoursAgo": "il y a {{count}} h"
+  },
+  "admChip": {
+    "description": "Apple Digital Master : masterisé selon les spécifications d'Apple à partir d'un master haute résolution",
+    "ariaLabel": "Apple Digital Master",
+    "label": "ADM"
   }
 }

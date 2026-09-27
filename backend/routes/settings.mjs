@@ -25,6 +25,7 @@ import {
   clearHardBlock,
   getHardBlock,
 } from '../lib/wrapperLogin.mjs'
+import { generateIntegrationToken } from '../lib/apiToken.mjs'
 import {
   startTagBackfill,
   getTagBackfillStatus,
@@ -52,6 +53,7 @@ export const WRITABLE_KEYS = new Set([
   'navidromeUrl',
   'navidromeUser',
   'navidromePassword',
+  'octoIntegrationEnabled',
   'autoDownloadsEnabled',
   'autoDownloadCheckFrequency',
   'stagingInsideMusicLibrary',
@@ -89,6 +91,7 @@ settingsRouter.put('/', async (req, res) => {
       if (k === 'quality' && !QUALITY_VALUES.has(v)) continue
       if (k === 'namingConvention' && !NAMING_CONVENTION_VALUES.has(v)) continue
       if (k === 'versionOptionsEnabled' && typeof v !== 'boolean') continue
+      if (k === 'octoIntegrationEnabled' && typeof v !== 'boolean') continue
       if (k === 'versionOptions' && !Array.isArray(v)) continue
       if (k === 'autoDownloadCheckFrequency' && !AUTO_DOWNLOAD_FREQUENCY_VALUES.has(v)) continue
       if (k === 'uiLanguage' && !UI_LANGUAGE_VALUES.has(v)) continue
@@ -116,8 +119,31 @@ settingsRouter.put('/', async (req, res) => {
       }
       patch[k] = v
     }
-    await writeSettings(patch)
+    const saved = await writeSettings(patch)
+    if (saved.octoIntegrationEnabled && !saved.octoIntegrationToken) {
+      await writeSettings({ octoIntegrationToken: encryptSecret(generateIntegrationToken()) })
+    }
     res.json(await readPublicSettings())
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Token the octo-fiesta Apple Music provider uses (AppleMusic__ApiToken).
+settingsRouter.get('/octo-integration/token', async (_req, res) => {
+  try {
+    const s = await readSettings()
+    res.json({ token: s.octoIntegrationToken ? decryptSecret(s.octoIntegrationToken) : null })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+settingsRouter.post('/octo-integration/token', async (_req, res) => {
+  try {
+    const token = generateIntegrationToken()
+    await writeSettings({ octoIntegrationToken: encryptSecret(token) })
+    res.json({ token })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }

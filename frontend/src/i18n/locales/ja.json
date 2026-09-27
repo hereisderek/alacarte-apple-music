@@ -190,7 +190,21 @@
     "confirmNewPassword": "新しいパスワード（確認）",
     "passwordTooShort": "パスワード: {{min}}文字以上で入力してください。",
     "passwordsDontMatch": "パスワードが一致しません。",
-    "failedToChangePassword": "パスワードの変更に失敗しました"
+    "failedToChangePassword": "パスワードの変更に失敗しました",
+    "cardOctoFiestaIntegration": "octo-fiesta 連携",
+    "octoIntegrationOn": "octo-fiesta 連携をオンにしました",
+    "octoIntegrationOff": "octo-fiesta 連携をオフにしました",
+    "tokenCopied": "トークンをコピーしました",
+    "copyBlocked": "ブラウザによりコピーがブロックされました。「トークンを表示」をクリックして手動でコピーしてください",
+    "newTokenRegenerated": "新しいトークンを発行しました。octo-fiesta の AppleMusic__ApiToken を更新してください",
+    "letOctoFiestaUseAlacarte": "octo-fiesta から alacarte を利用できるようにする",
+    "octoFiestaLinkText": "filipton の octo-fiesta",
+    "octoFiestaDescription": "は、音楽アプリにストリーミングカタログを追加する Navidrome 用の Subsonic プロキシです。オンにすると、再生時やお気に入り登録時に alacarte 経由で検索結果やダウンロードに Apple Music が表示されます。",
+    "octoFiestaSetupHint": "以下を octo-fiesta 側で設定してください（octo-fiesta から到達できる alacarte のアドレスを使用）。両方とも同じ音楽フォルダーをマウントしている必要があります。",
+    "hideToken": "トークンを隠す",
+    "showToken": "トークンを表示",
+    "copyToken": "トークンをコピー",
+    "regenerateToken": "トークンを再発行"
   },
   "album": {
     "loadError": "読み込みに失敗しました",
@@ -216,7 +230,8 @@
     "title": "タイトル",
     "artist": "アーティスト",
     "hiRes": "ハイレゾ",
-    "downloadTrack": "{{name}} をダウンロード"
+    "downloadTrack": "{{name}} をダウンロード",
+    "appleDigitalMaster": "Apple Digital Master"
   },
   "artist": {
     "loadError": "読み込みに失敗しました",
@@ -279,7 +294,7 @@
     "artist": "アーティスト",
     "hiRes": "ハイレゾ",
     "followPlaylist": "プレイリストをフォロー",
-    "followModalDescription": "ALACarte はこのプレイリストを監視し、追加したトラックを自動的にダウンロードします。プレイリストからトラックを削除しても、ダウンロード済みのファイルはライブラリに残ります。",
+    "followModalDescription": "alacarte がこのプレイリストを監視し、追加した曲を自動的にダウンロードします。プレイリストから曲を削除しても、ライブラリ内のダウンロード済みファイルはそのまま残ります。",
     "downloadQuality": "ダウンロード音質",
     "appliesIfDownloadNow": "既存のトラックを今すぐダウンロードする場合に適用されます。",
     "cancel": "キャンセル",
@@ -383,7 +398,11 @@
     "musicFolderTitle": "音楽の出力フォルダーに書き込めません。",
     "wrapperPartial": "ラッパー: {{detail}}",
     "openStatus": "ステータスを開く",
-    "openSettings": "設定を開く"
+    "openSettings": "設定を開く",
+    "paused": "一時停止中",
+    "leaseLostTitle": "このアカウントで別のデバイスが Apple Music を再生中です。ラッパーは約 {{mins}} 分後、またはダウンロード開始時にすぐ再開します。",
+    "wrapperRestarting": "ラッパーを再起動中",
+    "wrapperRestartingTitle": "Apple Music ラッパーを起動しています。"
   },
   "qualityPicker": {
     "ariaLabel": "ダウンロード音質",
@@ -517,7 +536,7 @@
     "connectAccountHeadline": "Apple Music アカウントを接続してください",
     "tokenRejectedBody": "Apple が保存済みのトークンを拒否しました。設定で更新してください — トークンは定期的に失効します。",
     "probeFailedBody": "Apple Music ライブラリの確認中にネットワークまたはトークンのエラーが発生しました。",
-    "connectAccountBody": "ここに保存済みライブラリを表示するには、設定で media-user-token を貼り付けてください。これがない場合、ALACarte は公開カタログのみ取得できます。",
+    "connectAccountBody": "ここに保存済みライブラリを表示するには、設定で media-user-token を貼り付けてください。設定しない場合、alacarte はパブリックカタログのみ取得できます。",
     "openSettings": "設定を開く",
     "retry": "再試行",
     "inLibrary": "ライブラリ内",
@@ -555,7 +574,7 @@
     "emptyArtistsBody": "アーティストページを開き、「フォロー」を使って新しいアルバムやシングルの監視を開始してください。",
     "emptyArtistsLink": "アーティストを探す",
     "emptyPlaylistsTitle": "まだフォロー中のプレイリストはありません。",
-    "emptyPlaylistsBody": "自分の Apple Music プレイリスト（または任意の Apple のプレイリスト）を開き、「フォロー」を使ってください。ALACarte は追加したすべてのトラックをダウンロードします。",
+    "emptyPlaylistsBody": "Apple Music のプレイリスト（または任意の Apple プレイリスト）を開いてフォローを使用してください。alacarte が追加した曲をすべてダウンロードします。",
     "emptyPlaylistsLink": "クラウドのプレイリストを見る",
     "allTracksSaved": "すべてのトラックを保存済み",
     "notInLibrary": "{{count}} 件がライブラリにありません",
@@ -633,5 +652,10 @@
     "relativeSecondsAgo": "{{count}}秒前",
     "relativeMinutesAgo": "{{count}}分前",
     "relativeHoursAgo": "{{count}}時間前"
+  },
+  "admChip": {
+    "description": "Apple Digital Master：ハイレゾマスターから Apple の仕様に基づいてマスタリング",
+    "ariaLabel": "Apple Digital Master",
+    "label": "ADM"
   }
 }

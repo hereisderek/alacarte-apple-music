@@ -331,9 +331,9 @@ export function AuthScreen({
             t('authScreen.changeLaterHint')
           ) : (
             <>
-              ALACarte ·{' '}
+              alacarte ·{' '}
               <a
-                href="https://github.com/sosjalapeno/ALACarte/blob/main/README.md"
+                href="https://github.com/sosjalapeno/alacarte/blob/main/README.md"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-white/55 underline decoration-white/35 underline-offset-2 hover:text-white"

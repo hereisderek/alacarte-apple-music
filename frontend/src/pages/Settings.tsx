@@ -9,6 +9,7 @@ import {
   Globe,
   FolderOpen,
   ListPlus,
+  Plug,
   Radar,
   ShieldCheck,
   Tags,
@@ -585,6 +586,12 @@ export function SettingsPage() {
         </StaggeredItem>
 
         <StaggeredItem>
+          <SettingsCard icon={<Plug className="h-4 w-4" />} title={t('settings.cardOctoFiestaIntegration')}>
+            <OctoIntegrationForm settings={settings} onChange={reload} onFlash={flash} />
+          </SettingsCard>
+        </StaggeredItem>
+
+        <StaggeredItem>
           <footer className="pb-1 pt-1 text-center text-xs text-white/45">
             {t('settings.builtBy')}{' '}
             <a
@@ -1153,6 +1160,107 @@ function NavidromeForm({ settings, onChange, onFlash }: { settings: PublicSettin
         <Button type="submit">{t('settings.saveNavidromeSettings')}</Button>
       </div>
     </form>
+  )
+}
+
+const OCTO_FIESTA_URL = 'https://github.com/filipton/octo-fiesta'
+
+function OctoIntegrationForm({ settings, onChange, onFlash }: { settings: PublicSettings; onChange: () => void; onFlash: (msg: string, err?: boolean) => void }) {
+  const { t } = useTranslation()
+  const [enabled, setEnabled] = useState(settings.octoIntegrationEnabled ?? false)
+  const [token, setToken] = useState<string | null>(null)
+  const [shown, setShown] = useState(false)
+  const alacarteUrl = window.location.origin
+
+  const toggle = async (next: boolean) => {
+    try {
+      await api.saveSettings({ octoIntegrationEnabled: next })
+      setEnabled(next)
+      setToken(null)
+      setShown(false)
+      onChange()
+      onFlash(next ? t('settings.octoIntegrationOn') : t('settings.octoIntegrationOff'))
+    } catch (err: any) {
+      onFlash(t('settings.errorPrefix', { message: err.message }), true)
+    }
+  }
+
+  const loadToken = async () => token ?? (await api.octoIntegrationToken()).token
+
+  const reveal = async () => {
+    try {
+      if (!shown) setToken(await loadToken())
+      setShown(!shown)
+    } catch (err: any) {
+      onFlash(t('settings.errorPrefix', { message: err.message }), true)
+    }
+  }
+
+  const copy = async () => {
+    try {
+      const tok = await loadToken()
+      setToken(tok)
+      if (!tok) return
+      try {
+        await navigator.clipboard.writeText(tok)
+        onFlash(t('settings.tokenCopied'))
+      } catch {
+        // clipboard needs https or localhost
+        onFlash(t('settings.copyBlocked'), true)
+      }
+    } catch (err: any) {
+      onFlash(t('settings.errorPrefix', { message: err.message }), true)
+    }
+  }
+
+  const regenerate = async () => {
+    try {
+      const r = await api.regenerateOctoIntegrationToken()
+      setToken(r.token)
+      setShown(true)
+      onFlash(t('settings.newTokenRegenerated'))
+    } catch (err: any) {
+      onFlash(t('settings.errorPrefix', { message: err.message }), true)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <label className="flex items-start gap-3 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => toggle(e.target.checked)}
+          className="mt-0.5 shrink-0 focus-visible:ring-2 focus-visible:ring-[rgba(var(--accent),0.35)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0a]"
+        />
+        <div>
+          <div className="text-sm font-medium">{t('settings.letOctoFiestaUseAlacarte')}</div>
+          <div className="text-xs text-white/55 mt-0.5">
+            <a href={OCTO_FIESTA_URL} target="_blank" rel="noreferrer" className="underline hover:text-white">
+              {t('settings.octoFiestaLinkText')}
+            </a>{' '}
+            {t('settings.octoFiestaDescription')}
+          </div>
+        </div>
+      </label>
+
+      {enabled && (
+        <div className="space-y-3 pt-2">
+          <div className="text-xs text-white/55">
+            {t('settings.octoFiestaSetupHint')}
+          </div>
+          <pre className="overflow-x-auto rounded-lg border border-white/10 bg-black/40 p-3 text-xs text-white/80 select-all">
+{`AppleMusic__AlacarteUrl=${alacarteUrl}
+AppleMusic__ApiToken=${shown && token ? token : '••••••••••••••••'}`}
+          </pre>
+          <div className="flex gap-2 flex-wrap">
+            <Button type="button" variant="ghost" onClick={reveal}>{shown ? t('settings.hideToken') : t('settings.showToken')}</Button>
+            <Button type="button" variant="ghost" onClick={copy}>{t('settings.copyToken')}</Button>
+            <Button type="button" variant="ghost" onClick={regenerate}>{t('settings.regenerateToken')}</Button>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 

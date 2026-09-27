@@ -32,9 +32,13 @@ export function HealthPill({ health, loading, variant = 'default' }: Props) {
     return <Badge variant="ok" className={shellClass}>● {t('healthPill.ready')}</Badge>
   }
   const wrapperDown = isWrapperDown(health)
+  const pause = wrapperDown ? wrapperPause(health) : null
   let label = t('healthPill.issue')
   let title = t('healthPill.somethingNotReady')
-  if (wrapperDown) {
+  if (pause) {
+    label = pause.label
+    title = pause.title
+  } else if (wrapperDown) {
     label = t('healthPill.signInRequired')
     title = t('healthPill.wrapperOfflineTitle')
   } else if (!health.appleToken?.ok) {
@@ -70,12 +74,38 @@ function isWrapperDown(health: HealthReport): boolean {
   )
 }
 
+// The ports are also closed while the supervisor restarts the wrapper, or
+// waits because another device took the Apple Music stream; neither needs a
+// new sign-in.
+function wrapperPause(health: HealthReport): { label: string; title: string } | null {
+  const sup = health.wrapper?.supervisor
+  if (!sup) return null
+  if (sup.reason === 'lease_lost') {
+    const mins = Math.max(1, Math.ceil((sup.restartInMs ?? 0) / 60_000))
+    return {
+      label: i18n.t('healthPill.paused'),
+      title: i18n.t('healthPill.leaseLostTitle', { mins }),
+    }
+  }
+  if (sup.running || sup.restartInMs != null) {
+    return {
+      label: i18n.t('healthPill.wrapperRestarting'),
+      title: i18n.t('healthPill.wrapperRestartingTitle'),
+    }
+  }
+  return null
+}
+
+function needsSignIn(health: HealthReport): boolean {
+  return isWrapperDown(health) && !wrapperPause(health)
+}
+
 export function getHealthPillTarget(health: HealthReport | null): string {
   if (!health) return '/status'
-  return isWrapperDown(health) ? '/settings' : '/status'
+  return needsSignIn(health) ? '/settings' : '/status'
 }
 
 export function getHealthPillAriaLabel(health: HealthReport | null): string {
   if (!health) return i18n.t('healthPill.openStatus')
-  return isWrapperDown(health) ? i18n.t('healthPill.openSettings') : i18n.t('healthPill.openStatus')
+  return needsSignIn(health) ? i18n.t('healthPill.openSettings') : i18n.t('healthPill.openStatus')
 }
