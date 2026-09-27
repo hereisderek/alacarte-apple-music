@@ -12,6 +12,8 @@ import {
 import { parseAppleMusicUrl } from '../lib/appleMusicUrl.mjs'
 import { readSettings } from '../lib/settingsStore.mjs'
 import { filterAlbumsByRating } from '../lib/contentRatingFilter.mjs'
+import { resolveLocalizedArtistName } from '../lib/localizedArtist.mjs'
+import { toAppleLanguage } from '../lib/metadataLanguage.mjs'
 
 export const searchRouter = express.Router()
 
@@ -203,7 +205,8 @@ searchRouter.get('/', async (req, res) => {
     const offset = Math.max(Number(req.query.offset || 0), 0)
     const settings = await readSettings()
     const storefront = String(req.query.storefront || settings.storefront || 'us')
-    const language = settings.language || 'en-US'
+    const reqLang = req.query.language || req.query.l
+    const language = reqLang ? toAppleLanguage(reqLang) : (settings.language || 'en-US')
     const explicitFilter = settings.explicitFilter || 'explicit'
 
     const parsed = parseAppleMusicUrl(term)
@@ -256,6 +259,64 @@ searchRouter.get('/', async (req, res) => {
       mapAlbum(x, resolveArtistId),
     )
     const songs = (r.songs?.data || []).map((x) => mapSong(x, resolveArtistId))
+
+    const nameReplacements = new Map()
+    const artistsToResolve = new Map()
+
+    for (const a of artists) {
+      if (a.id && a.name) artistsToResolve.set(a.id, a.name)
+    }
+    for (const alb of albums) {
+      if (alb.artistId && alb.artistName && !artistsToResolve.has(alb.artistId)) {
+        artistsToResolve.set(alb.artistId, alb.artistName)
+      }
+    }
+    for (const s of songs) {
+      if (s.artistId && s.artistName && !artistsToResolve.has(s.artistId)) {
+        artistsToResolve.set(s.artistId, s.artistName)
+      }
+    }
+
+    if (artistsToResolve.size > 0) {
+      await Promise.all(
+        Array.from(artistsToResolve.entries()).map(async ([artistId, artistName]) => {
+          const localized = await resolveLocalizedArtistName({
+            artistId,
+            artistName,
+            language,
+          })
+          if (localized && localized !== artistName) {
+            nameReplacements.set(artistName, localized)
+            nameReplacements.set(artistId, localized)
+          }
+        }),
+      )
+
+      if (nameReplacements.size > 0) {
+        for (const a of artists) {
+          if (nameReplacements.has(a.id)) {
+            a.name = nameReplacements.get(a.id)
+          } else if (nameReplacements.has(a.name)) {
+            a.name = nameReplacements.get(a.name)
+          }
+        }
+        for (const alb of albums) {
+          if (alb.artistId && nameReplacements.has(alb.artistId)) {
+            alb.artistName = nameReplacements.get(alb.artistId)
+          } else if (nameReplacements.has(alb.artistName)) {
+            alb.artistName = nameReplacements.get(alb.artistName)
+          }
+        }
+        for (const s of songs) {
+          if (s.artistId && nameReplacements.has(s.artistId)) {
+            s.artistName = nameReplacements.get(s.artistId)
+          } else if (nameReplacements.has(s.artistName)) {
+            s.artistName = nameReplacements.get(s.artistName)
+          }
+        }
+      }
+    }
+
     const filteredAlbums = filterAlbumsByRating(albums, explicitFilter)
     const playlists = (r.playlists?.data || []).map((x) => mapPlaylist(x))
     res.json({ albums: filteredAlbums, artists, songs, playlists, storefront })

@@ -50,7 +50,7 @@ function parseCats(param: string | null): Category[] {
 }
 
 export function SearchPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const urlQ = params.get('q') ?? ''
@@ -59,7 +59,7 @@ export function SearchPage() {
 
   const [q, setQ] = useState(urlQ)
   const [results, setResults] = useState<Results>(
-    () => resultCache.get(urlQ.trim()) ?? EMPTY,
+    () => resultCache.get(`${i18n.language}:${urlQ.trim()}`) ?? EMPTY,
   )
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -69,8 +69,8 @@ export function SearchPage() {
     if (urlQ !== q && !urlQ.startsWith(q)) {
       setQ(urlQ)
     }
-    setResults(resultCache.get(urlQ.trim()) ?? EMPTY)
-  }, [urlQ])
+    setResults(resultCache.get(`${i18n.language}:${urlQ.trim()}`) ?? EMPTY)
+  }, [urlQ, i18n.language])
 
   const trimmed = useMemo(() => q.trim(), [q])
 
@@ -96,7 +96,8 @@ export function SearchPage() {
       setError(null)
       return
     }
-    const cached = resultCache.get(trimmed)
+    const cacheKey = `${i18n.language}:${trimmed}`
+    const cached = resultCache.get(cacheKey)
     if (cached) setResults(cached)
 
     const ctl = new AbortController()
@@ -116,7 +117,7 @@ export function SearchPage() {
           songs: r.songs,
           playlists: r.playlists ?? [],
         }
-        resultCache.set(trimmed, next)
+        resultCache.set(cacheKey, next)
         setResults(next)
       } catch (err: any) {
         if (!ctl.signal.aborted) setError(err?.message || t('search.searchFailed'))
@@ -128,7 +129,7 @@ export function SearchPage() {
       ctl.abort()
       clearTimeout(timer)
     }
-  }, [trimmed, navigate])
+  }, [trimmed, navigate, i18n.language])
 
   useEffect(() => {
     inputRef.current?.focus()

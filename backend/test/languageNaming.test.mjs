@@ -68,3 +68,24 @@ test('renameTrackFilesForLanguage is a no-op with no overrides', async () => {
   await renameTrackFilesForLanguage(dir, null)
   assert.deepEqual(fs.readdirSync(dir), ['01. Song.flac'])
 })
+
+test('resolveAlbumNaming: resolves localized artist name for CJK artist on Anglophone storefront', async () => {
+  const meta = {
+    name: '自傳',
+    artistName: 'Mayday',
+    artistId: '369211611',
+    tracks: [{ id: '1', name: '如果我们不曾相遇', trackNumber: 1, isrc: 'AAA' }],
+  }
+  const result = await resolveAlbumNaming({
+    settings: {
+      namingLanguageMode: 'original-if-accepted',
+      acceptedLanguages: ['zh', 'en'],
+      language: 'zh-Hans',
+    },
+    storefront: 'nz',
+    albumId: '1158763922',
+    meta,
+  })
+  assert.equal(result.artist, '五月天')
+})
+

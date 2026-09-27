@@ -40,7 +40,8 @@ import { getDb } from './db.mjs'
 import { normalizeForMatchKey } from './libraryMatchKey.mjs'
 import { readAudioMetaTags, writeAudioIdentityTags } from './audioTags.mjs'
 import { probeWrapperPorts } from './wrapperHealth.mjs'
-import { resolveMetadataName } from './metadataLanguage.mjs'
+import { detectScript, resolveMetadataName, toAppleLanguage } from './metadataLanguage.mjs'
+import { resolveLocalizedArtistName } from './localizedArtist.mjs'
 import { getOriginalAlbumMeta, getOriginalPlaylistMeta } from './originalMetadataCache.mjs'
 import { wakeWrapper } from './wrapperLogin.mjs'
 
@@ -190,9 +191,23 @@ function setConversionEnabled(progressState, enabled) {
  */
 async function resolveAlbumNaming({ settings, storefront, albumId, meta }) {
   const mode = settings?.namingLanguageMode || 'display'
+  const acceptedLanguages = Array.isArray(settings?.acceptedLanguages)
+    ? settings.acceptedLanguages
+    : []
+
+  let effectiveDisplayArtist = meta?.artistName || null
+  if (meta?.artistId && settings?.language) {
+    const loc = await resolveLocalizedArtistName({
+      artistId: meta.artistId,
+      artistName: meta.artistName,
+      language: settings.language,
+    })
+    if (loc) effectiveDisplayArtist = loc
+  }
+
   const fallback = {
     albumTitle: meta?.name ? stripTrailingYear(meta.name) : null,
-    artist: meta?.artistName || null,
+    artist: effectiveDisplayArtist,
     originalAlbumTitle: null,
     originalArtist: null,
     trackNameOverrides: [],
@@ -202,9 +217,6 @@ async function resolveAlbumNaming({ settings, storefront, albumId, meta }) {
   const original = await getOriginalAlbumMeta({ storefront, albumId })
   if (!original) return fallback
 
-  const acceptedLanguages = Array.isArray(settings?.acceptedLanguages)
-    ? settings.acceptedLanguages
-    : []
   const displayAlbumTitle = stripTrailingYear(meta.name)
   const originalAlbumTitleRaw = stripTrailingYear(original.name)
 
@@ -214,10 +226,30 @@ async function resolveAlbumNaming({ settings, storefront, albumId, meta }) {
     originalName: originalAlbumTitleRaw,
     acceptedLanguages,
   })
+
+  let effectiveOriginalArtist = original.artistName
+  if (meta?.artistId) {
+    if (effectiveDisplayArtist && detectScript(effectiveDisplayArtist)) {
+      effectiveOriginalArtist = effectiveDisplayArtist
+    } else if (effectiveOriginalArtist && !detectScript(effectiveOriginalArtist)) {
+      for (const langCode of acceptedLanguages) {
+        const cand = await resolveLocalizedArtistName({
+          artistId: meta.artistId,
+          artistName: effectiveOriginalArtist,
+          language: toAppleLanguage(langCode),
+        })
+        if (cand && detectScript(cand)) {
+          effectiveOriginalArtist = cand
+          break
+        }
+      }
+    }
+  }
+
   const artist = resolveMetadataName({
     mode,
-    displayName: meta.artistName,
-    originalName: original.artistName,
+    displayName: effectiveDisplayArtist,
+    originalName: effectiveOriginalArtist,
     acceptedLanguages,
   })
 
@@ -242,14 +274,14 @@ async function resolveAlbumNaming({ settings, storefront, albumId, meta }) {
 
   return {
     albumTitle: albumTitle || displayAlbumTitle,
-    artist: artist || meta.artistName,
+    artist: artist || effectiveDisplayArtist,
     originalAlbumTitle:
       originalAlbumTitleRaw && originalAlbumTitleRaw !== displayAlbumTitle
         ? originalAlbumTitleRaw
         : null,
     originalArtist:
-      original.artistName && original.artistName !== meta.artistName
-        ? original.artistName
+      effectiveOriginalArtist && effectiveOriginalArtist !== effectiveDisplayArtist
+        ? effectiveOriginalArtist
         : null,
     trackNameOverrides,
   }
@@ -1269,7 +1301,9 @@ async function runJob(job) {
     // an explicit-tag suffix, etc). Only override with the resolved
     // job.artist / job.albumTitle when a naming-language mode actually
     // requires it.
-    const useLanguageNaming = (settings.namingLanguageMode || 'display') !== 'display'
+    const useLanguageNaming =
+      (settings.namingLanguageMode || 'display') !== 'display' ||
+      Boolean(settings.language && !settings.language.toLowerCase().startsWith('en'))
     const baseUrl = `https://music.apple.com/${encodeURIComponent(job.storefront)}/album/_/${encodeURIComponent(job.albumId)}`
     const playlistUrl =
       job.sourceUrl ||

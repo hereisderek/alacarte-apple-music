@@ -6,6 +6,7 @@ import { enqueueSong, getJob } from '../lib/queue.mjs'
 import { resolveTracksToLocalPaths, writePlaylistM3U } from '../lib/playlistExport.mjs'
 import { createSpacer } from '../lib/requestSpacer.mjs'
 import { toAppleLanguage } from '../lib/metadataLanguage.mjs'
+import { resolveLocalizedArtistName } from '../lib/localizedArtist.mjs'
 
 // Minimal surface for the separate public import service (importer/) to call
 // server-to-server. Guarded by requireInternalKey(), not the owner session —
@@ -28,6 +29,7 @@ function mapSong(x) {
     id: x.id,
     name: x.attributes?.name,
     artistName: x.attributes?.artistName,
+    artistId: x.relationships?.artists?.data?.[0]?.id || null,
     albumId: m ? m[1] : null,
     albumName: x.attributes?.albumName,
     durationMs: x.attributes?.durationInMillis,
@@ -56,6 +58,39 @@ internalRouter.get('/search', async (req, res) => {
       }),
     )
     const songs = (data?.results?.songs?.data || []).map(mapSong)
+
+    const nameReplacements = new Map()
+    const artistsToResolve = new Map()
+    for (const s of songs) {
+      if (s.artistId && s.artistName && !artistsToResolve.has(s.artistId)) {
+        artistsToResolve.set(s.artistId, s.artistName)
+      }
+    }
+    if (artistsToResolve.size > 0) {
+      await Promise.all(
+        Array.from(artistsToResolve.entries()).map(async ([artistId, artistName]) => {
+          const localized = await resolveLocalizedArtistName({
+            artistId,
+            artistName,
+            language,
+          })
+          if (localized && localized !== artistName) {
+            nameReplacements.set(artistName, localized)
+            nameReplacements.set(artistId, localized)
+          }
+        }),
+      )
+      if (nameReplacements.size > 0) {
+        for (const s of songs) {
+          if (s.artistId && nameReplacements.has(s.artistId)) {
+            s.artistName = nameReplacements.get(s.artistId)
+          } else if (nameReplacements.has(s.artistName)) {
+            s.artistName = nameReplacements.get(s.artistName)
+          }
+        }
+      }
+    }
+
     res.json({ songs, storefront })
   } catch (err) {
     // Surface Apple's real status (429 in particular) instead of flattening

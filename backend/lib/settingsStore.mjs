@@ -10,6 +10,7 @@ import {
   NAMING_LANGUAGE_MODE_VALUES,
   DEFAULT_NAMING_LANGUAGE_MODE,
   MAX_ACCEPTED_LANGUAGES,
+  toAppleLanguage,
 } from './metadataLanguage.mjs'
 
 export {
@@ -164,6 +165,14 @@ export async function writeSettings(patch) {
   ) {
     merged.quality = patch.convertToFlac === false ? 'alac' : 'flac'
   }
+  if (
+    Object.prototype.hasOwnProperty.call(patch, 'uiLanguage') &&
+    !Object.prototype.hasOwnProperty.call(patch, 'language')
+  ) {
+    if (patch.uiLanguage && patch.uiLanguage !== 'system') {
+      merged.language = toAppleLanguage(patch.uiLanguage)
+    }
+  }
   const next = normalizeSettings(merged)
   await fsp.writeFile(
     SETTINGS_FILE,
@@ -220,6 +229,11 @@ function normalizeSettings(parsed) {
     uiLanguage: UI_LANGUAGE_VALUES.has(parsed?.uiLanguage)
       ? parsed.uiLanguage
       : DEFAULTS.uiLanguage,
+    language:
+      parsed?.language ||
+      (parsed?.uiLanguage && parsed.uiLanguage !== 'system'
+        ? toAppleLanguage(parsed.uiLanguage)
+        : DEFAULTS.language),
     acceptedLanguages: normalizeAcceptedLanguages(parsed?.acceptedLanguages),
     namingLanguageMode: NAMING_LANGUAGE_MODE_VALUES.has(parsed?.namingLanguageMode)
       ? parsed.namingLanguageMode
