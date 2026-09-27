@@ -1,6 +1,9 @@
+import { useTranslation } from 'react-i18next'
+
 import type { HealthReport } from '../api/client'
 import { cx } from '../lib/cx'
 import { Badge } from './Badge'
+import i18n from '../i18n'
 
 type Props = {
   health: HealthReport | null
@@ -9,9 +12,10 @@ type Props = {
 }
 
 export function HealthPill({ health, loading, variant = 'default' }: Props) {
+  const { t } = useTranslation()
   const shellClass = variant === 'shell' ? 'h-10 px-3.5 text-[0.8125rem] leading-none group-hover:text-accent group-hover:border-[rgba(var(--accent),0.3)] group-hover:bg-[rgba(var(--accent),0.12)]' : ''
   if (loading || !health) {
-    return <Badge className={shellClass}>Checking…</Badge>
+    return <Badge className={shellClass}>{t('healthPill.checking')}</Badge>
   }
   if (health.ok) {
     if (health.wrapper?.stallRecent) {
@@ -19,36 +23,36 @@ export function HealthPill({ health, loading, variant = 'default' }: Props) {
         <Badge
           variant="warn"
           className={shellClass}
-          title="Download wrapper stalled and was auto-recovered."
+          title={t('healthPill.stalledRecoveredTitle')}
         >
-          ● Recovered
+          ● {t('healthPill.recovered')}
         </Badge>
       )
     }
-    return <Badge variant="ok" className={shellClass}>● Ready</Badge>
+    return <Badge variant="ok" className={shellClass}>● {t('healthPill.ready')}</Badge>
   }
   const wrapperDown = isWrapperDown(health)
   const pause = wrapperDown ? wrapperPause(health) : null
-  let label = 'Issue'
-  let title = 'Something is not ready'
+  let label = t('healthPill.issue')
+  let title = t('healthPill.somethingNotReady')
   if (pause) {
     label = pause.label
     title = pause.title
   } else if (wrapperDown) {
-    label = 'Sign in required'
-    title = 'Apple Music wrapper is offline — add credentials in Settings.'
+    label = t('healthPill.signInRequired')
+    title = t('healthPill.wrapperOfflineTitle')
   } else if (!health.appleToken?.ok) {
-    label = 'Apple token'
-    title = 'Could not fetch the public Apple Music bearer token.'
+    label = t('healthPill.appleToken')
+    title = t('healthPill.appleTokenTitle')
   } else if (!health.music?.ok) {
-    label = 'Music folder'
-    title = 'Music output folder is not writable.'
+    label = t('healthPill.musicFolder')
+    title = t('healthPill.musicFolderTitle')
   } else {
     const partial: string[] = []
     if (!health.wrapper?.decrypt?.ok) partial.push('decrypt')
     if (!health.wrapper?.m3u8?.ok) partial.push('m3u8')
     if (!health.wrapper?.account?.ok) partial.push('account')
-    label = `Wrapper: ${partial.join(', ')}`
+    label = t('healthPill.wrapperPartial', { detail: partial.join(', ') })
     title = label
   }
   return (
@@ -79,12 +83,15 @@ function wrapperPause(health: HealthReport): { label: string; title: string } | 
   if (sup.reason === 'lease_lost') {
     const mins = Math.max(1, Math.ceil((sup.restartInMs ?? 0) / 60_000))
     return {
-      label: 'Paused',
-      title: `Apple Music is playing on another device with this account. The wrapper resumes in about ${mins} min, or right away when a download starts.`,
+      label: i18n.t('healthPill.paused'),
+      title: i18n.t('healthPill.leaseLostTitle', { mins }),
     }
   }
   if (sup.running || sup.restartInMs != null) {
-    return { label: 'Wrapper restarting', title: 'The Apple Music wrapper is starting up.' }
+    return {
+      label: i18n.t('healthPill.wrapperRestarting'),
+      title: i18n.t('healthPill.wrapperRestartingTitle'),
+    }
   }
   return null
 }
@@ -99,6 +106,6 @@ export function getHealthPillTarget(health: HealthReport | null): string {
 }
 
 export function getHealthPillAriaLabel(health: HealthReport | null): string {
-  if (!health) return 'Open status'
-  return needsSignIn(health) ? 'Open settings' : 'Open status'
+  if (!health) return i18n.t('healthPill.openStatus')
+  return needsSignIn(health) ? i18n.t('healthPill.openSettings') : i18n.t('healthPill.openStatus')
 }

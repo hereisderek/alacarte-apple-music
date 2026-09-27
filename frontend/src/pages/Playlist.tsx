@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Clock3, Badge as BadgeIcon, Download, ListMusic, ListPlus, ListX, X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import {
   api,
@@ -39,6 +40,7 @@ function formatDur(ms: number | undefined) {
 }
 
 export function PlaylistPage() {
+  const { t } = useTranslation()
   const params = useParams<{ id?: string; libraryId?: string }>()
   const libraryId = params.libraryId || null
   const catalogId = libraryId ? null : params.id || null
@@ -116,7 +118,7 @@ export function PlaylistPage() {
         if (!cancelled) setPlaylist(r.playlist as AnyPlaylist)
       })
       .catch((err) => {
-        if (!cancelled) setError(err.message || 'Failed to load')
+        if (!cancelled) setError(err.message || t('playlist.failedToLoad'))
       })
     return () => {
       cancelled = true
@@ -131,7 +133,7 @@ export function PlaylistPage() {
       jobs.filter(
         (j) =>
           j.kind === 'song' &&
-          playlist?.tracks.some((t) => t.id === j.songId) &&
+          playlist?.tracks.some((track) => track.id === j.songId) &&
           (j.status === 'queued' || j.status === 'running'),
       ),
     [jobs, playlist],
@@ -149,7 +151,7 @@ export function PlaylistPage() {
         await api.enqueuePlaylist(catalogId, undefined, quality)
       }
     } catch (err: any) {
-      setError(err?.message || 'Enqueue failed')
+      setError(err?.message || t('playlist.enqueueFailed'))
     } finally {
       setEnqueueing(false)
     }
@@ -184,7 +186,7 @@ export function PlaylistPage() {
         window.setTimeout(() => setFollowQueuedCount(0), 6000),
       ]
     } catch (err: any) {
-      setError(err?.message || 'Failed to follow playlist')
+      setError(err?.message || t('playlist.failedToFollow'))
     } finally {
       setFollowSubmitting(false)
     }
@@ -204,7 +206,7 @@ export function PlaylistPage() {
         window.setTimeout(() => setFollowBanner(null), 6000),
       ]
     } catch (err: any) {
-      setError(err?.message || 'Failed to unfollow playlist')
+      setError(err?.message || t('playlist.failedToUnfollow'))
     } finally {
       setFollowSubmitting(false)
     }
@@ -236,12 +238,11 @@ export function PlaylistPage() {
           >
             <div>
               {followBanner === 'unfollowed'
-                ? 'Playlist unfollowed. Your existing downloads stay in the library.'
-                : 'Playlist followed. New tracks will download automatically.'}{' '}
+                ? t('playlist.unfollowedBanner')
+                : t('playlist.followedBanner')}{' '}
               {followQueuedCount > 0 && (
                 <>
-                  Queued <b>{followQueuedCount}</b> track
-                  {followQueuedCount === 1 ? '' : 's'} for download.{' '}
+                  {t('playlist.queuedTracksForDownload', { count: followQueuedCount })}{' '}
                 </>
               )}
               {followBanner !== 'unfollowed' && (
@@ -249,7 +250,7 @@ export function PlaylistPage() {
                   to="/following"
                   className="font-medium text-[rgb(var(--accent))] underline underline-offset-2 transition-colors hover:text-white"
                 >
-                  Open Following
+                  {t('playlist.openFollowing')}
                 </Link>
               )}
             </div>
@@ -259,7 +260,7 @@ export function PlaylistPage() {
                 setFollowBanner(null)
                 setFollowQueuedCount(0)
               }}
-              aria-label="Dismiss"
+              aria-label={t('playlist.dismiss')}
               className="shrink-0 inline-flex h-[30px] w-[30px] items-center justify-center rounded-full border border-[rgba(var(--accent),0.25)] bg-[rgba(var(--accent),0.08)] text-white/75 transition-[background,border-color,color] duration-[250ms] ease-smooth hover:border-[rgba(var(--accent),0.45)] hover:bg-[rgba(var(--accent),0.18)] hover:text-white"
             >
               <X className="h-3.5 w-3.5" />
@@ -295,23 +296,23 @@ export function PlaylistPage() {
             </div>
             <div className="min-w-0 flex-1 flex flex-col">
               <div className="text-xs uppercase tracking-wider text-white/55 mb-1">
-                {isUserCreated ? 'Your Playlist' : 'Playlist'}
+                {isUserCreated ? t('playlist.yourPlaylist') : t('playlist.playlist')}
               </div>
               <h1 className="text-2xl md:text-4xl font-bold tracking-tight">{playlist.name}</h1>
               <div className="mt-1 text-white/70">
                 {playlist.curatorName}
-                {playlist.trackCount ? ` · ${playlist.trackCount} tracks` : ''}
+                {playlist.trackCount ? ` · ${t('playlist.trackCount', { count: playlist.trackCount })}` : ''}
               </div>
               {playlist.description && (
                 <p className="mt-2 text-sm text-white/50 line-clamp-3">{playlist.description}</p>
               )}
               <div className="mt-2 flex flex-wrap gap-1.5">
-                {playlist.hasHiRes && <Badge>Hi-Res Lossless</Badge>}
-                {playlist.hasLossless && !playlist.hasHiRes && <Badge>Lossless</Badge>}
-                {playlist.hasAtmos && <Badge>Dolby Atmos</Badge>}
+                {playlist.hasHiRes && <Badge>{t('playlist.hiResLossless')}</Badge>}
+                {playlist.hasLossless && !playlist.hasHiRes && <Badge>{t('playlist.lossless')}</Badge>}
+                {playlist.hasAtmos && <Badge>{t('playlist.dolbyAtmos')}</Badge>}
                 {undownloadable > 0 && (
                   <Badge variant="warn">
-                    {undownloadable} not on Apple Music
+                    {t('playlist.notOnAppleMusic', { count: undownloadable })}
                   </Badge>
                 )}
               </div>
@@ -337,14 +338,14 @@ export function PlaylistPage() {
                   >
                     <Download className="h-4 w-4" />
                     {existingPlaylistJob?.status === 'done'
-                      ? 'Already imported'
+                      ? t('playlist.alreadyImported')
                       : existingPlaylistJob?.status === 'queued'
-                        ? 'Queued'
+                        ? t('playlist.queued')
                         : existingPlaylistJob?.status === 'running'
-                          ? 'Downloading…'
+                          ? t('playlist.downloading')
                           : !downloadable
-                            ? 'No downloadable tracks'
-                            : 'Download Playlist'}
+                            ? t('playlist.noDownloadableTracks')
+                            : t('playlist.downloadPlaylist')}
                   </Button>
                   {followed ? (
                     <Button
@@ -354,7 +355,7 @@ export function PlaylistPage() {
                       className="border-rose-300/30 bg-rose-500/10 text-rose-200 hover:border-rose-300/50 hover:bg-rose-500/20 hover:text-rose-100"
                     >
                       <ListX className="h-4 w-4" />
-                      Unfollow
+                      {t('playlist.unfollow')}
                     </Button>
                   ) : (
                     <Button
@@ -363,7 +364,7 @@ export function PlaylistPage() {
                       variant="ghost"
                     >
                       <ListPlus className="h-4 w-4" />
-                      Follow
+                      {t('playlist.follow')}
                     </Button>
                   )}
                 </div>
@@ -371,7 +372,7 @@ export function PlaylistPage() {
 
               {activePlaylistTrackJobs.length > 0 && (
                 <div className="mt-4 text-sm text-white/50">
-                  {activePlaylistTrackJobs.length} track{activePlaylistTrackJobs.length !== 1 ? 's' : ''} downloading…
+                  {t('playlist.tracksDownloading', { count: activePlaylistTrackJobs.length })}
                 </div>
               )}
             </div>
@@ -381,48 +382,48 @@ export function PlaylistPage() {
             <div className="mt-2 border-t border-white/10 pt-4">
               <div className="grid grid-cols-[2rem_1fr_auto] md:grid-cols-[2rem_1fr_8rem_5rem] gap-x-3 gap-y-0 text-xs uppercase tracking-wider text-white/40 border-b border-white/5 py-2">
                 <div>#</div>
-                <div>Title</div>
-                <div className="hidden md:block">Artist</div>
+                <div>{t('playlist.title')}</div>
+                <div className="hidden md:block">{t('playlist.artist')}</div>
                 <div className="text-right"><Clock3 className="h-3.5 w-3.5 inline" /></div>
               </div>
-              {playlist.tracks.map((t, i) => {
+              {playlist.tracks.map((track, i) => {
                 const matchingJob = jobs.find(
-                  (j) => j.songId === t.id && (j.status === 'queued' || j.status === 'running'),
+                  (j) => j.songId === track.id && (j.status === 'queued' || j.status === 'running'),
                 )
                 return (
                   <StaggeredItem
-                    key={t.id}
+                    key={track.id}
                     className="grid grid-cols-[2rem_1fr_auto] md:grid-cols-[2rem_1fr_8rem_5rem] gap-x-3 py-2.5 items-center border-b border-white/5 hover:bg-accent/[0.05] transition-colors rounded-[6px]"
                   >
                     <div className="text-white/45 tabular-nums text-sm">{i + 1}</div>
                     <div className="min-w-0">
                       <div className="truncate text-sm font-medium">
-                        {t.name}
-                        {t.hasHiRes && (
-                          <BadgeIcon className="h-3.5 w-3.5 text-accent inline ml-1.5" aria-label="Hi-Res" />
+                        {track.name}
+                        {track.hasHiRes && (
+                          <BadgeIcon className="h-3.5 w-3.5 text-accent inline ml-1.5" aria-label={t('playlist.hiRes')} />
                         )}
-                        {t.isAppleDigitalMaster && <AdmChip />}
+                        {track.isAppleDigitalMaster && <AdmChip />}
                       </div>
                       <div className="md:hidden truncate text-xs text-white/50">
                         <ResolvedMediaLink
                           kind="artist"
-                          artistId={t.artistId}
-                          artistName={t.artistName}
+                          artistId={track.artistId}
+                          artistName={track.artistName}
                           className="hover:text-accent transition-colors"
                         >
-                          {t.artistName}
+                          {track.artistName}
                         </ResolvedMediaLink>
-                        {t.albumName && ` · ${t.albumName}`}
+                        {track.albumName && ` · ${track.albumName}`}
                       </div>
                     </div>
                     <div className="hidden md:block truncate text-sm text-white/60">
                       <ResolvedMediaLink
                         kind="artist"
-                        artistId={t.artistId}
-                        artistName={t.artistName}
+                        artistId={track.artistId}
+                        artistName={track.artistName}
                         className="hover:text-accent transition-colors"
                       >
-                        {t.artistName}
+                        {track.artistName}
                       </ResolvedMediaLink>
                     </div>
                     <div className="text-right text-sm text-white/55 tabular-nums flex items-center justify-end gap-1.5">
@@ -430,10 +431,10 @@ export function PlaylistPage() {
                         <span className="text-[10px] text-accent font-semibold uppercase tracking-wide">
                           {matchingJob.status === 'running'
                             ? `${formatPercent(matchingJob.progress)}`
-                            : 'Queued'}
+                            : t('playlist.queued')}
                         </span>
                       )}
-                      {formatDur(t.durationMs)}
+                      {formatDur(track.durationMs)}
                     </div>
                   </StaggeredItem>
                 )
@@ -446,7 +447,7 @@ export function PlaylistPage() {
       <Modal
         open={followModalOpen}
         onClose={() => setFollowModalOpen(false)}
-        label="Follow playlist"
+        label={t('playlist.followPlaylist')}
         placement="center"
         className="!max-w-[40rem]"
       >
@@ -457,15 +458,13 @@ export function PlaylistPage() {
             </div>
             <div className="min-w-0">
               <div className="text-xs uppercase tracking-wider text-white/55">
-                Follow playlist
+                {t('playlist.followPlaylist')}
               </div>
               <h2 className="mt-1 text-lg font-semibold text-white">
-                {playlist?.name || 'Playlist'}
+                {playlist?.name || t('playlist.playlist')}
               </h2>
               <p className="mt-2 text-sm text-white/60">
-                alacarte will watch this playlist and automatically download
-                tracks you add to it. Removing a track from the playlist keeps
-                its download in your library.
+                {t('playlist.followModalDescription')}
               </p>
             </div>
           </div>
@@ -473,10 +472,10 @@ export function PlaylistPage() {
             <div className="mt-5">
               <div className="mb-3">
                 <div className="text-xs uppercase tracking-wider text-white/55">
-                  Download quality
+                  {t('playlist.downloadQuality')}
                 </div>
                 <div className="mt-1 text-sm text-white/60">
-                  Applies if you download the existing tracks now.
+                  {t('playlist.appliesIfDownloadNow')}
                 </div>
               </div>
               <QualityPicker value={followQuality} onChange={setFollowQuality} />
@@ -488,19 +487,19 @@ export function PlaylistPage() {
               disabled={followSubmitting}
               variant="ghost"
             >
-              Cancel
+              {t('playlist.cancel')}
             </Button>
             <Button
               onClick={() => submitFollow(false)}
               disabled={followSubmitting}
             >
-              Future additions only
+              {t('playlist.futureAdditionsOnly')}
             </Button>
             <Button
               onClick={() => submitFollow(true)}
               disabled={followSubmitting}
             >
-              Download existing tracks
+              {t('playlist.downloadExistingTracks')}
             </Button>
           </div>
         </div>
@@ -508,7 +507,7 @@ export function PlaylistPage() {
       <Modal
         open={unfollowModalOpen}
         onClose={() => setUnfollowModalOpen(false)}
-        label="Unfollow playlist"
+        label={t('playlist.unfollowPlaylist')}
         placement="center"
         className="!max-w-[36rem]"
       >
@@ -519,14 +518,13 @@ export function PlaylistPage() {
             </div>
             <div className="min-w-0">
               <div className="text-xs uppercase tracking-wider text-white/55">
-                Unfollow playlist
+                {t('playlist.unfollowPlaylist')}
               </div>
               <h2 className="mt-1 text-lg font-semibold text-white">
-                {playlist?.name || 'Playlist'}
+                {playlist?.name || t('playlist.playlist')}
               </h2>
               <p className="mt-2 text-sm text-white/60">
-                Stop watching for new tracks? Your existing downloads stay in
-                the library.
+                {t('playlist.unfollowModalDescription')}
               </p>
             </div>
           </div>
@@ -536,7 +534,7 @@ export function PlaylistPage() {
               disabled={followSubmitting}
               variant="ghost"
             >
-              Cancel
+              {t('playlist.cancel')}
             </Button>
             <Button
               onClick={submitUnfollow}
@@ -544,7 +542,7 @@ export function PlaylistPage() {
               className="border-rose-300/30 bg-rose-500/10 text-rose-200 hover:border-rose-300/50 hover:bg-rose-500/20 hover:text-rose-100"
             >
               <ListX className="h-4 w-4" />
-              Unfollow
+              {t('playlist.unfollow')}
             </Button>
           </div>
         </div>

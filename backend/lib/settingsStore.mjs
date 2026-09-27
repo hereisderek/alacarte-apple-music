@@ -4,6 +4,19 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 
 import { getRawKey } from './secretKey.mjs'
+import {
+  UI_LANGUAGE_VALUES,
+  ACCEPTED_LANGUAGE_VALUES,
+  NAMING_LANGUAGE_MODE_VALUES,
+  DEFAULT_NAMING_LANGUAGE_MODE,
+  MAX_ACCEPTED_LANGUAGES,
+} from './metadataLanguage.mjs'
+
+export {
+  UI_LANGUAGE_VALUES,
+  ACCEPTED_LANGUAGE_VALUES,
+  NAMING_LANGUAGE_MODE_VALUES,
+} from './metadataLanguage.mjs'
 
 const CONFIG_DIR = process.env.AMDL_CONFIG_DIR || '/config'
 const SECRET_FILE = path.join(CONFIG_DIR, '.secret')
@@ -39,6 +52,23 @@ const DEFAULTS = {
   namingConvention: 'apple',
   versionOptionsEnabled: false,
   versionOptions: ['atmos', 'lossless', 'aac'],
+  uiLanguage: 'system',
+  acceptedLanguages: [],
+  namingLanguageMode: DEFAULT_NAMING_LANGUAGE_MODE,
+}
+
+function normalizeAcceptedLanguages(list) {
+  if (!Array.isArray(list)) return []
+  const seen = new Set()
+  const out = []
+  for (const raw of list) {
+    const code = String(raw || '').trim().toLowerCase()
+    if (!ACCEPTED_LANGUAGE_VALUES.has(code) || seen.has(code)) continue
+    seen.add(code)
+    out.push(code)
+    if (out.length >= MAX_ACCEPTED_LANGUAGES) break
+  }
+  return out
 }
 
 const QUALITY_VALUES = new Set(['flac', 'alac', 'atmos', 'aac'])
@@ -187,6 +217,13 @@ function normalizeSettings(parsed) {
           ),
         }
       : {}),
+    uiLanguage: UI_LANGUAGE_VALUES.has(parsed?.uiLanguage)
+      ? parsed.uiLanguage
+      : DEFAULTS.uiLanguage,
+    acceptedLanguages: normalizeAcceptedLanguages(parsed?.acceptedLanguages),
+    namingLanguageMode: NAMING_LANGUAGE_MODE_VALUES.has(parsed?.namingLanguageMode)
+      ? parsed.namingLanguageMode
+      : DEFAULTS.namingLanguageMode,
   }
 }
 
@@ -233,6 +270,9 @@ export async function readPublicSettings() {
     versionOptions: Array.isArray(s.versionOptions)
       ? s.versionOptions.filter((g) => VERSION_GROUP_VALUES.has(g))
       : [],
+    uiLanguage: s.uiLanguage || 'system',
+    acceptedLanguages: Array.isArray(s.acceptedLanguages) ? s.acceptedLanguages : [],
+    namingLanguageMode: s.namingLanguageMode || DEFAULT_NAMING_LANGUAGE_MODE,
   }
 }
 

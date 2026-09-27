@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { createPortal } from 'react-dom'
 import { NavLink, useLocation } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import {
   Activity,
   Cloud,
@@ -23,6 +24,7 @@ type Props = {
 }
 
 export function NavDrawer({ open, onClose }: Props) {
+  const { t } = useTranslation()
   const location = useLocation()
   const touchStartX = useRef<number | null>(null)
   const [confirmSignOut, setConfirmSignOut] = useState(false)
@@ -105,25 +107,25 @@ export function NavDrawer({ open, onClose }: Props) {
             onTouchStart={onTouchStart}
             onTouchEnd={onTouchEnd}
           >
-            <DrawerRow to="/" end icon={HomeIcon} label="Home" />
+            <DrawerRow to="/" end icon={HomeIcon} label={t('nav.home')} />
 
             <div className="mb-1 mt-4 px-3 text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-white/40">
-              Browse
+              {t('nav.browse')}
             </div>
-            <DrawerRow to="/search" icon={SearchIcon} label="Search" />
-            <DrawerRow to="/library" icon={LibraryIcon} label="Downloads" />
-            <DrawerRow to="/cloud-library" icon={Cloud} label="Apple Music" />
-            <DrawerRow to="/following" icon={UserRoundCheck} label="Following" />
+            <DrawerRow to="/search" icon={SearchIcon} label={t('nav.search')} />
+            <DrawerRow to="/library" icon={LibraryIcon} label={t('nav.downloads')} />
+            <DrawerRow to="/cloud-library" icon={Cloud} label={t('nav.appleMusic')} />
+            <DrawerRow to="/following" icon={UserRoundCheck} label={t('nav.following')} />
 
             <div className="mb-1 mt-4 px-3 text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-white/40">
-              System
+              {t('nav.system')}
             </div>
-            <DrawerRow to="/status" icon={Activity} label="Status" />
-            <DrawerRow to="/settings" icon={Settings2} label="Settings" />
+            <DrawerRow to="/status" icon={Activity} label={t('nav.status')} />
+            <DrawerRow to="/settings" icon={Settings2} label={t('nav.settings')} />
 
             <DrawerButton
               icon={LogOut}
-              label="Sign Out"
+              label={t('nav.signOut')}
               onClick={requestSignOut}
             />
           </motion.aside>
@@ -145,12 +147,12 @@ export function NavDrawer({ open, onClose }: Props) {
               <LogOut className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-base font-semibold text-white">Sign out?</h2>
+              <h2 className="text-base font-semibold text-white">{t('nav.confirmSignOut')}</h2>
             </div>
           </div>
           <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button onClick={cancelSignOut} disabled={signingOut} variant="ghost">
-              Cancel
+              {t('nav.cancel')}
             </Button>
             <Button
               onClick={confirmAndSignOut}
@@ -158,7 +160,7 @@ export function NavDrawer({ open, onClose }: Props) {
               className="bg-[rgba(var(--accent),0.18)] border-[rgba(var(--accent),0.4)] text-white hover:bg-[rgba(var(--accent),0.28)] hover:text-white"
             >
               <LogOut className="h-4 w-4" />
-              {signingOut ? 'Signing out…' : 'Sign Out'}
+              {signingOut ? 'Signing out…' : t('nav.signOut')}
             </Button>
           </div>
         </div>

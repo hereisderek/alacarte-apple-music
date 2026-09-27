@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Home as HomeIcon, Menu, Search as SearchIcon } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { HealthPill, getHealthPillTarget, getHealthPillAriaLabel } from './HealthPill'
 import { NavDrawer } from './NavDrawer'
@@ -15,6 +16,7 @@ type Props = {
 }
 
 export function TopBar({ health, loading }: Props) {
+  const { t } = useTranslation()
   const [drawerOpen, setDrawerOpen] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
@@ -34,15 +36,15 @@ export function TopBar({ health, loading }: Props) {
     location.pathname === '/' || location.pathname === '/library'
   const pageTitle =
     location.pathname === '/search'
-      ? 'Search'
+      ? t('nav.search')
       : location.pathname === '/status'
-        ? 'Status'
+        ? t('nav.status')
         : location.pathname === '/settings'
-          ? 'Settings'
+          ? t('nav.settings')
           : location.pathname === '/following'
-            ? 'Following'
+            ? t('nav.following')
             : location.pathname === '/cloud-library'
-              ? 'Cloud'
+              ? t('nav.appleMusic')
               : location.pathname.startsWith('/album/')
               ? 'Album'
               : location.pathname.startsWith('/artist/')
@@ -104,7 +106,7 @@ export function TopBar({ health, loading }: Props) {
                     )
                   }
                 >
-                  Home
+                  {t('topbar.home')}
                 </NavLink>
                 <NavLink
                   to="/library"
@@ -115,7 +117,7 @@ export function TopBar({ health, loading }: Props) {
                     )
                   }
                 >
-                  Library
+                  {t('topbar.library')}
                 </NavLink>
               </div>
             </div>
@@ -124,7 +126,7 @@ export function TopBar({ health, loading }: Props) {
           <div className="ml-auto" />
 
           <div className="flex items-center gap-2 pointer-events-auto">
-            <Link to="/search" className={iconBtn} aria-label="Search">
+            <Link to="/search" className={iconBtn} aria-label={t('topbar.search')}>
               <SearchIcon className="h-4 w-4" />
             </Link>
             <Link to={getHealthPillTarget(health)} aria-label={getHealthPillAriaLabel(health)} className="group hidden md:inline-flex">

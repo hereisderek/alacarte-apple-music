@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { X, ListChecks, Disc3, Music2, Album as AlbumIcon } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { api, artworkUrl, type Album, type QualityPreference } from '../api/client'
 import { stripYear } from '../lib/format'
@@ -39,6 +40,7 @@ export function SelectDownloadsModal({
   inLibraryMap = {},
   onQueued,
 }: Props) {
+  const { t } = useTranslation()
   const appSettings = useAppSettings()
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [selectedQuality, setSelectedQuality] = useState<QualityPreference>('flac')
@@ -142,7 +144,7 @@ export function SelectDownloadsModal({
       onQueued?.(ids.length)
       onClose()
     } catch (err: any) {
-      setError(err?.message || 'Failed to queue downloads')
+      setError(err?.message || t('selectDownloadsModal.failedToQueueDownloads'))
     } finally {
       setSubmitting(false)
     }
@@ -152,22 +154,22 @@ export function SelectDownloadsModal({
     <Modal
       open={open}
       onClose={onClose}
-      label={`Queue albums from ${artistName}`}
+      label={t('selectDownloadsModal.queueAlbumsFrom', { artistName })}
       placement="center"
       className="!max-w-[44rem] max-h-[calc(100dvh-4rem)] overflow-hidden flex flex-col"
     >
       <header className="shrink-0 flex items-start justify-between gap-4 p-5 border-b border-white/[0.06]">
         <div className="min-w-0">
-          <div className="text-xs uppercase tracking-wider text-white/55 mb-1">Queue albums</div>
+          <div className="text-xs uppercase tracking-wider text-white/55 mb-1">{t('selectDownloadsModal.queueAlbumsLabel')}</div>
           <h2 className="text-lg md:text-xl font-semibold truncate">{artistName}</h2>
           <div className="mt-1 text-sm text-white/55">
-            {selected.size} of {albums.length} selected
+            {t('selectDownloadsModal.selectedCount', { selected: selected.size, total: albums.length })}
           </div>
         </div>
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close"
+          aria-label={t('selectDownloadsModal.close')}
           className="shrink-0 relative inline-flex items-center justify-center rounded-full border border-white/[0.12] bg-black/55 text-white/90 backdrop-blur-[10px] h-[30px] w-[30px]"
         >
           <X className="h-4 w-4" />
@@ -177,18 +179,18 @@ export function SelectDownloadsModal({
       <div
         className="shrink-0 px-5 py-3 flex flex-wrap gap-2 border-b border-white/[0.06]"
         role="group"
-        aria-label="Filter album types"
+        aria-label={t('selectDownloadsModal.filterAlbumTypes')}
       >
-        <FilterPill label="Select all" icon={ListChecks} active={allKindsSelected && !deselectActive} onClick={selectAll} count={albums.length} />
-        <FilterPill label="LPs" icon={AlbumIcon} active={!allKindsSelected && kindSet.has('LP')} onClick={() => toggleKind('LP')} count={lpIds.length} />
-        <FilterPill label="EPs" icon={Disc3} active={!allKindsSelected && kindSet.has('EP')} onClick={() => toggleKind('EP')} count={epIds.length} />
-        <FilterPill label="Singles" icon={Music2} active={!allKindsSelected && kindSet.has('Single')} onClick={() => toggleKind('Single')} count={singleIds.length} />
-        <FilterPill label="Deselect all" icon={X} active={deselectActive} onClick={deselectAll} count={0} />
+        <FilterPill label={t('selectDownloadsModal.selectAll')} icon={ListChecks} active={allKindsSelected && !deselectActive} onClick={selectAll} count={albums.length} />
+        <FilterPill label={t('selectDownloadsModal.lps')} icon={AlbumIcon} active={!allKindsSelected && kindSet.has('LP')} onClick={() => toggleKind('LP')} count={lpIds.length} />
+        <FilterPill label={t('selectDownloadsModal.eps')} icon={Disc3} active={!allKindsSelected && kindSet.has('EP')} onClick={() => toggleKind('EP')} count={epIds.length} />
+        <FilterPill label={t('selectDownloadsModal.singles')} icon={Music2} active={!allKindsSelected && kindSet.has('Single')} onClick={() => toggleKind('Single')} count={singleIds.length} />
+        <FilterPill label={t('selectDownloadsModal.deselectAll')} icon={X} active={deselectActive} onClick={deselectAll} count={0} />
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto px-2 py-2">
         {albums.length === 0 ? (
-          <div className="p-8 text-center text-white/55 text-sm">No albums to queue.</div>
+          <div className="p-8 text-center text-white/55 text-sm">{t('selectDownloadsModal.noAlbumsToQueue')}</div>
         ) : (
           <ul className="flex flex-col gap-1">
             {displayOrder.map((id) => {
@@ -217,9 +219,9 @@ export function SelectDownloadsModal({
       {appSettings?.promptForDownloadQuality && (
         <div className="shrink-0 border-t border-white/[0.06] px-5 py-4">
           <div className="mb-3">
-            <div className="text-xs uppercase tracking-wider text-white/55">Download quality</div>
+            <div className="text-xs uppercase tracking-wider text-white/55">{t('selectDownloadsModal.downloadQualityLabel')}</div>
             <div className="mt-1 text-sm text-white/60">
-              Applies to every selected album in this queue.
+              {t('selectDownloadsModal.appliesToEveryAlbum')}
             </div>
           </div>
           <QualityPicker value={selectedQuality} onChange={setSelectedQuality} />
@@ -227,12 +229,12 @@ export function SelectDownloadsModal({
       )}
 
       <footer className="shrink-0 p-4 flex items-center justify-end gap-2 border-t border-white/[0.06]">
-        <Button onClick={onClose} disabled={submitting}>Cancel</Button>
+        <Button onClick={onClose} disabled={submitting}>{t('selectDownloadsModal.cancel')}</Button>
         <Button onClick={submit} disabled={submitting || selected.size === 0}>
           <ListChecks className="h-4 w-4" />
           {submitting
-            ? 'Queuing…'
-            : `Queue ${selected.size} album${selected.size === 1 ? '' : 's'}`}
+            ? t('selectDownloadsModal.queuingButton')
+            : t('selectDownloadsModal.queueButton', { count: selected.size })}
         </Button>
       </footer>
     </Modal>
@@ -280,6 +282,7 @@ function AlbumRow({
   blocked: boolean
   onToggle: () => void
 }) {
+  const { t } = useTranslation()
   const art = artworkUrl(album.artworkTemplate, 100)
   const kind = kindOf(album)
   const KindIcon = kind === 'Single' ? Music2 : kind === 'EP' ? Disc3 : AlbumIcon
@@ -292,7 +295,7 @@ function AlbumRow({
           checked={checked}
           disabled={blocked}
           onChange={onToggle}
-          aria-label={`Select ${album.name}`}
+          aria-label={t('selectDownloadsModal.selectAlbum', { name: album.name })}
         />
         <Link to={`/album/${album.id}`} className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-black/50 block">
           {art && <img src={art} alt="" className="h-full w-full object-cover" />}
@@ -305,14 +308,14 @@ function AlbumRow({
           </div>
           <div className="truncate text-xs text-white/55">
             {album.year ? `${album.year} · ` : ''}
-            {album.trackCount ? `${album.trackCount} tracks` : ''}
+            {album.trackCount ? t('selectDownloadsModal.trackCount', { count: album.trackCount }) : ''}
           </div>
         </div>
         <Badge className="shrink-0">
           <KindIcon className="h-3 w-3" />
           {kind}
         </Badge>
-        {blocked && <Badge className="shrink-0">In library</Badge>}
+        {blocked && <Badge className="shrink-0">{t('selectDownloadsModal.inLibrary')}</Badge>}
       </div>
     </motion.li>
   )

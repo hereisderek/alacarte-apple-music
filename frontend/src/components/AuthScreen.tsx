@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useId, useRef, useState } from 'react'
 import { AnimatePresence, motion, useAnimationControls } from 'framer-motion'
 import { Eye, EyeOff, Lock, ShieldCheck } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { Button } from './Button'
 import { Input } from './Input'
@@ -35,6 +36,7 @@ export function AuthScreen({
   requiresSetupToken = false,
   onAuthenticated,
 }: Props) {
+  const { t } = useTranslation()
   const [setupTokenInput, setSetupTokenInput] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -89,23 +91,26 @@ export function AuthScreen({
     : isSetup && usernameLengthBad
       ? {
           tone: 'warn',
-          text: `Username must be ${usernameMinLength}–${usernameMaxLength} characters.`,
+          text: t('authScreen.usernameLengthHint', {
+            min: usernameMinLength,
+            max: usernameMaxLength,
+          }),
         }
       : isSetup && usernameCharsBad
         ? {
             tone: 'warn',
-            text: 'Username can use letters, digits, dots, underscores, and hyphens.',
+            text: t('authScreen.usernameCharsHint'),
           }
         : isSetup && tooShort
-          ? { tone: 'warn', text: `Password: at least ${minPasswordLength} characters.` }
+          ? { tone: 'warn', text: t('authScreen.passwordTooShortHint', { min: minPasswordLength }) }
           : setupTokenMissing
-            ? { tone: 'warn', text: 'Setup token is required for first-time setup.' }
+            ? { tone: 'warn', text: t('authScreen.setupTokenRequiredHint') }
           : isSetup && mismatch
-            ? { tone: 'warn', text: 'Passwords don’t match.' }
+            ? { tone: 'warn', text: t('authScreen.passwordMismatchHint') }
             : isSetup && password.length === 0
               ? {
                   tone: 'dim',
-                  text: `Pick a username and a password (min ${minPasswordLength} chars).`,
+                  text: t('authScreen.pickUsernamePasswordHint', { min: minPasswordLength }),
                 }
               : null
 
@@ -129,14 +134,18 @@ export function AuthScreen({
           ? err.message
           : err instanceof Error
             ? err.message
-            : 'Something went wrong'
+            : t('authScreen.genericError')
       if (err instanceof HttpError && err.status === 429) {
         if (typeof err.lockedUntil === 'number') {
-          message = `Too many attempts. Locked until ${new Date(err.lockedUntil).toLocaleTimeString()}.`
+          message = t('authScreen.tooManyAttemptsLockedUntil', {
+            time: new Date(err.lockedUntil).toLocaleTimeString(),
+          })
         } else if (typeof err.retryAfter === 'number') {
-          message = `Too many attempts. Retry in ${Math.max(1, Math.ceil(err.retryAfter))}s.`
+          message = t('authScreen.tooManyAttemptsRetryIn', {
+            seconds: Math.max(1, Math.ceil(err.retryAfter)),
+          })
         } else {
-          message = 'Too many attempts. Please wait and try again.'
+          message = t('authScreen.tooManyAttemptsWait')
         }
       }
       setError(message)
@@ -179,12 +188,12 @@ export function AuthScreen({
             </motion.div>
             <div className="text-center">
               <h1 className="text-xl font-semibold tracking-tight text-white">
-                {isSetup ? 'Create your account' : 'Welcome back'}
+                {isSetup ? t('authScreen.createAccountTitle') : t('authScreen.welcomeBackTitle')}
               </h1>
               <p className="text-sm text-white/55 mt-1">
                 {isSetup
-                  ? 'Pick a username and password.'
-                  : 'Sign in to continue.'}
+                  ? t('authScreen.createAccountSubtitle')
+                  : t('authScreen.signInSubtitle')}
               </p>
             </div>
           </div>
@@ -193,7 +202,7 @@ export function AuthScreen({
             {isSetup && requiresSetupToken && (
               <div className="flex flex-col gap-1.5">
                 <label htmlFor={setupTokenId} className="text-xs uppercase tracking-wide text-white/45 ml-1">
-                  Setup token from server logs
+                  {t('authScreen.setupTokenLabel')}
                 </label>
                 <Input
                   id={setupTokenId}
@@ -219,7 +228,7 @@ export function AuthScreen({
 
             <div className="flex flex-col gap-1.5">
               <label htmlFor={usernameId} className="text-xs uppercase tracking-wide text-white/45 ml-1">
-                Username
+                {t('authScreen.usernameLabel')}
               </label>
               <Input
                 id={usernameId}
@@ -244,7 +253,7 @@ export function AuthScreen({
 
             <div className="flex flex-col gap-1.5">
               <label htmlFor={passwordId} className="text-xs uppercase tracking-wide text-white/45 ml-1">
-                Password
+                {t('authScreen.passwordLabel')}
               </label>
               <PasswordField
                 id={passwordId}
@@ -265,7 +274,7 @@ export function AuthScreen({
             {isSetup && (
               <div className="flex flex-col gap-1.5">
                 <label htmlFor={confirmId} className="text-xs uppercase tracking-wide text-white/45 ml-1">
-                  Confirm password
+                  {t('authScreen.confirmPasswordLabel')}
                 </label>
                 <PasswordField
                   id={confirmId}
@@ -307,11 +316,11 @@ export function AuthScreen({
             >
               {submitting
                 ? isSetup
-                  ? 'Creating account…'
-                  : 'Signing in…'
+                  ? t('authScreen.creatingAccount')
+                  : t('authScreen.signingIn')
                 : isSetup
-                  ? 'Create account'
-                  : 'Sign in'}
+                  ? t('authScreen.createAccountButton')
+                  : t('authScreen.signInButton')}
             </Button>
           </form>
         </motion.div>
@@ -319,7 +328,7 @@ export function AuthScreen({
 
         <p className="mt-5 text-center text-xs text-white/35">
           {isSetup ? (
-            'You can change this later from Settings → Account.'
+            t('authScreen.changeLaterHint')
           ) : (
             <>
               alacarte ·{' '}
@@ -329,7 +338,7 @@ export function AuthScreen({
                 rel="noopener noreferrer"
                 className="text-white/55 underline decoration-white/35 underline-offset-2 hover:text-white"
               >
-                README
+                {t('authScreen.readmeLinkText')}
               </a>
             </>
           )}
@@ -351,7 +360,9 @@ type PasswordFieldProps = {
 }
 
 const PasswordField = forwardRef<HTMLInputElement, PasswordFieldProps>(
-  ({ id, value, onChange, show, toggleShow, autoComplete, disabled, hasError }, ref) => (
+  ({ id, value, onChange, show, toggleShow, autoComplete, disabled, hasError }, ref) => {
+    const { t } = useTranslation()
+    return (
     <div className="relative">
       <Input
         id={id}
@@ -371,7 +382,7 @@ const PasswordField = forwardRef<HTMLInputElement, PasswordFieldProps>(
         type="button"
         onClick={toggleShow}
         tabIndex={-1}
-        aria-label={show ? 'Hide password' : 'Show password'}
+        aria-label={show ? t('authScreen.hidePassword') : t('authScreen.showPassword')}
         className="absolute right-3 top-1/2 -translate-y-1/2 text-white/45 hover:text-white/80 transition-colors"
       >
         <AnimatePresence mode="wait" initial={false}>
@@ -388,7 +399,8 @@ const PasswordField = forwardRef<HTMLInputElement, PasswordFieldProps>(
         </AnimatePresence>
       </button>
     </div>
-  ),
+    )
+  },
 )
 PasswordField.displayName = 'PasswordField'
 

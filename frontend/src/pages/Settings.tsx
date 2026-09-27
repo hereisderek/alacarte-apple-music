@@ -16,10 +16,12 @@ import {
   User as UserIcon,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useTranslation } from 'react-i18next'
 
 import { api, type EffectiveCheckInterval, type PublicSettings, type TagBackfillStatus } from '../api/client'
 import { setAppSettingsCache } from '../hooks/useAppSettings'
 import { useEventStream } from '../hooks/useEventStream'
+import i18n, { SUPPORTED_LANGUAGES, LANGUAGE_NATIVE_LABELS } from '../i18n'
 
 import { Card } from '../components/Card'
 import { Badge } from '../components/Badge'
@@ -28,7 +30,28 @@ import { Input } from '../components/Input'
 import { Modal } from '../components/Modal'
 import { ProgressBar } from '../components/ProgressBar'
 import { StaggeredList, StaggeredItem } from '../components/StaggeredList'
+import { LanguageChipInput, type LanguageOption } from '../components/LanguageChipInput'
 import { cx } from '../lib/cx'
+
+// Must match backend/lib/metadataLanguage.mjs's LANGUAGE_CATALOG.
+const ACCEPTED_LANGUAGE_OPTIONS: LanguageOption[] = [
+  { code: 'en', label: 'English' },
+  { code: 'zh', label: 'Chinese (Simplified) · 中文' },
+  { code: 'zh-hant', label: 'Chinese (Traditional) · 中文（繁體）' },
+  { code: 'ja', label: 'Japanese · 日本語' },
+  { code: 'ko', label: 'Korean · 한국어' },
+  { code: 'es', label: 'Spanish · Español' },
+  { code: 'fr', label: 'French · Français' },
+]
+
+const NAMING_LANGUAGE_MODE_OPTIONS: Array<{
+  value: PublicSettings['namingLanguageMode']
+  labelKey: string
+}> = [
+  { value: 'display', labelKey: 'settings.namingModeDisplay' },
+  { value: 'original-if-accepted', labelKey: 'settings.namingModeOriginalIfAccepted' },
+  { value: 'dual', labelKey: 'settings.namingModeDual' },
+]
 
 
 const isFake = true
@@ -78,26 +101,27 @@ const STOREFRONTS = [
   ['eg', 'Egypt'],
 ] as const
 
-const QUALITY_OPTIONS: Array<{ value: PublicSettings['quality']; label: string }> = [
-  { value: 'flac', label: 'Prefer FLAC conversion' },
-  { value: 'alac', label: 'Prefer ALAC' },
-  { value: 'atmos', label: 'Prefer Dolby Atmos' },
-  { value: 'aac', label: 'Prefer AAC' },
+const QUALITY_OPTIONS: Array<{ value: PublicSettings['quality']; labelKey: string }> = [
+  { value: 'flac', labelKey: 'settings.qualityFlac' },
+  { value: 'alac', labelKey: 'settings.qualityAlac' },
+  { value: 'atmos', labelKey: 'settings.qualityAtmos' },
+  { value: 'aac', labelKey: 'settings.qualityAac' },
 ]
 
 const AUTO_DOWNLOAD_FREQUENCY_OPTIONS: Array<{
   value: PublicSettings['autoDownloadCheckFrequency']
-  label: string
+  labelKey: string
 }> = [
-  { value: 'auto', label: 'Auto (recommended)' },
-  { value: '1h', label: 'Every hour' },
-  { value: '6h', label: 'Every 6 hours' },
-  { value: '12h', label: 'Every 12 hours' },
-  { value: 'daily', label: 'Daily' },
-  { value: 'weekly', label: 'Weekly' },
+  { value: 'auto', labelKey: 'settings.frequencyAuto' },
+  { value: '1h', labelKey: 'settings.frequencyHourly' },
+  { value: '6h', labelKey: 'settings.frequency6h' },
+  { value: '12h', labelKey: 'settings.frequency12h' },
+  { value: 'daily', labelKey: 'settings.frequencyDaily' },
+  { value: 'weekly', labelKey: 'settings.frequencyWeekly' },
 ]
 
 export function SettingsPage() {
+  const { t } = useTranslation()
   const [settings, setSettings] = useState<PublicSettings | null>(null)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -172,7 +196,7 @@ export function SettingsPage() {
 
       <StaggeredList className="mx-auto w-full max-w-3xl space-y-6 pt-4 md:pt-6">
         <StaggeredItem>
-          <SettingsCard icon={<Lock className="h-4 w-4" />} title="Apple ID credentials">
+          <SettingsCard icon={<Lock className="h-4 w-4" />} title={t('settings.cardAppleCredentials')}>
             <AppleCredsForm
               settings={settings}
               onChange={reload}
@@ -183,16 +207,33 @@ export function SettingsPage() {
         </StaggeredItem>
 
         <StaggeredItem>
-          <SettingsCard icon={<Key className="h-4 w-4" />} title="media-user-token">
+          <SettingsCard icon={<Key className="h-4 w-4" />} title={t('settings.cardMediaUserToken')}>
             <MediaUserTokenForm settings={settings} onChange={reload} />
           </SettingsCard>
         </StaggeredItem>
 
         <StaggeredItem>
-          <SettingsCard icon={<Globe className="h-4 w-4" />} title="Catalog">
+          <SettingsCard icon={<Globe className="h-4 w-4" />} title={t('settings.cardCatalog')}>
             <div className="space-y-4">
               <label className="flex flex-col gap-1.5 md:flex-row md:items-center md:gap-3">
-                <span className="text-sm text-white/70 md:w-32">Storefront</span>
+                <span className="text-sm text-white/70 md:w-32">{t('settings.location')}</span>
+                <select
+                  value={settings.uiLanguage}
+                  onChange={(e) => update({ uiLanguage: e.target.value as PublicSettings['uiLanguage'] })}
+                  className="w-full rounded-app border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-white outline-none transition-[border-color,background,box-shadow] duration-[250ms] ease-smooth focus:border-[rgba(var(--accent),0.45)] focus:bg-[rgba(var(--accent),0.04)] focus:shadow-[0_0_0_3px_rgba(var(--accent),0.18)] md:flex-1"
+                >
+                  <option value="system" className="bg-zinc-900">
+                    {t('settings.followSystemDefault')}
+                  </option>
+                  {SUPPORTED_LANGUAGES.map((code) => (
+                    <option key={code} value={code} className="bg-zinc-900">
+                      {LANGUAGE_NATIVE_LABELS[code]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1.5 md:flex-row md:items-center md:gap-3">
+                <span className="text-sm text-white/70 md:w-32">{t('settings.storefront')}</span>
                 <select
                   value={settings.storefront}
                   onChange={(e) => update({ storefront: e.target.value })}
@@ -210,7 +251,7 @@ export function SettingsPage() {
               </label>
               <label className="flex flex-col gap-1.5 md:flex-row md:items-start md:gap-3">
                 <span className="text-sm text-white/70 md:w-32 md:pt-2">
-                  Content rating
+                  {t('settings.contentRating')}
                 </span>
                 <div className="md:flex-1">
                   <select
@@ -224,13 +265,13 @@ export function SettingsPage() {
                     className="w-full rounded-app border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-white outline-none transition-[border-color,background,box-shadow] duration-[250ms] ease-smooth focus:border-[rgba(var(--accent),0.45)] focus:bg-[rgba(var(--accent),0.04)] focus:shadow-[0_0_0_3px_rgba(var(--accent),0.18)]"
                   >
                     <option value="explicit" className="bg-zinc-900">
-                      Prefer explicit
+                      {t('settings.preferExplicit')}
                     </option>
                     <option value="clean" className="bg-zinc-900">
-                      Prefer clean
+                      {t('settings.preferClean')}
                     </option>
                     <option value="both" className="bg-zinc-900">
-                      Show both
+                      {t('settings.showBoth')}
                     </option>
                   </select>
 
@@ -241,10 +282,10 @@ export function SettingsPage() {
         </StaggeredItem>
 
         <StaggeredItem>
-          <SettingsCard icon={<FolderOpen className="h-4 w-4" />} title="Library output">
+          <SettingsCard icon={<FolderOpen className="h-4 w-4" />} title={t('settings.libraryOutput')}>
             <div className="space-y-4">
               <label className="flex flex-col gap-1.5 md:flex-row md:items-start md:gap-3">
-                <span className="text-sm text-white/70 md:w-32 md:pt-2">Quality</span>
+                <span className="text-sm text-white/70 md:w-32 md:pt-2">{t('settings.quality')}</span>
                 <div className="md:flex-1">
                   <select
                     value={settings.quality}
@@ -255,7 +296,7 @@ export function SettingsPage() {
                   >
                     {QUALITY_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value} className="bg-zinc-900">
-                        {option.label}
+                        {t(option.labelKey)}
                       </option>
                     ))}
                   </select>
@@ -269,9 +310,9 @@ export function SettingsPage() {
                   className="mt-0.5 shrink-0 focus-visible:ring-2 focus-visible:ring-[rgba(var(--accent),0.35)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0a]"
                 />
                 <div>
-                  <div className="text-sm font-medium">Ask for quality before manual downloads</div>
+                  <div className="text-sm font-medium">{t('settings.askQualityBeforeManual')}</div>
                   <div className="mt-1 text-sm text-white/55">
-                    Keep the default quality for automatic downloads, but choose per album, song, or playlist when starting downloads yourself.
+                    {t('settings.askQualityBeforeManualHelp')}
                   </div>
                 </div>
               </label>
@@ -283,28 +324,27 @@ export function SettingsPage() {
                   className="mt-0.5 shrink-0 focus-visible:ring-2 focus-visible:ring-[rgba(var(--accent),0.35)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0a]"
                 />
                 <div>
-                  <div className="text-sm font-medium">Store temp staging inside music library</div>
+                  <div className="text-sm font-medium">{t('settings.stagingInsideLibrary')}</div>
                   <div className="mt-1 text-sm text-white/55">
-                    Off (recommended): use <code>/tmp/alacarte-staging</code>. On: use hidden
+                    {t('settings.stagingHelpOff')} <code>/tmp/alacarte-staging</code>. {t('settings.stagingHelpOn')}
                     <code> /music/.amdl-tmp</code>.
                   </div>
                 </div>
               </label>
               <div className="flex items-start gap-3">
                 <div className="flex-1">
-                  <div className="text-sm font-medium">Naming convention</div>
+                  <div className="text-sm font-medium">{t('settings.namingConvention')}</div>
                   <div className="mt-1 text-sm text-white/55">
-                    Controls how track and album folder names are written. <em>Qobuz-compatible</em> strips
-                    featured-artist tags and trailing &ldquo;&ndash;&nbsp;Single&rdquo; suffixes to match
-                    Qobuz/Octo Fiesta naming.
+                    {t('settings.namingConventionHelpPre')} <em>{t('settings.qobuzCompatible')}</em>{' '}
+                    {t('settings.namingConventionHelpPost')}
                   </div>
                   <select
                     value={settings.namingConvention ?? 'apple'}
                     onChange={(e) => update({ namingConvention: e.target.value as 'apple' | 'qobuz' })}
                     className="mt-2 w-full rounded-app border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-white outline-none transition-[border-color,background,box-shadow] duration-[250ms] ease-smooth focus:border-[rgba(var(--accent),0.45)] focus:bg-[rgba(var(--accent),0.04)] focus:shadow-[0_0_0_3px_rgba(var(--accent),0.18)]"
                   >
-                    <option value="apple" className="bg-zinc-900">Apple Music (default)</option>
-                    <option value="qobuz" className="bg-zinc-900">Qobuz-compatible</option>
+                    <option value="apple" className="bg-zinc-900">{t('settings.namingApple')}</option>
+                    <option value="qobuz" className="bg-zinc-900">{t('settings.qobuzCompatible')}</option>
                   </select>
                 </div>
               </div>
@@ -324,13 +364,13 @@ export function SettingsPage() {
                     className={`text-sm font-medium ${settings.hasMediaUserToken ? '' : 'text-white/45'
                       }`}
                   >
-                    Download lyrics
+                    {t('settings.downloadLyrics')}
                   </div>
 
                 </div>
               </label>
               <label className="flex flex-col gap-1.5 md:flex-row md:items-start md:gap-3">
-                <span className="text-sm text-white/70 md:w-32 md:pt-2">Lyrics format</span>
+                <span className="text-sm text-white/70 md:w-32 md:pt-2">{t('settings.lyricsFormat')}</span>
                 <div className="md:flex-1">
                   <select
                     id="lyrics-format-select"
@@ -341,14 +381,14 @@ export function SettingsPage() {
                     }
                     className="w-full rounded-app border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-white outline-none transition-[border-color,background,box-shadow] duration-[250ms] ease-smooth focus:border-[rgba(var(--accent),0.45)] focus:bg-[rgba(var(--accent),0.04)] focus:shadow-[0_0_0_3px_rgba(var(--accent),0.18)] disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <option value="lrc" className="bg-zinc-900">LRC — line-synced (recommended)</option>
-                    <option value="ttml" className="bg-zinc-900">TTML — word/syllable sync</option>
+                    <option value="lrc" className="bg-zinc-900">{t('settings.lyricsFormatLrc')}</option>
+                    <option value="ttml" className="bg-zinc-900">{t('settings.lyricsFormatTtml')}</option>
                   </select>
 
                 </div>
               </label>
               <label className="flex flex-col gap-1.5 md:flex-row md:items-start md:gap-3">
-                <span className="text-sm text-white/70 md:w-32 md:pt-2">Lyrics type</span>
+                <span className="text-sm text-white/70 md:w-32 md:pt-2">{t('settings.lyricsType')}</span>
                 <div className="md:flex-1">
                   <select
                     id="lyrics-type-select"
@@ -359,15 +399,15 @@ export function SettingsPage() {
                     }
                     className="w-full rounded-app border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-white outline-none transition-[border-color,background,box-shadow] duration-[250ms] ease-smooth focus:border-[rgba(var(--accent),0.45)] focus:bg-[rgba(var(--accent),0.04)] focus:shadow-[0_0_0_3px_rgba(var(--accent),0.18)] disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <option value="lyrics" className="bg-zinc-900">Lyrics only</option>
-                    <option value="lyrics-with-translation" className="bg-zinc-900">Lyrics + translation</option>
+                    <option value="lyrics" className="bg-zinc-900">{t('settings.lyricsTypeLyrics')}</option>
+                    <option value="lyrics-with-translation" className="bg-zinc-900">{t('settings.lyricsTypeWithTranslation')}</option>
                   </select>
 
                 </div>
               </label>
               <label className="flex flex-col gap-1.5 md:flex-row md:items-start md:gap-3">
                 <span className="text-sm text-white/70 md:w-32 md:pt-2">
-                  Cover size
+                  {t('settings.coverSize')}
                 </span>
                 <div className="md:flex-1">
                   <select
@@ -375,20 +415,55 @@ export function SettingsPage() {
                     onChange={(e) => update({ coverSize: e.target.value })}
                     className="w-full rounded-app border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-white outline-none transition-[border-color,background,box-shadow] duration-[250ms] ease-smooth focus:border-[rgba(var(--accent),0.45)] focus:bg-[rgba(var(--accent),0.04)] focus:shadow-[0_0_0_3px_rgba(var(--accent),0.18)]"
                   >
-                    <option value="1400x1400" className="bg-zinc-900">1400×1400 (recommended)</option>
-                    <option value="2000x2000" className="bg-zinc-900">2000×2000</option>
-                    <option value="3000x3000" className="bg-zinc-900">3000×3000</option>
-                    <option value="5000x5000" className="bg-zinc-900">5000×5000 (max, large)</option>
+                    <option value="1400x1400" className="bg-zinc-900">{t('settings.coverSize1400')}</option>
+                    <option value="2000x2000" className="bg-zinc-900">{t('settings.coverSize2000')}</option>
+                    <option value="3000x3000" className="bg-zinc-900">{t('settings.coverSize3000')}</option>
+                    <option value="5000x5000" className="bg-zinc-900">{t('settings.coverSize5000')}</option>
                   </select>
 
                 </div>
               </label>
+
+              <div className="border-t border-white/[0.06] pt-4">
+                <div className="text-sm text-white/70">{t('settings.acceptedLanguages')}</div>
+                <div className="mt-1 text-[13px] text-white/45">{t('settings.acceptedLanguagesHelp')}</div>
+                <div className="mt-2">
+                  <LanguageChipInput
+                    value={settings.acceptedLanguages}
+                    onChange={(next) => update({ acceptedLanguages: next })}
+                    options={ACCEPTED_LANGUAGE_OPTIONS}
+                    placeholder={t('settings.acceptedLanguagesPlaceholder')}
+                    emptyHint={t('settings.acceptedLanguagesEmpty')}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="text-sm font-medium">{t('settings.namingLanguageMode')}</div>
+                <div className="mt-2 space-y-2" role="radiogroup" aria-label={t('settings.namingLanguageMode')}>
+                  {NAMING_LANGUAGE_MODE_OPTIONS.map((option) => (
+                    <label
+                      key={option.value}
+                      className="flex cursor-pointer items-start gap-3 rounded-app border border-white/[0.06] bg-white/[0.02] p-3 hover:bg-white/[0.04]"
+                    >
+                      <input
+                        type="radio"
+                        name="namingLanguageMode"
+                        checked={settings.namingLanguageMode === option.value}
+                        onChange={() => update({ namingLanguageMode: option.value })}
+                        className="mt-0.5 shrink-0"
+                      />
+                      <span className="text-[13px] text-white/80">{t(option.labelKey)}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
             </div>
           </SettingsCard>
         </StaggeredItem>
 
         <StaggeredItem>
-          <SettingsCard icon={<ListPlus className="h-4 w-4" />} title="Other versions">
+          <SettingsCard icon={<ListPlus className="h-4 w-4" />} title={t('settings.cardOtherVersions')}>
             <div className="space-y-4">
               <label className="flex items-start gap-3">
                 <input
@@ -401,12 +476,10 @@ export function SettingsPage() {
                 />
                 <div>
                   <div className="text-[13px] font-medium">
-                    Show other version options on album pages
+                    {t('settings.showOtherVersionOptions')}
                   </div>
                   <div className="mt-0.5 text-[13px] text-[var(--text-dim)]">
-                    For albums already in the library, offer pills to download
-                    the album again in the formats selected below. Each version
-                    is stored in its own folder.
+                    {t('settings.showOtherVersionOptionsHelp')}
                   </div>
                 </div>
               </label>
@@ -414,9 +487,9 @@ export function SettingsPage() {
                 <div
                   className="flex flex-wrap items-center gap-2 pt-1"
                   role="group"
-                  aria-label="Versions to offer"
+                  aria-label={t('settings.versionsToOffer')}
                 >
-                  <span className="text-[13px] text-[var(--text-dim)]">Offer:</span>
+                  <span className="text-[13px] text-[var(--text-dim)]">{t('settings.offer')}</span>
                   {(['lossless', 'atmos', 'aac'] as const).map((group) => {
                     const on = settings.versionOptions.includes(group)
                     return (
@@ -438,10 +511,10 @@ export function SettingsPage() {
                         }
                       >
                         {group === 'lossless'
-                          ? 'Lossless'
+                          ? t('settings.versionLossless')
                           : group === 'atmos'
-                            ? 'Atmos'
-                            : 'AAC'}
+                            ? t('settings.versionAtmos')
+                            : t('settings.versionAac')}
                       </button>
                     )
                   })}
@@ -452,7 +525,7 @@ export function SettingsPage() {
         </StaggeredItem>
 
         <StaggeredItem>
-          <SettingsCard icon={<Radar className="h-4 w-4" />} title="Auto-downloads">
+          <SettingsCard icon={<Radar className="h-4 w-4" />} title={t('settings.cardAutoDownloads')}>
             <div className="space-y-4">
               <label className="flex items-start gap-3">
                 <input
@@ -462,15 +535,14 @@ export function SettingsPage() {
                   className="mt-0.5 shrink-0 focus-visible:ring-2 focus-visible:ring-[rgba(var(--accent),0.35)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0a]"
                 />
                 <div>
-                  <div className="text-sm font-medium">Enable Auto-Downloads</div>
+                  <div className="text-sm font-medium">{t('settings.enableAutoDownloads')}</div>
                   <div className="mt-1 text-sm text-white/55">
-                    Pause background checks for followed artists and playlists
-                    without changing what you follow.
+                    {t('settings.enableAutoDownloadsHelp')}
                   </div>
                 </div>
               </label>
               <label className="flex flex-col gap-1.5 md:flex-row md:items-start md:gap-3">
-                <span className="text-sm text-white/70 md:w-32 md:pt-2">Check frequency</span>
+                <span className="text-sm text-white/70 md:w-32 md:pt-2">{t('settings.checkFrequency')}</span>
                 <div className="md:flex-1">
                   <select
                     value={settings.autoDownloadCheckFrequency}
@@ -484,7 +556,7 @@ export function SettingsPage() {
                   >
                     {AUTO_DOWNLOAD_FREQUENCY_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value} className="bg-zinc-900">
-                        {option.label}
+                        {t(option.labelKey)}
                       </option>
                     ))}
                   </select>
@@ -502,26 +574,26 @@ export function SettingsPage() {
         </StaggeredItem>
 
         <StaggeredItem>
-          <SettingsCard icon={<ShieldCheck className="h-4 w-4" />} title="Account">
+          <SettingsCard icon={<ShieldCheck className="h-4 w-4" />} title={t('settings.cardAccount')}>
             <AccountSection onFlash={flash} />
           </SettingsCard>
         </StaggeredItem>
 
         <StaggeredItem>
-          <SettingsCard icon={<Globe className="h-4 w-4" />} title="Navidrome Integration">
+          <SettingsCard icon={<Globe className="h-4 w-4" />} title={t('settings.cardNavidromeIntegration')}>
             <NavidromeForm settings={settings} onChange={reload} onFlash={flash} />
           </SettingsCard>
         </StaggeredItem>
 
         <StaggeredItem>
-          <SettingsCard icon={<Plug className="h-4 w-4" />} title="octo-fiesta Integration">
+          <SettingsCard icon={<Plug className="h-4 w-4" />} title={t('settings.cardOctoFiestaIntegration')}>
             <OctoIntegrationForm settings={settings} onChange={reload} onFlash={flash} />
           </SettingsCard>
         </StaggeredItem>
 
         <StaggeredItem>
           <footer className="pb-1 pt-1 text-center text-xs text-white/45">
-            Built by{' '}
+            {t('settings.builtBy')}{' '}
             <a
               href="https://github.com/sosjalapeno"
               target="_blank"
@@ -542,6 +614,7 @@ function EffectiveIntervalHint({
 }: {
   mode: PublicSettings['autoDownloadCheckFrequency']
 }) {
+  const { t } = useTranslation()
   const [data, setData] = useState<EffectiveCheckInterval | null>(null)
   useEffect(() => {
     let cancelled = false
@@ -560,16 +633,13 @@ function EffectiveIntervalHint({
   if (mode === 'auto') {
     return (
       <p className="mt-2 text-xs text-white/45">
-        Currently ≈ every {data.label} across {data.followedCount} followed artist
-        {data.followedCount === 1 ? '' : 's'} and playlist
-        {data.followedCount === 1 ? '' : 's'}. Adjusts automatically to keep Apple
-        Music API calls under the daily safety budget.
+        {t('settings.autoIntervalAuto', { count: data.followedCount, label: data.label })}
       </p>
     )
   }
   return (
     <p className="mt-2 text-xs text-white/45">
-      Each artist and playlist is checked at most once every {data.label}.
+      {t('settings.autoIntervalManual', { label: data.label })}
     </p>
   )
 }
@@ -608,15 +678,15 @@ type LoginPhase =
 
 function phaseLabel(p: LoginPhase): string {
   switch (p) {
-    case 'preparing': return 'Preparing sign-in…'
-    case 'checking-network': return 'Checking Apple service reachability…'
-    case 'creating': return 'Preparing secure container…'
-    case 'signing-in': return 'Signing in to Apple Music — this can take up to 90 seconds'
-    case '2fa-required': return 'Waiting for your 2FA code'
-    case 'verifying-2fa': return 'Verifying 2FA code…'
-    case 'starting-main': return 'Starting Apple Music wrapper…'
-    case 'ready': return 'Signed in successfully. Ready to download.'
-    case 'failed': return 'Sign-in failed'
+    case 'preparing': return i18n.t('settings.phasePreparing')
+    case 'checking-network': return i18n.t('settings.phaseCheckingNetwork')
+    case 'creating': return i18n.t('settings.phaseCreating')
+    case 'signing-in': return i18n.t('settings.phaseSigningIn')
+    case '2fa-required': return i18n.t('settings.phaseTwoFaRequired')
+    case 'verifying-2fa': return i18n.t('settings.phaseVerifyingTwoFa')
+    case 'starting-main': return i18n.t('settings.phaseStartingMain')
+    case 'ready': return i18n.t('settings.phaseReady')
+    case 'failed': return i18n.t('settings.phaseFailed')
     default: return ''
   }
 }
@@ -629,6 +699,7 @@ function AppleCredsForm({
   disabled: boolean
   setSaving: (b: boolean) => void
 }) {
+  const { t } = useTranslation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [phase, setPhase] = useState<LoginPhase>('idle')
@@ -647,7 +718,7 @@ function AppleCredsForm({
       setShowTwoFa(false)
     }
     if (data.phase === 'failed') {
-      setError(data.error || 'Sign-in failed')
+      setError(data.error || t('settings.phaseFailed'))
       setFailureTail(Array.isArray(data.tail) ? data.tail.map(String) : [])
       setShowFailureTail(false)
       setSaving(false)
@@ -674,14 +745,14 @@ function AppleCredsForm({
     try {
       const r = await api.saveAppleCreds(email, password, true)
       if (!r.loginStarted) {
-        setError(r.loginError || 'Could not start sign-in')
+        setError(r.loginError || t('settings.couldNotStartSignIn'))
         setPhase('failed')
         setSaving(false)
         return
       }
       onChange()
     } catch (err: any) {
-      setError(err?.message || 'Failed')
+      setError(err?.message || t('settings.failed'))
       setPhase('failed')
       setSaving(false)
     }
@@ -701,7 +772,7 @@ function AppleCredsForm({
     try {
       await api.runAppleLogin()
     } catch (err: any) {
-      setError(err?.message || 'Failed')
+      setError(err?.message || t('settings.failed'))
       setPhase('failed')
       setSaving(false)
     }
@@ -733,35 +804,35 @@ function AppleCredsForm({
           <div className="rounded-app border border-rose-400/40 bg-rose-500/[0.08] p-4 space-y-2">
             <div className="flex items-center gap-2 text-rose-300 font-semibold">
               <AlertCircle className="h-4 w-4" />
-              Apple Account locked
+              {t('settings.appleAccountLocked')}
             </div>
             <div className="text-sm text-white/80">{settings.hardBlockReason}</div>
             <ol className="text-sm text-white/70 list-decimal pl-5 space-y-1">
               <li>
-                Reset your password at{' '}
+                {t('settings.resetPasswordAt')}{' '}
                 <a href="https://iforgot.apple.com" target="_blank" rel="noopener noreferrer" className="text-accent underline">iforgot.apple.com</a>.
               </li>
-              <li>Sign in once with the new password on a trusted Apple device so Apple trusts the account again.</li>
-              <li>Wait a few minutes, then come back here, click <em>Clear</em>, and enter the new credentials.</li>
+              <li>{t('settings.signInOnTrustedDevice')}</li>
+              <li>{t('settings.waitThenClear', { clear: t('settings.clear') })}</li>
             </ol>
             <p className="text-xs text-white/50">
-              Retrying without doing the above will only deepen the lockout — this is Apple's anti-abuse protection, not a bug here.
+              {t('settings.lockoutWarning')}
             </p>
           </div>
         )}
 
         {settings.hasAppleCreds ? (
           <div className="text-sm text-white/70">
-            Current: <span className="text-white">{settings.appleEmailMasked}</span>
+            {t('settings.current')} <span className="text-white">{settings.appleEmailMasked}</span>
           </div>
         ) : (
           <div className="text-sm text-white/55">
-            No credentials stored. Enter your Apple ID used for Apple Music.
+            {t('settings.noAppleCredsStored')}
           </div>
         )}
         <div className="grid gap-2 md:grid-cols-2">
-          <Input type="email" placeholder="Apple ID email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} disabled={busy} />
-          <Input type="password" placeholder="Password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={busy} />
+          <Input type="email" placeholder={t('settings.appleIdEmail')} autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} disabled={busy} />
+          <Input type="password" placeholder={t('settings.password')} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={busy} />
         </div>
         <div className="flex gap-2 flex-wrap min-h-[40px]">
           <AnimatePresence initial={false} mode="popLayout">
@@ -777,9 +848,9 @@ function AppleCredsForm({
                 <Button
                   type="submit"
                   disabled={disabled || busy || !email || !password || hardBlocked}
-                  title={hardBlocked ? 'Clear the lockout first' : 'Save credentials'}
+                  title={hardBlocked ? t('settings.clearLockoutFirst') : t('settings.saveCredentials')}
                 >
-                  {busy ? 'Signing in…' : 'Save & sign in'}
+                  {busy ? t('settings.signingIn') : t('settings.saveAndSignIn')}
                 </Button>
               </motion.div>
             )}
@@ -793,8 +864,8 @@ function AppleCredsForm({
                 transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                 className="flex gap-2"
               >
-                {!hardBlocked && <Button onClick={retryLogin}>Re-run sign in</Button>}
-                <Button onClick={clear}>Clear</Button>
+                {!hardBlocked && <Button onClick={retryLogin}>{t('settings.reRunSignIn')}</Button>}
+                <Button onClick={clear}>{t('settings.clear')}</Button>
               </motion.div>
             )}
             {busy && (
@@ -806,7 +877,7 @@ function AppleCredsForm({
                 exit={{ opacity: 0, y: 10 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               >
-                <Button onClick={cancel}>Cancel</Button>
+                <Button onClick={cancel}>{t('settings.cancel')}</Button>
               </motion.div>
             )}
           </AnimatePresence>
@@ -825,7 +896,7 @@ function AppleCredsForm({
               rel="noopener noreferrer"
               className="underline decoration-accent/60 underline-offset-2 text-accent hover:text-white"
             >
-              troubleshooting
+              {t('settings.troubleshooting')}
             </a>
           </div>
         )}
@@ -838,7 +909,7 @@ function AppleCredsForm({
                 className="inline-flex items-center gap-1.5 text-xs text-white/70 hover:text-white"
               >
                 {showFailureTail ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                Show wrapper log
+                {t('settings.showWrapperLog')}
               </button>
               <button
                 type="button"
@@ -850,7 +921,7 @@ function AppleCredsForm({
                 className="inline-flex items-center gap-1.5 text-xs text-white/60 hover:text-white"
               >
                 <Copy className="h-3.5 w-3.5" />
-                Copy
+                {t('settings.copy')}
               </button>
             </div>
             {showFailureTail && (
@@ -876,6 +947,7 @@ function AppleCredsForm({
 }
 
 function TwoFaModal({ onClose, onCancel }: { onClose: () => void; onCancel: () => void }) {
+  const { t } = useTranslation()
   const [code, setCode] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -889,7 +961,7 @@ function TwoFaModal({ onClose, onCancel }: { onClose: () => void; onCancel: () =
     e.preventDefault()
     const cleaned = code.replace(/\D/g, '')
     if (cleaned.length !== 6) {
-      setErr('Enter the 6-digit code Apple showed on your trusted device')
+      setErr(t('settings.enterSixDigitCode'))
       return
     }
     setErr(null)
@@ -898,19 +970,17 @@ function TwoFaModal({ onClose, onCancel }: { onClose: () => void; onCancel: () =
       await api.submitAppleTwoFa(cleaned)
       onClose()
     } catch (e: any) {
-      setErr(e?.message || 'Failed')
+      setErr(e?.message || t('settings.failed'))
     } finally {
       setSubmitting(false)
     }
   }
 
   return (
-    <Modal open={true} onClose={onCancel} className="max-w-sm p-6" label="Two-factor code">
-      <h3 className="text-lg font-semibold mb-1">Two-factor code</h3>
+    <Modal open={true} onClose={onCancel} className="max-w-sm p-6" label={t('settings.twoFactorCode')}>
+      <h3 className="text-lg font-semibold mb-1">{t('settings.twoFactorCode')}</h3>
       <p className="text-sm text-white/60 mb-4">
-        Apple sent a 6-digit code to your trusted devices. If you only see
-        Allow / Not Me, generate a code from Settings → Apple ID → Sign-In
-        & Security → Get Verification Code.
+        {t('settings.twoFactorCodeHelp')}
       </p>
       <form onSubmit={submit} className="space-y-3">
         <Input
@@ -933,9 +1003,9 @@ function TwoFaModal({ onClose, onCancel }: { onClose: () => void; onCancel: () =
           </Badge>
         )}
         <div className="flex gap-2 justify-end">
-          <Button onClick={onCancel} disabled={submitting}>Cancel sign-in</Button>
+          <Button onClick={onCancel} disabled={submitting}>{t('settings.cancelSignIn')}</Button>
           <Button type="submit" disabled={submitting || code.replace(/\D/g, '').length !== 6}>
-            {submitting ? 'Verifying…' : 'Verify'}
+            {submitting ? t('settings.verifying') : t('settings.verify')}
           </Button>
         </div>
       </form>
@@ -944,6 +1014,7 @@ function TwoFaModal({ onClose, onCancel }: { onClose: () => void; onCancel: () =
 }
 
 function MediaUserTokenForm({ settings, onChange }: { settings: PublicSettings; onChange: () => void }) {
+  const { t } = useTranslation()
   const [token, setToken] = useState('')
   const [msg, setMsg] = useState<string | null>(null)
 
@@ -953,29 +1024,29 @@ function MediaUserTokenForm({ settings, onChange }: { settings: PublicSettings; 
     try {
       await api.saveMediaUserToken(token)
       setToken('')
-      setMsg('Saved.')
+      setMsg(t('settings.saved'))
       onChange()
     } catch (err: any) {
-      setMsg(`Error: ${err.message}`)
+      setMsg(t('settings.errorPrefix', { message: err.message }))
     }
   }
   const clear = async () => {
     await api.clearMediaUserToken()
-    setMsg('Cleared.')
+    setMsg(t('settings.cleared'))
     onChange()
   }
 
   return (
     <form className="space-y-3" onSubmit={save}>
       <div className="text-sm text-white/55">
-        Required for lyrics. In your browser open{' '}
+        {t('settings.mediaTokenHelpPre')}{' '}
         <a href="https://music.apple.com" target="_blank" rel="noopener noreferrer" className="text-accent underline underline-offset-2 decoration-accent/50 hover:text-white">music.apple.com</a>
-        , play any song, then in the web inspector storage tab open the cookies for music.apple.com and double-click the value of the media-user-token row to copy the full string, it's long and opaque
+        {t('settings.mediaTokenHelpPost')}
       </div>
       {settings.hasMediaUserToken && (
-        <div className="text-sm text-emerald-400">Currently stored.</div>
+        <div className="text-sm text-emerald-400">{t('settings.currentlyStored')}</div>
       )}
-      <Input type="password" placeholder="Paste media-user-token" value={token} onChange={(e) => setToken(e.target.value)} />
+      <Input type="password" placeholder={t('settings.pasteMediaToken')} value={token} onChange={(e) => setToken(e.target.value)} />
       <div className="flex gap-2 flex-wrap min-h-[40px]">
         <AnimatePresence initial={false} mode="popLayout">
           {token && (
@@ -987,7 +1058,7 @@ function MediaUserTokenForm({ settings, onChange }: { settings: PublicSettings; 
               exit={{ opacity: 0, y: 10 }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             >
-              <Button type="submit">Save token</Button>
+              <Button type="submit">{t('settings.saveToken')}</Button>
             </motion.div>
           )}
           {settings.hasMediaUserToken && (
@@ -999,7 +1070,7 @@ function MediaUserTokenForm({ settings, onChange }: { settings: PublicSettings; 
               exit={{ opacity: 0, y: 10 }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             >
-              <Button onClick={clear}>Clear</Button>
+              <Button onClick={clear}>{t('settings.clear')}</Button>
             </motion.div>
           )}
         </AnimatePresence>
@@ -1010,6 +1081,7 @@ function MediaUserTokenForm({ settings, onChange }: { settings: PublicSettings; 
 }
 
 function NavidromeForm({ settings, onChange, onFlash }: { settings: PublicSettings; onChange: () => void; onFlash: (msg: string, err?: boolean) => void }) {
+  const { t } = useTranslation()
   const [enabled, setEnabled] = useState(settings.navidromeEnabled ?? false)
   const [url, setUrl] = useState(settings.navidromeUrl || 'http://navidrome:4533')
   const [user, setUser] = useState(settings.navidromeUser || '')
@@ -1023,11 +1095,11 @@ function NavidromeForm({ settings, onChange, onFlash }: { settings: PublicSettin
         patch.navidromePassword = password
       }
       await api.saveSettings(patch)
-      onFlash('Saved')
+      onFlash(t('settings.saved'))
       setPassword('')
       onChange()
     } catch (err: any) {
-      onFlash(`Error: ${err.message}`, true)
+      onFlash(t('settings.errorPrefix', { message: err.message }), true)
     }
   }
 
@@ -1041,9 +1113,9 @@ function NavidromeForm({ settings, onChange, onFlash }: { settings: PublicSettin
           className="mt-0.5 shrink-0 focus-visible:ring-2 focus-visible:ring-[rgba(var(--accent),0.35)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0a]"
         />
         <div>
-          <div className="text-sm font-medium">Enable automatic Navidrome scan</div>
+          <div className="text-sm font-medium">{t('settings.enableNavidromeScan')}</div>
           <div className="text-xs text-white/55 mt-0.5">
-            Triggers a Subsonic API scan immediately after a successful download.
+            {t('settings.enableNavidromeScanHelp')}
           </div>
         </div>
       </label>
@@ -1052,40 +1124,40 @@ function NavidromeForm({ settings, onChange, onFlash }: { settings: PublicSettin
         <div className="space-y-3 pt-2">
           {settings.hasNavidromeCreds ? (
             <div className="text-sm text-white/70">
-              Current: <span className="text-white">{settings.navidromeUser}</span>
+              {t('settings.current')} <span className="text-white">{settings.navidromeUser}</span>
             </div>
           ) : (
             <div className="text-sm text-white/55">
-              No credentials stored. Enter your Navidrome admin credentials.
+              {t('settings.noNavidromeCredsStored')}
             </div>
           )}
-          <Input 
-            type="url" 
-            placeholder="Navidrome URL" 
-            value={url} 
-            onChange={(e) => setUrl(e.target.value)} 
+          <Input
+            type="url"
+            placeholder={t('settings.navidromeUrl')}
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
           />
           <div className="grid gap-2 md:grid-cols-2">
-            <Input 
-              type="text" 
-              placeholder="Username" 
+            <Input
+              type="text"
+              placeholder={t('settings.username')}
               autoComplete="username"
-              value={user} 
-              onChange={(e) => setUser(e.target.value)} 
+              value={user}
+              onChange={(e) => setUser(e.target.value)}
             />
-            <Input 
-              type="password" 
-              placeholder="Password"
+            <Input
+              type="password"
+              placeholder={t('settings.password')}
               autoComplete="current-password"
-              value={password} 
-              onChange={(e) => setPassword(e.target.value)} 
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
             />
           </div>
         </div>
       )}
 
       <div className="flex gap-2 flex-wrap min-h-[40px]">
-        <Button type="submit">Save Navidrome settings</Button>
+        <Button type="submit">{t('settings.saveNavidromeSettings')}</Button>
       </div>
     </form>
   )
@@ -1094,6 +1166,7 @@ function NavidromeForm({ settings, onChange, onFlash }: { settings: PublicSettin
 const OCTO_FIESTA_URL = 'https://github.com/filipton/octo-fiesta'
 
 function OctoIntegrationForm({ settings, onChange, onFlash }: { settings: PublicSettings; onChange: () => void; onFlash: (msg: string, err?: boolean) => void }) {
+  const { t } = useTranslation()
   const [enabled, setEnabled] = useState(settings.octoIntegrationEnabled ?? false)
   const [token, setToken] = useState<string | null>(null)
   const [shown, setShown] = useState(false)
@@ -1106,9 +1179,9 @@ function OctoIntegrationForm({ settings, onChange, onFlash }: { settings: Public
       setToken(null)
       setShown(false)
       onChange()
-      onFlash(next ? 'octo-fiesta integration on' : 'octo-fiesta integration off')
+      onFlash(next ? t('settings.octoIntegrationOn') : t('settings.octoIntegrationOff'))
     } catch (err: any) {
-      onFlash(`Error: ${err.message}`, true)
+      onFlash(t('settings.errorPrefix', { message: err.message }), true)
     }
   }
 
@@ -1119,24 +1192,24 @@ function OctoIntegrationForm({ settings, onChange, onFlash }: { settings: Public
       if (!shown) setToken(await loadToken())
       setShown(!shown)
     } catch (err: any) {
-      onFlash(`Error: ${err.message}`, true)
+      onFlash(t('settings.errorPrefix', { message: err.message }), true)
     }
   }
 
   const copy = async () => {
     try {
-      const t = await loadToken()
-      setToken(t)
-      if (!t) return
+      const tok = await loadToken()
+      setToken(tok)
+      if (!tok) return
       try {
-        await navigator.clipboard.writeText(t)
-        onFlash('Token copied')
+        await navigator.clipboard.writeText(tok)
+        onFlash(t('settings.tokenCopied'))
       } catch {
         // clipboard needs https or localhost
-        onFlash('Copy blocked by the browser, click Show token and copy it by hand', true)
+        onFlash(t('settings.copyBlocked'), true)
       }
     } catch (err: any) {
-      onFlash(`Error: ${err.message}`, true)
+      onFlash(t('settings.errorPrefix', { message: err.message }), true)
     }
   }
 
@@ -1145,9 +1218,9 @@ function OctoIntegrationForm({ settings, onChange, onFlash }: { settings: Public
       const r = await api.regenerateOctoIntegrationToken()
       setToken(r.token)
       setShown(true)
-      onFlash('New token, update AppleMusic__ApiToken in octo-fiesta')
+      onFlash(t('settings.newTokenRegenerated'))
     } catch (err: any) {
-      onFlash(`Error: ${err.message}`, true)
+      onFlash(t('settings.errorPrefix', { message: err.message }), true)
     }
   }
 
@@ -1161,13 +1234,12 @@ function OctoIntegrationForm({ settings, onChange, onFlash }: { settings: Public
           className="mt-0.5 shrink-0 focus-visible:ring-2 focus-visible:ring-[rgba(var(--accent),0.35)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0a]"
         />
         <div>
-          <div className="text-sm font-medium">Let octo-fiesta use alacarte</div>
+          <div className="text-sm font-medium">{t('settings.letOctoFiestaUseAlacarte')}</div>
           <div className="text-xs text-white/55 mt-0.5">
             <a href={OCTO_FIESTA_URL} target="_blank" rel="noreferrer" className="underline hover:text-white">
-              filipton's octo-fiesta
+              {t('settings.octoFiestaLinkText')}
             </a>{' '}
-            is a Subsonic proxy for Navidrome that adds streaming catalogues to your music apps. With this on, it shows
-            Apple Music in their search and downloads through alacarte when you play or star something.
+            {t('settings.octoFiestaDescription')}
           </div>
         </div>
       </label>
@@ -1175,16 +1247,16 @@ function OctoIntegrationForm({ settings, onChange, onFlash }: { settings: Public
       {enabled && (
         <div className="space-y-3 pt-2">
           <div className="text-xs text-white/55">
-            Set these in octo-fiesta (use an alacarte address octo-fiesta can reach). Both must mount the same music folder.
+            {t('settings.octoFiestaSetupHint')}
           </div>
           <pre className="overflow-x-auto rounded-lg border border-white/10 bg-black/40 p-3 text-xs text-white/80 select-all">
 {`AppleMusic__AlacarteUrl=${alacarteUrl}
 AppleMusic__ApiToken=${shown && token ? token : '••••••••••••••••'}`}
           </pre>
           <div className="flex gap-2 flex-wrap">
-            <Button type="button" variant="ghost" onClick={reveal}>{shown ? 'Hide token' : 'Show token'}</Button>
-            <Button type="button" variant="ghost" onClick={copy}>Copy token</Button>
-            <Button type="button" variant="ghost" onClick={regenerate}>Regenerate token</Button>
+            <Button type="button" variant="ghost" onClick={reveal}>{shown ? t('settings.hideToken') : t('settings.showToken')}</Button>
+            <Button type="button" variant="ghost" onClick={copy}>{t('settings.copyToken')}</Button>
+            <Button type="button" variant="ghost" onClick={regenerate}>{t('settings.regenerateToken')}</Button>
           </div>
         </div>
       )}
@@ -1198,6 +1270,7 @@ const USERNAME_MAX = 32
 const USERNAME_REGEX = /^[a-zA-Z0-9._-]+$/
 
 function AccountSection({ onFlash }: { onFlash: (msg: string, err?: boolean) => void }) {
+  const { t } = useTranslation()
   const [username, setUsername] = useState<string | null>(null)
   const [showRevoke, setShowRevoke] = useState(false)
   const [revokePassword, setRevokePassword] = useState('')
@@ -1223,7 +1296,7 @@ function AccountSection({ onFlash }: { onFlash: (msg: string, err?: boolean) => 
             <UserIcon className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <div className="text-xs uppercase tracking-wide text-white/40">Signed in as</div>
+            <div className="text-xs uppercase tracking-wide text-white/40">{t('settings.signedInAs')}</div>
             <div className="text-sm font-medium text-white truncate">{username}</div>
           </div>
         </div>
@@ -1233,13 +1306,13 @@ function AccountSection({ onFlash }: { onFlash: (msg: string, err?: boolean) => 
         currentUsername={username}
         onUpdated={(name) => {
           setUsername(name)
-          onFlash('Username updated')
+          onFlash(t('settings.usernameUpdated'))
         }}
       />
 
       <div className="border-t border-white/[0.06]" />
 
-      <ChangePasswordForm onUpdated={() => onFlash('Password updated')} />
+      <ChangePasswordForm onUpdated={() => onFlash(t('settings.passwordUpdated'))} />
 
       <div className="border-t border-white/[0.06]" />
 
@@ -1251,7 +1324,7 @@ function AccountSection({ onFlash }: { onFlash: (msg: string, err?: boolean) => 
           }}
           className="bg-white/[0.02]"
         >
-          Sign out on all devices
+          {t('settings.signOutOnAllDevices')}
         </Button>
         {showRevoke && (
           <form
@@ -1264,9 +1337,9 @@ function AccountSection({ onFlash }: { onFlash: (msg: string, err?: boolean) => 
                 await api.authRevokeAll(revokePassword)
                 setRevokePassword('')
                 setShowRevoke(false)
-                onFlash('Signed out on all other devices.')
+                onFlash(t('settings.signedOutOnAllOtherDevices'))
               } catch (err: any) {
-                setRevokeError(err?.message || 'Failed to revoke sessions')
+                setRevokeError(err?.message || t('settings.failedToRevokeSessions'))
               } finally {
                 setRevoking(false)
               }
@@ -1275,7 +1348,7 @@ function AccountSection({ onFlash }: { onFlash: (msg: string, err?: boolean) => 
           >
             <Input
               type="password"
-              placeholder="Current password"
+              placeholder={t('settings.currentPassword')}
               value={revokePassword}
               onChange={(e) => {
                 setRevokePassword(e.target.value)
@@ -1287,7 +1360,7 @@ function AccountSection({ onFlash }: { onFlash: (msg: string, err?: boolean) => 
             {revokeError && <div className="text-xs text-rose-300">{revokeError}</div>}
             <div className="flex items-center gap-2">
               <Button type="submit" disabled={revoking || !revokePassword}>
-                {revoking ? 'Revoking…' : 'Confirm sign out everywhere'}
+                {revoking ? t('settings.revoking') : t('settings.confirmSignOutEverywhere')}
               </Button>
               <Button
                 onClick={() => {
@@ -1297,7 +1370,7 @@ function AccountSection({ onFlash }: { onFlash: (msg: string, err?: boolean) => 
                 }}
                 disabled={revoking}
               >
-                Cancel
+                {t('settings.cancel')}
               </Button>
             </div>
           </form>
@@ -1314,6 +1387,7 @@ function ChangeUsernameForm({
   currentUsername: string | null
   onUpdated: (newUsername: string) => void
 }) {
+  const { t } = useTranslation()
   const [next, setNext] = useState('')
   const [pw, setPw] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -1339,7 +1413,7 @@ function ChangeUsernameForm({
       setPw('')
       onUpdated(res.username)
     } catch (e: any) {
-      setErr(e?.message || 'Failed to change username')
+      setErr(e?.message || t('settings.failedToChangeUsername'))
     } finally {
       setSubmitting(false)
     }
@@ -1347,11 +1421,11 @@ function ChangeUsernameForm({
 
   return (
     <form onSubmit={submit} className="space-y-3">
-      <div className="text-sm font-medium text-white/85">Change username</div>
+      <div className="text-sm font-medium text-white/85">{t('settings.changeUsername')}</div>
       <div className="grid gap-3 md:grid-cols-2">
         <Input
           type="text"
-          placeholder="New username"
+          placeholder={t('settings.newUsername')}
           value={next}
           onChange={(e) => {
             setNext(e.target.value)
@@ -1369,7 +1443,7 @@ function ChangeUsernameForm({
         />
         <Input
           type="password"
-          placeholder="Current password"
+          placeholder={t('settings.currentPassword')}
           value={pw}
           onChange={(e) => {
             setPw(e.target.value)
@@ -1384,13 +1458,13 @@ function ChangeUsernameForm({
           err
             ? { tone: 'error', text: err }
             : badChars
-              ? { tone: 'warn', text: 'Username can use letters, digits, dots, underscores, and hyphens.' }
+              ? { tone: 'warn', text: t('settings.usernameBadChars') }
               : tooShort
-                ? { tone: 'warn', text: `Username must be at least ${USERNAME_MIN} characters.` }
+                ? { tone: 'warn', text: t('settings.usernameTooShort', { min: USERNAME_MIN }) }
                 : tooLong
-                  ? { tone: 'warn', text: `Username must be no more than ${USERNAME_MAX} characters.` }
+                  ? { tone: 'warn', text: t('settings.usernameTooLong', { max: USERNAME_MAX }) }
                   : sameAsCurrent
-                    ? { tone: 'dim', text: 'Pick a different username to update.' }
+                    ? { tone: 'dim', text: t('settings.pickDifferentUsername') }
                     : null
         }
       />
@@ -1400,7 +1474,7 @@ function ChangeUsernameForm({
           className={cx(!canSubmit && 'opacity-50 cursor-not-allowed pointer-events-none')}
           disabled={!canSubmit}
         >
-          {submitting ? 'Saving…' : 'Change username'}
+          {submitting ? t('settings.saving') : t('settings.changeUsername')}
         </Button>
       </div>
     </form>
@@ -1408,6 +1482,7 @@ function ChangeUsernameForm({
 }
 
 function ChangePasswordForm({ onUpdated }: { onUpdated: () => void }) {
+  const { t } = useTranslation()
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -1434,7 +1509,7 @@ function ChangePasswordForm({ onUpdated }: { onUpdated: () => void }) {
       setConfirm('')
       onUpdated()
     } catch (e: any) {
-      setErr(e?.message || 'Failed to change password')
+      setErr(e?.message || t('settings.failedToChangePassword'))
     } finally {
       setSubmitting(false)
     }
@@ -1442,11 +1517,11 @@ function ChangePasswordForm({ onUpdated }: { onUpdated: () => void }) {
 
   return (
     <form onSubmit={submit} className="space-y-3">
-      <div className="text-sm font-medium text-white/85">Change password</div>
+      <div className="text-sm font-medium text-white/85">{t('settings.changePassword')}</div>
       <div className="grid gap-3 md:grid-cols-3">
         <Input
           type="password"
-          placeholder="Current password"
+          placeholder={t('settings.currentPassword')}
           value={current}
           onChange={(e) => {
             setCurrent(e.target.value)
@@ -1457,7 +1532,7 @@ function ChangePasswordForm({ onUpdated }: { onUpdated: () => void }) {
         />
         <Input
           type="password"
-          placeholder="New password"
+          placeholder={t('settings.newPassword')}
           value={next}
           onChange={(e) => {
             setNext(e.target.value)
@@ -1472,7 +1547,7 @@ function ChangePasswordForm({ onUpdated }: { onUpdated: () => void }) {
         />
         <Input
           type="password"
-          placeholder="Confirm new password"
+          placeholder={t('settings.confirmNewPassword')}
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
           autoComplete="new-password"
@@ -1488,9 +1563,9 @@ function ChangePasswordForm({ onUpdated }: { onUpdated: () => void }) {
           err
             ? { tone: 'error', text: err }
             : tooShort
-              ? { tone: 'warn', text: `Password: at least ${PASSWORD_MIN} characters.` }
+              ? { tone: 'warn', text: t('settings.passwordTooShort', { min: PASSWORD_MIN }) }
               : mismatch
-                ? { tone: 'warn', text: 'Passwords don’t match.' }
+                ? { tone: 'warn', text: t('settings.passwordsDontMatch') }
                 : null
         }
       />
@@ -1500,7 +1575,7 @@ function ChangePasswordForm({ onUpdated }: { onUpdated: () => void }) {
           className={cx(!canSubmit && 'opacity-50 cursor-not-allowed pointer-events-none')}
           disabled={!canSubmit}
         >
-          {submitting ? 'Saving…' : 'Change password'}
+          {submitting ? t('settings.saving') : t('settings.changePassword')}
         </Button>
       </div>
     </form>
@@ -1535,6 +1610,7 @@ function HintSlot({ hint }: { hint: { tone: HintTone; text: string } | null }) {
 }
 
 function TagBackfillCard({ flash }: { flash: (msg: string) => void }) {
+  const { t } = useTranslation()
   const [status, setStatus] = useState<TagBackfillStatus | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -1560,9 +1636,9 @@ function TagBackfillCard({ flash }: { flash: (msg: string) => void }) {
     try {
       setStatus(await api.startTagBackfill(false))
       setConfirmOpen(false)
-      flash('Tag backfill started')
+      flash(t('settings.tagBackfillStarted'))
     } catch (err: any) {
-      setError(err?.message || 'Failed to start backfill')
+      setError(err?.message || t('settings.failedToStartBackfill'))
       setConfirmOpen(false)
     } finally {
       setBusy(false)
@@ -1585,27 +1661,24 @@ function TagBackfillCard({ flash }: { flash: (msg: string) => void }) {
       : 0
 
   return (
-    <SettingsCard icon={<Tags className="h-4 w-4" />} title="Library tags">
+    <SettingsCard icon={<Tags className="h-4 w-4" />} title={t('settings.cardLibraryTags')}>
       <div className="space-y-4">
         <div className="text-sm text-white/55">
-          Downloads are stamped with ISRC and barcode tags so duplicate
-          detection works even when folder names don&apos;t match Apple&apos;s
-          metadata. Backfilling matches every untagged FLAC in your library
-          against Apple Music and updates the files in place.
+          {t('settings.libraryTagsDescription')}
         </div>
 
         {running && (
           <div className="space-y-2">
             <ProgressBar
               value={pct}
-              label={`${pct}% · scanned ${status!.scanned}/${status!.total}`}
+              label={t('settings.backfillProgress', { pct, scanned: status!.scanned, total: status!.total })}
             />
             <div className="flex flex-wrap gap-1.5">
-              <Badge variant="ok">{status!.stamped} stamped</Badge>
-              <Badge>{status!.skipped} already tagged</Badge>
-              <Badge variant="warn">{status!.noMatch} unmatched</Badge>
+              <Badge variant="ok">{t('settings.stampedCount', { count: status!.stamped })}</Badge>
+              <Badge>{t('settings.alreadyTaggedCount', { count: status!.skipped })}</Badge>
+              <Badge variant="warn">{t('settings.unmatchedCount', { count: status!.noMatch })}</Badge>
               {status!.failed > 0 && (
-                <Badge variant="bad">{status!.failed} failed</Badge>
+                <Badge variant="bad">{t('settings.failedCount', { count: status!.failed })}</Badge>
               )}
             </div>
             {status!.current && (
@@ -1618,7 +1691,7 @@ function TagBackfillCard({ flash }: { flash: (msg: string) => void }) {
             )}
             {status!.stopRequested && (
               <div className="text-xs text-white/45">
-                Stopping after the current file…
+                {t('settings.stoppingAfterCurrentFile')}
               </div>
             )}
           </div>
@@ -1626,10 +1699,10 @@ function TagBackfillCard({ flash }: { flash: (msg: string) => void }) {
 
         {!running && status?.finishedAt && (
           <div className="flex flex-wrap items-center gap-1.5">
-            <Badge variant="ok">Last run: {status.stamped} stamped</Badge>
-            <Badge>{status.skipped} already tagged</Badge>
-            <Badge variant="warn">{status.noMatch} unmatched</Badge>
-            {status.failed > 0 && <Badge variant="bad">{status.failed} failed</Badge>}
+            <Badge variant="ok">{t('settings.lastRunStamped', { count: status.stamped })}</Badge>
+            <Badge>{t('settings.alreadyTaggedCount', { count: status.skipped })}</Badge>
+            <Badge variant="warn">{t('settings.unmatchedCount', { count: status.noMatch })}</Badge>
+            {status.failed > 0 && <Badge variant="bad">{t('settings.failedCount', { count: status.failed })}</Badge>}
           </div>
         )}
 
@@ -1642,12 +1715,12 @@ function TagBackfillCard({ flash }: { flash: (msg: string) => void }) {
               disabled={busy || status!.stopRequested}
               className="border-rose-300/30 bg-rose-500/10 text-rose-200 hover:border-rose-300/50 hover:bg-rose-500/20 hover:text-rose-100"
             >
-              {status!.stopRequested ? 'Stopping…' : 'Stop backfill'}
+              {status!.stopRequested ? t('settings.stopping') : t('settings.stopBackfill')}
             </Button>
           ) : (
             <Button onClick={() => setConfirmOpen(true)}>
               <Tags className="h-4 w-4" />
-              Backfill library tags
+              {t('settings.backfillLibraryTags')}
             </Button>
           )}
         </div>
@@ -1656,7 +1729,7 @@ function TagBackfillCard({ flash }: { flash: (msg: string) => void }) {
       <Modal
         open={confirmOpen}
         onClose={() => setConfirmOpen(false)}
-        label="Backfill library tags"
+        label={t('settings.backfillLibraryTags')}
         placement="center"
         className="!max-w-[36rem]"
       >
@@ -1667,10 +1740,10 @@ function TagBackfillCard({ flash }: { flash: (msg: string) => void }) {
             </div>
             <div className="min-w-0">
               <div className="text-xs uppercase tracking-wider text-white/55">
-                Backfill library tags
+                {t('settings.backfillLibraryTags')}
               </div>
               <h2 className="mt-1 text-lg font-semibold text-white">
-                Scan your library for missing tags?
+                {t('settings.scanLibraryForMissingTags')}
               </h2>
             </div>
           </div>
@@ -1680,11 +1753,11 @@ function TagBackfillCard({ flash }: { flash: (msg: string) => void }) {
               disabled={busy}
               variant="ghost"
             >
-              Cancel
+              {t('settings.cancel')}
             </Button>
             <Button onClick={start} disabled={busy}>
               <Tags className="h-4 w-4" />
-              {busy ? 'Starting…' : 'Start backfill'}
+              {busy ? t('settings.starting') : t('settings.startBackfill')}
             </Button>
           </div>
         </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
+import { useTranslation } from "react-i18next";
 import {
     CheckCircle2,
     Clock,
@@ -34,6 +35,7 @@ import {
 import { useDownloadQualityPrompt } from "../hooks/useDownloadQualityPrompt";
 import { ReleaseScopePicker } from "../components/ReleaseScopePicker";
 import { cx } from "../lib/cx";
+import i18n from "../i18n";
 
 type FollowTab = "artists" | "playlists";
 
@@ -42,6 +44,7 @@ function isFollowTab(value: string | null): value is FollowTab {
 }
 
 export function FollowingPage() {
+    const { t } = useTranslation();
     const [searchParams, setSearchParams] = useSearchParams();
     const tabParam = searchParams.get("tab");
     const activeTab: FollowTab = isFollowTab(tabParam) ? tabParam : "artists";
@@ -99,7 +102,7 @@ export function FollowingPage() {
                 setPlaylists(playlistResponse.playlists);
             })
             .catch((err) =>
-                setError(err.message || "Failed to load followed items"),
+                setError(err.message || t("following.errorLoad")),
             )
             .finally(() => setLoading(false));
     };
@@ -115,7 +118,7 @@ export function FollowingPage() {
             await api.unfollowArtist(id);
         } catch (err: any) {
             setArtists(previous);
-            setError(err.message || "Failed to unfollow artist");
+            setError(err.message || t("following.errorUnfollowArtist"));
         }
     };
 
@@ -126,7 +129,7 @@ export function FollowingPage() {
             await api.unfollowPlaylist(id);
         } catch (err: any) {
             setPlaylists(previous);
-            setError(err.message || "Failed to unfollow playlist");
+            setError(err.message || t("following.errorUnfollowPlaylist"));
         }
     };
 
@@ -136,7 +139,7 @@ export function FollowingPage() {
         try {
             const result = await api.syncFollowedPlaylistNow(id);
             if (!result.ok) {
-                setError("Playlist sync failed");
+                setError(t("following.errorPlaylistSyncFailed"));
                 return;
             }
             if (result.playlist) {
@@ -154,7 +157,7 @@ export function FollowingPage() {
                 );
             }
         } catch (err: any) {
-            setError(err.message || "Failed to sync playlist");
+            setError(err.message || t("following.errorSyncPlaylist"));
         } finally {
             setSyncingPlaylistId(null);
         }
@@ -183,7 +186,7 @@ export function FollowingPage() {
                 );
             }
         } catch (err: any) {
-            setError(err.message || "Failed to download missing tracks");
+            setError(err.message || t("following.errorDownloadMissingTracks"));
         } finally {
             setSyncingPlaylistId(null);
         }
@@ -211,7 +214,7 @@ export function FollowingPage() {
             }
         } catch (err: any) {
             setArtists(previous);
-            setError(err.message || "Failed to update release scope");
+            setError(err.message || t("following.errorUpdateReleaseScope"));
         } finally {
             setUpdatingScopeId(null);
         }
@@ -227,7 +230,7 @@ export function FollowingPage() {
             ]);
             reload();
         } catch (err: any) {
-            setError(err.message || "Failed to check for new music");
+            setError(err.message || t("following.errorCheckNewMusic"));
         } finally {
             setChecking(false);
         }
@@ -250,19 +253,19 @@ export function FollowingPage() {
                         className="flex items-center justify-between gap-3 rounded-app border border-[rgba(var(--accent),0.35)] bg-[rgba(var(--accent),0.10)] px-4 py-2.5 text-sm text-white/90 backdrop-blur-[10px]"
                     >
                         <div>
-                            Queued <b>{queuedCount}</b> item
-                            {queuedCount === 1 ? "" : "s"}.{" "}
+                            {t("following.queuedPrefix")} <b>{queuedCount}</b>{" "}
+                            {t("following.queuedItem", { count: queuedCount })}.{" "}
                             <Link
                                 to="/"
                                 className="font-medium text-[rgb(var(--accent))] underline underline-offset-2 transition-colors hover:text-white"
                             >
-                                Open activity
+                                {t("following.openActivity")}
                             </Link>
                         </div>
                         <button
                             type="button"
                             onClick={() => setQueuedCount(0)}
-                            aria-label="Dismiss"
+                            aria-label={t("following.dismiss")}
                             className="shrink-0 inline-flex h-[30px] w-[30px] items-center justify-center rounded-full border border-[rgba(var(--accent),0.25)] bg-[rgba(var(--accent),0.08)] text-white/75 transition-[background,border-color,color] duration-[250ms] ease-smooth hover:border-[rgba(var(--accent),0.45)] hover:bg-[rgba(var(--accent),0.18)] hover:text-white"
                         >
                             <X className="h-3.5 w-3.5" />
@@ -274,26 +277,25 @@ export function FollowingPage() {
             <section className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                 <div className="space-y-2">
                     <h1 className="text-2xl font-semibold tracking-tight text-white md:text-3xl">
-                        Following
+                        {t("following.title")}
                     </h1>
                     <p className="max-w-2xl text-sm text-white/60 md:text-base">
-                        Follow artists to watch for new releases and playlists
-                        to auto-download tracks you add to them.
+                        {t("following.subtitle")}
                     </p>
                     <div
                         className="flex flex-wrap gap-2 pt-1"
                         role="group"
-                        aria-label="Following section"
+                        aria-label={t("following.sectionAriaLabel")}
                     >
                         <FollowTabPill
-                            label="Artists"
+                            label={t("following.tabArtists")}
                             icon={UserRoundCheck}
                             active={activeTab === "artists"}
                             onClick={() => setActiveTab("artists")}
                             count={artists.length}
                         />
                         <FollowTabPill
-                            label="Playlists"
+                            label={t("following.tabPlaylists")}
                             icon={ListMusic}
                             active={activeTab === "playlists"}
                             onClick={() => setActiveTab("playlists")}
@@ -315,7 +317,7 @@ export function FollowingPage() {
                                 checking ? "h-4 w-4 animate-spin" : "h-4 w-4"
                             }
                         />
-                        {checking ? "Checking…" : "Check now"}
+                        {checking ? t("following.checking") : t("following.checkNow")}
                     </Button>
                     {showBulkButton && activeTab === "artists" && (
                         <Button
@@ -335,7 +337,7 @@ export function FollowingPage() {
                                         .catch((err: any) =>
                                             setError(
                                                 err.message ||
-                                                    "Failed to download missing releases",
+                                                    t("following.errorDownloadMissingReleases"),
                                             ),
                                         );
                                 })();
@@ -345,12 +347,12 @@ export function FollowingPage() {
                             {activeJobsTotal > 0 ? (
                                 <>
                                     <Loader2 className="h-4 w-4 animate-spin" />
-                                    Downloading…
+                                    {t("following.downloading")}
                                 </>
                             ) : (
                                 <>
                                     <Download className="h-4 w-4" />
-                                    Download missing
+                                    {t("following.downloadMissing")}
                                 </>
                             )}
                         </Button>
@@ -362,15 +364,17 @@ export function FollowingPage() {
 
             {loading ? (
                 <Card className="p-6 text-sm text-white/55">
-                    Loading followed {activeTab}…
+                    {activeTab === "artists"
+                        ? t("following.loadingArtists")
+                        : t("following.loadingPlaylists")}
                 </Card>
             ) : activeTab === "artists" ? (
                 artists.length === 0 ? (
                     <EmptyState
                         icon={<UserRoundCheck className="h-5 w-5" />}
-                        title="No artists followed yet."
-                        body="Open an artist page and use Follow to start watching for new albums and singles."
-                        linkLabel="Find artists"
+                        title={t("following.emptyArtistsTitle")}
+                        body={t("following.emptyArtistsBody")}
+                        linkLabel={t("following.emptyArtistsLink")}
                     />
                 ) : (
                     <StaggeredList className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -397,9 +401,9 @@ export function FollowingPage() {
             ) : playlists.length === 0 ? (
                 <EmptyState
                     icon={<ListMusic className="h-5 w-5" />}
-                    title="No playlists followed yet."
-                    body="Open one of your Apple Music playlists (or any Apple playlist) and use Follow. alacarte will download every track you add to it."
-                    linkLabel="Browse cloud playlists"
+                    title={t("following.emptyPlaylistsTitle")}
+                    body={t("following.emptyPlaylistsBody")}
+                    linkLabel={t("following.emptyPlaylistsLink")}
                     linkHref="/cloud-library?tab=playlists"
                 />
             ) : (
@@ -519,6 +523,7 @@ function PlaylistFollowCard({
     onDownloadMissing: (quality?: QualityPreference) => void;
     onUnfollow: () => void;
 }) {
+    const { t } = useTranslation();
     const { chooseDownloadQuality, qualityPrompt } = useDownloadQualityPrompt();
     const href = playlist.libraryId
         ? `/playlist/library/${playlist.libraryId}`
@@ -582,19 +587,21 @@ function PlaylistFollowCard({
                                 {complete ? (
                                     <Badge variant="ok">
                                         <CheckCircle2 className="h-3 w-3" />
-                                        All tracks saved
+                                        {t("following.allTracksSaved")}
                                     </Badge>
                                 ) : (
                                     total > 0 && (
                                         <Badge variant="warn">
-                                            {missing} not in library
+                                            {t("following.notInLibrary", { count: missing })}
                                         </Badge>
                                     )
                                 )}
-                                {total > 0 && <Badge>{total} tracks</Badge>}
+                                {total > 0 && (
+                                    <Badge>{t("following.trackCount", { count: total })}</Badge>
+                                )}
                                 {undownloadable > 0 && (
                                     <Badge variant="muted">
-                                        {undownloadable} not on Apple Music
+                                        {t("following.notOnAppleMusic", { count: undownloadable })}
                                     </Badge>
                                 )}
                             </div>
@@ -612,14 +619,14 @@ function PlaylistFollowCard({
                             <div className="flex items-center gap-1.5">
                                 <Clock className="h-3.5 w-3.5" />
                                 {playlist.lastCheckedAt
-                                    ? `Synced ${formatRelativeTime(playlist.lastCheckedAt)}`
-                                    : "Waiting for first sync"}
+                                    ? t("following.syncedAt", {
+                                          time: formatRelativeTime(playlist.lastCheckedAt),
+                                      })
+                                    : t("following.waitingFirstSync")}
                             </div>
                             {activeJobCount > 0 && (
                                 <div className="mt-1 text-[rgb(var(--accent))]">
-                                    {activeJobCount} track
-                                    {activeJobCount === 1 ? "" : "s"}{" "}
-                                    downloading…
+                                    {t("following.tracksDownloading", { count: activeJobCount })}
                                 </div>
                             )}
                         </div>
@@ -640,7 +647,7 @@ function PlaylistFollowCard({
                                     className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 text-xs font-medium text-white/65 transition-colors hover:border-[rgba(var(--accent),0.3)] hover:bg-[rgba(var(--accent),0.12)] hover:text-white"
                                 >
                                     <Download className="h-3.5 w-3.5" />
-                                    Download missing
+                                    {t("following.downloadMissing")}
                                 </button>
                             )}
                             <button
@@ -656,7 +663,7 @@ function PlaylistFollowCard({
                                             : "h-3.5 w-3.5"
                                     }
                                 />
-                                Sync now
+                                {t("following.syncNow")}
                             </button>
                             {qualityPrompt}
                             <button
@@ -665,7 +672,7 @@ function PlaylistFollowCard({
                                 className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 text-xs font-medium text-white/65 transition-colors hover:border-rose-300/30 hover:bg-rose-500/10 hover:text-rose-200"
                             >
                                 <X className="h-3.5 w-3.5" />
-                                Unfollow
+                                {t("following.unfollow")}
                             </button>
                         </div>
                     </div>
@@ -690,6 +697,7 @@ function ArtistFollowCard({
     onScopeChange: (scope: ReleaseScope) => void;
     updatingScope: boolean;
 }) {
+    const { t } = useTranslation();
     const { chooseDownloadQuality, qualityPrompt } = useDownloadQualityPrompt();
     const artistJobs = useMemo(() => {
         const map = new Map<string, Job>();
@@ -764,14 +772,14 @@ function ArtistFollowCard({
                                 {isFullyDownloaded ? (
                                     <Badge variant="ok">
                                         <CheckCircle2 className="h-3 w-3" />
-                                        Complete
+                                        {t("following.complete")}
                                     </Badge>
                                 ) : (
                                     <Badge variant="warn">
-                                        {displayMissingCount} missing
+                                        {t("following.missingCount", { count: displayMissingCount })}
                                     </Badge>
                                 )}
-                                <Badge>{totalCount} releases</Badge>
+                                <Badge>{t("following.releaseCount", { count: totalCount })}</Badge>
                             </div>
                             <div className="mt-3">
                                 <ReleaseScopePicker
@@ -789,15 +797,19 @@ function ArtistFollowCard({
                             <div className="flex items-center gap-1.5">
                                 <Clock className="h-3.5 w-3.5" />
                                 {artist.lastCheckedAt
-                                    ? `Checked ${formatRelativeTime(artist.lastCheckedAt)}`
-                                    : "Waiting for first check"}
+                                    ? t("following.checkedAt", {
+                                          time: formatRelativeTime(artist.lastCheckedAt),
+                                      })
+                                    : t("following.waitingFirstCheck")}
                             </div>
                             {artist.latestReleaseDate && (
                                 <div
                                     className="mt-1 truncate"
-                                    title={`Latest release ${artist.latestReleaseDate}`}
+                                    title={t("following.latestRelease", {
+                                        date: artist.latestReleaseDate,
+                                    })}
                                 >
-                                    Latest release {artist.latestReleaseDate}
+                                    {t("following.latestRelease", { date: artist.latestReleaseDate })}
                                 </div>
                             )}
                         </div>
@@ -836,7 +848,7 @@ function ArtistFollowCard({
                                     }}
                                     className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 text-xs font-medium text-white/65 transition-colors hover:border-[rgba(var(--accent),0.3)] hover:bg-[rgba(var(--accent),0.12)] hover:text-white"
                                 >
-                                    Download missing
+                                    {t("following.downloadMissing")}
                                 </button>
                             ) : null}
                             {qualityPrompt}
@@ -846,7 +858,7 @@ function ArtistFollowCard({
                                 className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 text-xs font-medium text-white/65 transition-colors hover:border-rose-300/30 hover:bg-rose-500/10 hover:text-rose-200"
                             >
                                 <X className="h-3.5 w-3.5" />
-                                Unfollow
+                                {t("following.unfollow")}
                             </button>
                         </div>
                     </div>
@@ -858,9 +870,9 @@ function ArtistFollowCard({
 
 function formatRelativeTime(ts: number) {
     const diff = Date.now() - ts;
-    if (diff < 10_000) return "just now";
-    if (diff < 60_000) return `${Math.round(diff / 1000)}s ago`;
-    if (diff < 3_600_000) return `${Math.round(diff / 60_000)}m ago`;
-    if (diff < 86_400_000) return `${Math.round(diff / 3_600_000)}h ago`;
-    return `${Math.round(diff / 86_400_000)}d ago`;
+    if (diff < 10_000) return i18n.t("following.relativeJustNow");
+    if (diff < 60_000) return i18n.t("following.relativeSecondsAgo", { count: Math.round(diff / 1000) });
+    if (diff < 3_600_000) return i18n.t("following.relativeMinutesAgo", { count: Math.round(diff / 60_000) });
+    if (diff < 86_400_000) return i18n.t("following.relativeHoursAgo", { count: Math.round(diff / 3_600_000) });
+    return i18n.t("following.relativeDaysAgo", { count: Math.round(diff / 86_400_000) });
 }

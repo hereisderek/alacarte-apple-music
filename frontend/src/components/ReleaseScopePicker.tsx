@@ -1,10 +1,13 @@
+import { useTranslation } from 'react-i18next'
+
 import type { ReleaseScope } from '../api/client'
 import { cx } from '../lib/cx'
+import i18n from '../i18n'
 
-export const RELEASE_SCOPE_OPTIONS: Array<{ value: ReleaseScope; label: string; hint: string }> = [
-  { value: 'everything', label: 'Everything', hint: 'Albums, singles, and EPs' },
-  { value: 'albums', label: 'Albums', hint: 'Full albums only' },
-  { value: 'singles_eps', label: 'Singles & EPs', hint: 'Short-form releases only' },
+export const RELEASE_SCOPE_OPTIONS: Array<{ value: ReleaseScope; labelKey: string; hintKey: string }> = [
+  { value: 'everything', labelKey: 'releaseScopePicker.everythingLabel', hintKey: 'releaseScopePicker.everythingHint' },
+  { value: 'albums', labelKey: 'releaseScopePicker.albumsLabel', hintKey: 'releaseScopePicker.albumsHint' },
+  { value: 'singles_eps', labelKey: 'releaseScopePicker.singlesEpsLabel', hintKey: 'releaseScopePicker.singlesEpsHint' },
 ]
 
 type Props = {
@@ -16,6 +19,7 @@ type Props = {
 }
 
 export function ReleaseScopePicker({ value, onChange, compact = false, disabled = false, className }: Props) {
+  const { t } = useTranslation()
   return (
     <div
       className={cx(
@@ -23,7 +27,7 @@ export function ReleaseScopePicker({ value, onChange, compact = false, disabled 
         className,
       )}
       role="radiogroup"
-      aria-label="Release scope"
+      aria-label={t('releaseScopePicker.ariaLabel')}
     >
       {RELEASE_SCOPE_OPTIONS.map((option) => {
         const selected = value === option.value
@@ -49,7 +53,7 @@ export function ReleaseScopePicker({ value, onChange, compact = false, disabled 
             )}
           >
             {compact ? (
-              option.label
+              t(option.labelKey)
             ) : (
               <>
                 <span
@@ -61,8 +65,8 @@ export function ReleaseScopePicker({ value, onChange, compact = false, disabled 
                   )}
                 />
                 <span className="min-w-0">
-                  <span className="block text-sm font-medium">{option.label}</span>
-                  <span className="mt-0.5 block text-xs text-white/50">{option.hint}</span>
+                  <span className="block text-sm font-medium">{t(option.labelKey)}</span>
+                  <span className="mt-0.5 block text-xs text-white/50">{t(option.hintKey)}</span>
                 </span>
               </>
             )}
@@ -74,5 +78,6 @@ export function ReleaseScopePicker({ value, onChange, compact = false, disabled 
 }
 
 export function releaseScopeLabel(value: ReleaseScope) {
-  return RELEASE_SCOPE_OPTIONS.find((option) => option.value === value)?.label || 'Everything'
+  const option = RELEASE_SCOPE_OPTIONS.find((option) => option.value === value)
+  return i18n.t(option?.labelKey || 'releaseScopePicker.everythingLabel')
 }

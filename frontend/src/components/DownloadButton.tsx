@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Check, Download, Loader2, AlertCircle } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { useTranslation } from 'react-i18next'
 
 import type { Job } from '../api/client'
 import { cx } from '../lib/cx'
@@ -36,6 +37,7 @@ export function DownloadButton({
   className = '',
   blocked = false,
 }: Props) {
+  const { t } = useTranslation()
   const [localState, setLocalState] = useState<DownloadState>('idle')
   const [error, setError] = useState<string | null>(null)
   const [ignoredFailedJobId, setIgnoredFailedJobId] = useState<string | null>(null)
@@ -60,13 +62,13 @@ export function DownloadButton({
 
   useEffect(() => {
     if (!job || job.status !== 'failed' || isCancelledJob(job) || job.id === ignoredFailedJobId) return
-    setError(job.error || job.message || 'Failed')
-    const t = window.setTimeout(() => {
+    setError(job.error || job.message || t('downloadButton.failed'))
+    const timer = window.setTimeout(() => {
       setLocalState('idle')
       setError(null)
       setIgnoredFailedJobId(job.id)
     }, 3000)
-    return () => window.clearTimeout(t)
+    return () => window.clearTimeout(timer)
   }, [ignoredFailedJobId, job?.id, job?.status, job?.cancelled, job?.error, job?.message])
 
   const handleClick = async (e: React.MouseEvent) => {
@@ -83,7 +85,7 @@ export function DownloadButton({
       }
     } catch (err: any) {
       setLocalState('failed')
-      setError(err?.message || 'Failed')
+      setError(err?.message || t('downloadButton.failed'))
       setTimeout(() => {
         setLocalState('idle')
         setError(null)
@@ -105,16 +107,16 @@ export function DownloadButton({
 
   const title =
     blocked
-      ? 'Already in library'
+      ? t('downloadButton.alreadyInLibrary')
       : state === 'done'
-      ? 'Downloaded'
+      ? t('downloadButton.downloaded')
       : state === 'failed'
-        ? error || 'Failed'
+        ? error || t('downloadButton.failed')
         : state === 'running'
-          ? `Downloading…`
+          ? t('downloadButton.downloading')
           : state === 'queued'
-            ? 'Queued'
-            : 'Download'
+            ? t('downloadButton.queued')
+            : t('downloadButton.download')
 
   const progress = state === 'running' && job ? Math.min(100, Math.max(0, job.progress)) : null
 

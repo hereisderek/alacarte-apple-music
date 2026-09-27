@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { X, CheckCircle2, AlertCircle, Loader2, Clock, CircleSlash } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { api, type Job } from '../api/client'
 import { stripYear, formatPercent } from '../lib/format'
@@ -12,6 +13,7 @@ type Props = {
 }
 
 export function QueueItem({ job }: Props) {
+  const { t } = useTranslation()
   const cancelled = Boolean(job.cancelled || job.error === 'Cancelled')
   const StatusIcon =
     job.status === 'done'
@@ -78,8 +80,10 @@ export function QueueItem({ job }: Props) {
               <span className="opacity-60">
                 {' · '}
                 {job.variant === 'lossless'
-                  ? `${job.quality === 'flac' ? 'FLAC' : 'ALAC'} version`
-                  : `${job.variant[0].toUpperCase()}${job.variant.slice(1)} version`}
+                  ? t('queueItem.version', { format: job.quality === 'flac' ? 'FLAC' : 'ALAC' })
+                  : t('queueItem.version', {
+                      format: `${job.variant[0].toUpperCase()}${job.variant.slice(1)}`,
+                    })}
               </span>
             ) : null}
           </div>
@@ -93,7 +97,7 @@ export function QueueItem({ job }: Props) {
           >
             {job.artist}
           </ResolvedMediaLink>
-          {job.status !== 'failed' && job.message ? ` · ${job.message}` : cancelled ? ' · Cancelled' : ''}
+          {job.status !== 'failed' && job.message ? ` · ${job.message}` : cancelled ? ` · ${t('queueItem.cancelled')}` : ''}
         </div>
         {(job.status === 'running' || job.status === 'queued') && (
           <div className="mt-2"><ProgressBar value={job.progress} label={formatPercent(job.progress)} /></div>
@@ -106,7 +110,7 @@ export function QueueItem({ job }: Props) {
         <button
           type="button"
           onClick={onCancel}
-          aria-label="Cancel"
+          aria-label={t('queueItem.cancel')}
           className="shrink-0 h-10 w-10 rounded-full flex items-center justify-center bg-white/[0.06] hover:bg-rose-500/20 hover:text-rose-400 transition-colors"
         >
           <X className="h-4 w-4" />

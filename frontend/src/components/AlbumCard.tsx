@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 
 import { api, artworkSrcSet, artworkUrl, type Album } from '../api/client'
 import { stripYear } from '../lib/format'
@@ -20,6 +21,7 @@ type Props = {
 }
 
 export function AlbumCard({ album, size = 'md', alreadyInLibrary = false }: Props) {
+  const { t } = useTranslation()
   const { jobs } = useQueue()
   const { ready, isAlbumInLibrary, verifyAlbumPresence, getAlbumTrackPresence } = useLibraryPresence()
   const touchMode = useTouchMode()
@@ -80,21 +82,24 @@ export function AlbumCard({ album, size = 'md', alreadyInLibrary = false }: Prop
             <div className="absolute top-2 left-2 z-10 flex flex-col items-start gap-1">
               {blocked && (
                 <div className="rounded bg-emerald-500/90 backdrop-blur-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm ring-1 ring-white/20">
-                  In Library
+                  {t('albumCard.inLibrary')}
                 </div>
               )}
               {partial && !blocked && (
                 <div
                   className="rounded bg-amber-400/90 backdrop-blur-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-black shadow-sm ring-1 ring-black/10"
-                  title={`${trackPresence?.present || 0} of ${trackPresence?.expected || 0} tracks downloaded`}
+                  title={t('albumCard.tracksDownloaded', {
+                    present: trackPresence?.present || 0,
+                    expected: trackPresence?.expected || 0,
+                  })}
                 >
-                  Partial
+                  {t('albumCard.partial')}
                 </div>
               )}
               {showRatingBadge && album.contentRating === 'explicit' && (
                 <div
                   className="rounded bg-black/80 backdrop-blur-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm ring-1 ring-white/15"
-                  title="Explicit"
+                  title={t('albumCard.explicit')}
                 >
                   E
                 </div>
@@ -102,9 +107,9 @@ export function AlbumCard({ album, size = 'md', alreadyInLibrary = false }: Prop
               {showRatingBadge && album.contentRating === 'clean' && (
                 <div
                   className="rounded bg-sky-200/95 backdrop-blur-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-black shadow-sm ring-1 ring-black/10"
-                  title="Clean"
+                  title={t('albumCard.clean')}
                 >
-                  Clean
+                  {t('albumCard.clean')}
                 </div>
               )}
             </div>
@@ -128,7 +133,7 @@ export function AlbumCard({ album, size = 'md', alreadyInLibrary = false }: Prop
                 throw err
               }
             }}
-            ariaLabel={`Download ${album.name}`}
+            ariaLabel={t('albumCard.download', { name: album.name })}
             blocked={blocked}
             className={cx(
               busyOrDone || touchMode

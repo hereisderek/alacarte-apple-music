@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 
 import './styles/global.css'
+import './i18n'
 
 import App from './App'
 import { LibraryPresenceProvider } from './hooks/useLibraryPresence'
