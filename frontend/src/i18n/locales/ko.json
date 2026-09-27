@@ -74,6 +74,7 @@
     "lyricsFormat": "가사 형식",
     "lyricsFormatLrc": "LRC — 줄 단위 동기화(권장)",
     "lyricsFormatTtml": "TTML — 단어/음절 단위 동기화",
+    "lyricsFormatBoth": "둘 다 — LRC 및 TTML",
     "lyricsType": "가사 유형",
     "lyricsTypeLyrics": "가사만",
     "lyricsTypeWithTranslation": "가사 + 번역",

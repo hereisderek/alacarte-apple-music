@@ -74,6 +74,7 @@
     "lyricsFormat": "歌詞格式",
     "lyricsFormatLrc": "LRC——逐行同步（建議）",
     "lyricsFormatTtml": "TTML——逐字／音節同步",
+    "lyricsFormatBoth": "兩者均保留——LRC 與 TTML",
     "lyricsType": "歌詞類型",
     "lyricsTypeLyrics": "僅歌詞",
     "lyricsTypeWithTranslation": "歌詞＋翻譯",

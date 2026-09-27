@@ -187,7 +187,7 @@ export type PublicSettings = {
   coverSize: string
   downloadLyrics: boolean
   promptForDownloadQuality: boolean
-  lyricsFormat: 'lrc' | 'ttml'
+  lyricsFormat: 'lrc' | 'ttml' | 'both'
   lyricsType: 'lyrics' | 'lyrics-with-translation'
   explicitFilter: 'explicit' | 'clean' | 'both'
   appleEmailMasked: string | null

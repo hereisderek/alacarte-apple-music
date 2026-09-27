@@ -74,6 +74,7 @@
     "lyricsFormat": "Formato de letras",
     "lyricsFormatLrc": "LRC — sincronizado por línea (recomendado)",
     "lyricsFormatTtml": "TTML — sincronización por palabra/sílaba",
+    "lyricsFormatBoth": "Ambos — LRC y TTML",
     "lyricsType": "Tipo de letras",
     "lyricsTypeLyrics": "Solo letras",
     "lyricsTypeWithTranslation": "Letras + traducción",

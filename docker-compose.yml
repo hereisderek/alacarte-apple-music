@@ -113,6 +113,7 @@ services:
       - IMPORTER_SEARCH_PACING_MS=${IMPORTER_SEARCH_PACING_MS:-500}
       - IMPORTER_MAX_429_RETRIES=${IMPORTER_MAX_429_RETRIES:-6}
       - IMPORTER_MAX_BACKOFF_MS=${IMPORTER_MAX_BACKOFF_MS:-20000}
+      - IMPORTER_MAX_TRACKS_PER_IMPORT=${IMPORTER_MAX_TRACKS_PER_IMPORT:-}
       # User-Agent sent to each source. IMPORTER_USER_AGENT is the generic
       # fallback; each parser can be overridden individually (only set the
       # ones you need — unset falls back to IMPORTER_USER_AGENT, then a

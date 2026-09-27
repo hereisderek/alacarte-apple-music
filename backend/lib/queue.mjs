@@ -24,6 +24,7 @@ import {
   convertDirToFlac,
   extractFolderArt,
 } from './flacConvert.mjs'
+import { syncDualLyricsInDir } from './ttmlLrc.mjs'
 import {
   applyNamingConvention,
   assertWritableTarget,
@@ -1366,6 +1367,8 @@ async function runJob(job) {
       currentTrack: null,
     })
 
+    await syncDualLyricsInDir(jobStaging)
+
     if (isPlaylist) {
       if (progressState.convertEnabled) {
         applyProgress(job, progressState, {
@@ -1558,7 +1561,7 @@ async function runJob(job) {
 
       if (convention === 'qobuz') {
         for (const fn of finalFiles) {
-          if (!/\.(flac|m4a|mp3|lrc)$/i.test(fn)) continue
+          if (!/\.(flac|m4a|mp3|lrc|ttml)$/i.test(fn)) continue
           const ext = path.extname(fn)
           const stem = path.basename(fn, ext)
           const newStem = applyNamingConvention(stem, 'qobuz')
@@ -1585,16 +1588,10 @@ async function runJob(job) {
         currentTrack: null,
       })
       for (const fn of audioFiles) {
-        await moveFileSafe(path.join(albumPath, fn), path.join(finalDir, fn))
-        const srcBase = path.basename(fn, path.extname(fn))
-        const srcLrcPath = path.join(albumPath, `${srcBase}.lrc`)
-        const hasLrc = await fsp
-          .stat(srcLrcPath)
-          .then((s) => s.isFile())
-          .catch(() => false)
-        if (hasLrc) {
-          await moveFileSafe(srcLrcPath, path.join(finalDir, `${srcBase}.lrc`))
-        }
+        const srcAudioPath = path.join(albumPath, fn)
+        const destAudioPath = path.join(finalDir, fn)
+        await moveFileSafe(srcAudioPath, destAudioPath)
+        await moveLyricsSidecars(srcAudioPath, destAudioPath)
       }
       await copyFolderArtIfAny(albumPath, finalDir)
       const songExtra = {}
@@ -1643,7 +1640,7 @@ async function runJob(job) {
       if (convention === 'qobuz') {
         const audioFiles = await fsp.readdir(albumPath)
         for (const fn of audioFiles) {
-          if (!/\.(flac|m4a|mp3|lrc)$/i.test(fn)) continue
+          if (!/\.(flac|m4a|mp3|lrc|ttml)$/i.test(fn)) continue
           const ext = path.extname(fn)
           const stem = path.basename(fn, ext)
           const newStem = applyNamingConvention(stem, 'qobuz')
@@ -1756,6 +1753,7 @@ async function downloadSingleTrack({ job, trackStaging, settings, creds, url, qu
   } else {
     assertAmdpResult(sub, combined)
   }
+  await syncDualLyricsInDir(trackStaging)
 }
 
 // A catalog playlist normally runs as one amdp pass, which cannot skip

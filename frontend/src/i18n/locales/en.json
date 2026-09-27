@@ -74,6 +74,7 @@
     "lyricsFormat": "Lyrics format",
     "lyricsFormatLrc": "LRC — line-synced (recommended)",
     "lyricsFormatTtml": "TTML — word/syllable sync",
+    "lyricsFormatBoth": "Both — LRC & TTML",
     "lyricsType": "Lyrics type",
     "lyricsTypeLyrics": "Lyrics only",
     "lyricsTypeWithTranslation": "Lyrics + translation",

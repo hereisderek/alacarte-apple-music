@@ -82,9 +82,24 @@ export function getSession(id) {
 
 export { publicSession }
 
-export async function createImportSession({ title, tracks, warnings, language }) {
+export function getMaxTracksPerImport() {
+  const v = Number(process.env.IMPORTER_MAX_TRACKS_PER_IMPORT || process.env.IMPORTER_MAX_TRACKS)
+  return Number.isFinite(v) && v > 0 ? Math.floor(v) : 0
+}
+
+export async function createImportSession({ title, tracks = [], warnings = [], language }) {
   let id = shortId()
   while (sessions.has(id)) id = shortId() // vanishingly unlikely, cheap to guard anyway
+
+  const maxTracks = getMaxTracksPerImport()
+  let finalTracks = tracks
+  const finalWarnings = [...(warnings || [])]
+  if (maxTracks > 0 && tracks.length > maxTracks) {
+    finalWarnings.unshift(
+      `Import exceeded maximum queue limit of ${maxTracks} songs (received ${tracks.length}). Only the first ${maxTracks} songs will be processed.`
+    )
+    finalTracks = tracks.slice(0, maxTracks)
+  }
 
   const session = {
     id,
@@ -92,8 +107,8 @@ export async function createImportSession({ title, tracks, warnings, language })
     language: language || null,
     createdAt: Date.now(),
     updatedAt: Date.now(),
-    warnings: warnings || [],
-    items: tracks.map((t, index) => ({
+    warnings: finalWarnings,
+    items: finalTracks.map((t, index) => ({
       index,
       raw: t.raw || [t.title, ...(t.artists || [])].filter(Boolean).join(' - '),
       parsedTitle: t.title,

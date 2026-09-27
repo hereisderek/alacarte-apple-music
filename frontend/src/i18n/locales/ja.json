@@ -74,6 +74,7 @@
     "lyricsFormat": "歌詞の形式",
     "lyricsFormatLrc": "LRC — 行単位同期（推奨）",
     "lyricsFormatTtml": "TTML — 単語・音節単位同期",
+    "lyricsFormatBoth": "両方 — LRC および TTML",
     "lyricsType": "歌詞の種類",
     "lyricsTypeLyrics": "歌詞のみ",
     "lyricsTypeWithTranslation": "歌詞＋翻訳",
