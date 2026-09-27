@@ -64,6 +64,7 @@ Official automated builds are published to GitHub Container Registry (GHCR) on e
 
 - **Web UI & Backend**: `ghcr.io/hereisderek/alacarte-web:latest` (or pinned by tag/commit sha, e.g. `:sha-dc0eecf`)
 - **Decryption Wrapper**: `ghcr.io/hereisderek/alacarte-wrapper:latest` (or pinned by tag/commit sha)
+- **Batch Importer**: `ghcr.io/hereisderek/alacarte-importer:latest` (or pinned by tag/commit sha)
 
 ---
 
