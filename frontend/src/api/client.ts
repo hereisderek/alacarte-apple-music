@@ -59,6 +59,7 @@ export type PlaylistTrack = {
   hasLossless?: boolean
   hasHiRes?: boolean
   hasAtmos?: boolean
+  isAppleDigitalMaster?: boolean
 }
 
 export type PlaylistDetail = Playlist & {
@@ -104,6 +105,7 @@ export type AlbumTrack = {
   hasLossless?: boolean
   hasHiRes?: boolean
   hasAtmos?: boolean
+  isAppleDigitalMaster?: boolean
 }
 
 export type AlbumDetail = Album & {
@@ -115,6 +117,7 @@ export type AlbumDetail = Album & {
   hasLossless: boolean
   hasHiRes: boolean
   hasAtmos: boolean
+  isAppleDigitalMaster?: boolean
   tracks: AlbumTrack[]
 }
 

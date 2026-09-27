@@ -166,6 +166,7 @@ export function normalizeAlbum(raw) {
         ta.audioTraits?.includes?.('atmos') ||
           ta.audioTraits?.includes?.('spatial'),
       ),
+      isAppleDigitalMaster: Boolean(ta.isAppleDigitalMaster),
     }
   })
   return {
@@ -194,6 +195,8 @@ export function normalizeAlbum(raw) {
       a.audioTraits?.includes?.('atmos') ||
         a.audioTraits?.includes?.('spatial'),
     ),
+    // Apple Digital Master, still exposed under its old Mastered for iTunes name
+    isAppleDigitalMaster: Boolean(a.isMasteredForItunes),
     tracks,
   }
 }
@@ -221,6 +224,7 @@ export function normalizePlaylist(raw) {
         ta.audioTraits?.includes?.('atmos') ||
           ta.audioTraits?.includes?.('spatial'),
       ),
+      isAppleDigitalMaster: Boolean(ta.isAppleDigitalMaster),
     }
   })
   return {

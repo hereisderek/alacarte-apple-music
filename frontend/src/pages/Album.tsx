@@ -17,6 +17,7 @@ import { useQueue } from '../hooks/useQueue'
 import { useTouchMode } from '../hooks/useTouchMode'
 import { useAppSettings } from '../hooks/useAppSettings'
 import { ProgressBar } from '../components/ProgressBar'
+import { AdmChip, ADM_DESCRIPTION } from '../components/AdmChip'
 import { Badge } from '../components/Badge'
 import { Button } from '../components/Button'
 import { DownloadButton } from '../components/DownloadButton'
@@ -253,6 +254,7 @@ export function AlbumPage() {
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {album.hasHiRes && <Badge>Hi-Res Lossless</Badge>}
                 {album.hasLossless && !album.hasHiRes && <Badge>Lossless</Badge>}
+                {album.isAppleDigitalMaster && <Badge title={ADM_DESCRIPTION}>Apple Digital Master</Badge>}
                 {album.hasAtmos && <Badge>Dolby Atmos</Badge>}
                 {album.contentRating === 'explicit' && <Badge>Explicit</Badge>}
                 {album.contentRating === 'clean' && <Badge>Clean</Badge>}
@@ -363,6 +365,7 @@ export function AlbumPage() {
                     {t.hasHiRes && (
                       <BadgeIcon className="h-3.5 w-3.5 text-accent inline ml-1.5" aria-label="Hi-Res" />
                     )}
+                    {t.isAppleDigitalMaster && !album.isAppleDigitalMaster && <AdmChip />}
                   </div>
                   <div className="flex items-center justify-end">
                     <DownloadButton
