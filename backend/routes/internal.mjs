@@ -5,6 +5,7 @@ import { readSettings } from '../lib/settingsStore.mjs'
 import { enqueueSong, getJob } from '../lib/queue.mjs'
 import { resolveTracksToLocalPaths, writePlaylistM3U } from '../lib/playlistExport.mjs'
 import { createSpacer } from '../lib/requestSpacer.mjs'
+import { toAppleLanguage } from '../lib/metadataLanguage.mjs'
 
 // Minimal surface for the separate public import service (importer/) to call
 // server-to-server. Guarded by requireInternalKey(), not the owner session —
@@ -42,6 +43,8 @@ internalRouter.get('/search', async (req, res) => {
     const settings = await readSettings()
     const storefront = String(req.query.storefront || settings.storefront || 'us')
     const limit = Math.min(Number(req.query.limit || 10), 25)
+    const reqLang = req.query.language || req.query.l
+    const language = reqLang ? toAppleLanguage(reqLang) : (settings.language || 'en-US')
     const data = await spacedSearch(() =>
       searchCatalog({
         storefront,
@@ -49,7 +52,7 @@ internalRouter.get('/search', async (req, res) => {
         types: 'songs',
         limit,
         offset: 0,
-        language: settings.language || 'en-US',
+        language,
       }),
     )
     const songs = (data?.results?.songs?.data || []).map(mapSong)

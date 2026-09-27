@@ -33,6 +33,7 @@ function publicSession(session) {
   return {
     id: session.id,
     title: session.title,
+    language: session.language || null,
     createdAt: session.createdAt,
     // 0 = actively matching, >0 = number of imports ahead of this one,
     // undefined = matching already finished (tracks are queued/notfound).
@@ -81,13 +82,14 @@ export function getSession(id) {
 
 export { publicSession }
 
-export async function createImportSession({ title, tracks, warnings }) {
+export async function createImportSession({ title, tracks, warnings, language }) {
   let id = shortId()
   while (sessions.has(id)) id = shortId() // vanishingly unlikely, cheap to guard anyway
 
   const session = {
     id,
     title: title || 'Imported playlist',
+    language: language || null,
     createdAt: Date.now(),
     updatedAt: Date.now(),
     warnings: warnings || [],
@@ -147,7 +149,7 @@ async function runMatching(session) {
   for (const item of session.items) {
     try {
       const query = [item.parsedTitle, ...(item.parsedArtists || [])].filter(Boolean).join(' ')
-      const candidates = await searchSongs({ q: query, limit: 5 })
+      const candidates = await searchSongs({ q: query, limit: 5, language: session.language })
       const result = pickBestMatch(candidates, { query, parsedArtists: item.parsedArtists })
       item.candidates = result.candidates
       if (result.status === 'matched') {

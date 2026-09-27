@@ -8,6 +8,7 @@ import {
   ACCEPTED_LANGUAGE_VALUES,
   UI_LANGUAGE_VALUES,
   NAMING_LANGUAGE_MODE_VALUES,
+  toAppleLanguage,
 } from '../lib/metadataLanguage.mjs'
 
 test('detectScript identifies CJK/Hangul scripts and falls back to null', () => {
@@ -114,4 +115,18 @@ test('language value sets are consistent', () => {
   assert.ok(NAMING_LANGUAGE_MODE_VALUES.has('display'))
   assert.ok(NAMING_LANGUAGE_MODE_VALUES.has('original-if-accepted'))
   assert.ok(NAMING_LANGUAGE_MODE_VALUES.has('dual'))
+})
+
+test('toAppleLanguage maps short codes to Apple BCP-47 locale tags', () => {
+  assert.equal(toAppleLanguage('zh'), 'zh-Hans')
+  assert.equal(toAppleLanguage('zh-hant'), 'zh-Hant')
+  assert.equal(toAppleLanguage('en'), 'en-US')
+  assert.equal(toAppleLanguage('ja'), 'ja-JP')
+  assert.equal(toAppleLanguage('ko'), 'ko-KR')
+  assert.equal(toAppleLanguage('es'), 'es-ES')
+  assert.equal(toAppleLanguage('fr'), 'fr-FR')
+  assert.equal(toAppleLanguage(''), 'en-US')
+  assert.equal(toAppleLanguage(null), 'en-US')
+  assert.equal(toAppleLanguage('zh-CN'), 'zh-CN')
+  assert.equal(toAppleLanguage('en-GB'), 'en-GB')
 })

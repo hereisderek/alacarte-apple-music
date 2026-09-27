@@ -1076,7 +1076,12 @@ function matchTrackForFile(fileName, tracks) {
   )
 }
 
-async function stampAlbumIdentityTags(dir, upc, tracks, { originalAlbum, originalArtist } = {}) {
+async function stampAlbumIdentityTags(
+  dir,
+  upc,
+  tracks,
+  { originalAlbum, originalArtist, albumTitle, artist } = {},
+) {
   try {
     const entries = await fsp.readdir(dir)
     for (const name of entries) {
@@ -1087,11 +1092,16 @@ async function stampAlbumIdentityTags(dir, upc, tracks, { originalAlbum, origina
       // track.originalName is only present when tracks === job.trackNameOverrides
       // (naming mode 'original-if-accepted'/'dual'); plain job.trackIsrcs
       // entries don't carry it, so this is a no-op in 'display' mode.
-      if (track?.originalName && track.originalName !== track.name) {
+      const currentTrackTitle = track?.resolvedName || track?.name || null
+      if (
+        track?.originalName &&
+        track.originalName !== currentTrackTitle &&
+        track.originalName !== track.name
+      ) {
         extra.ORIGINAL_TITLE = track.originalName
       }
-      if (originalAlbum) extra.ORIGINAL_ALBUM = originalAlbum
-      if (originalArtist) extra.ORIGINAL_ARTIST = originalArtist
+      if (originalAlbum && originalAlbum !== albumTitle) extra.ORIGINAL_ALBUM = originalAlbum
+      if (originalArtist && originalArtist !== artist) extra.ORIGINAL_ARTIST = originalArtist
       if (!isrc && !upc && Object.keys(extra).length === 0) continue
       await writeAudioIdentityTags(path.join(dir, name), {
         isrc,
@@ -1473,6 +1483,8 @@ async function runJob(job) {
       await stampAlbumIdentityTags(albumPath, job.upc, tagTracks, {
         originalAlbum: job.originalAlbumTitle,
         originalArtist: job.originalArtist,
+        albumTitle: job.albumTitle,
+        artist: job.artist,
       })
     }
 
@@ -1552,9 +1564,23 @@ async function runJob(job) {
       }
       await copyFolderArtIfAny(albumPath, finalDir)
       const songExtra = {}
-      if (job.originalTrackTitle) songExtra.ORIGINAL_TITLE = job.originalTrackTitle
-      if (job.originalAlbumTitle) songExtra.ORIGINAL_ALBUM = job.originalAlbumTitle
-      if (job.originalArtist) songExtra.ORIGINAL_ARTIST = job.originalArtist
+      const curTrackTitle =
+        job.trackNameOverrides?.[0]?.resolvedName ||
+        job.trackNameOverrides?.[0]?.name ||
+        job.trackTitle ||
+        job.name ||
+        null
+      const curAlbumTitle = job.resolvedAlbumTitle || job.albumTitle || job.albumName || null
+      const curArtistName = job.artist || job.artistName || null
+      if (job.originalTrackTitle && job.originalTrackTitle !== curTrackTitle) {
+        songExtra.ORIGINAL_TITLE = job.originalTrackTitle
+      }
+      if (job.originalAlbumTitle && job.originalAlbumTitle !== curAlbumTitle) {
+        songExtra.ORIGINAL_ALBUM = job.originalAlbumTitle
+      }
+      if (job.originalArtist && job.originalArtist !== curArtistName) {
+        songExtra.ORIGINAL_ARTIST = job.originalArtist
+      }
       if (job.isrc || job.upc || Object.keys(songExtra).length > 0) {
         for (const fn of audioFiles) {
           await writeAudioIdentityTags(path.join(finalDir, fn), {

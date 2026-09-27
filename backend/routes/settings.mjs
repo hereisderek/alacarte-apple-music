@@ -15,6 +15,7 @@ import {
   ACCEPTED_LANGUAGE_VALUES,
   NAMING_LANGUAGE_MODE_VALUES,
   MAX_ACCEPTED_LANGUAGES,
+  toAppleLanguage,
 } from '../lib/metadataLanguage.mjs'
 import {
   startWrapperLogin,
@@ -94,7 +95,18 @@ settingsRouter.put('/', async (req, res) => {
       if (k === 'octoIntegrationEnabled' && typeof v !== 'boolean') continue
       if (k === 'versionOptions' && !Array.isArray(v)) continue
       if (k === 'autoDownloadCheckFrequency' && !AUTO_DOWNLOAD_FREQUENCY_VALUES.has(v)) continue
-      if (k === 'uiLanguage' && !UI_LANGUAGE_VALUES.has(v)) continue
+      if (k === 'language') {
+        patch[k] = toAppleLanguage(v)
+        continue
+      }
+      if (k === 'uiLanguage') {
+        if (!UI_LANGUAGE_VALUES.has(v)) continue
+        patch[k] = v
+        if (!('language' in body) && v !== 'system') {
+          patch.language = toAppleLanguage(v)
+        }
+        continue
+      }
       if (k === 'namingLanguageMode' && !NAMING_LANGUAGE_MODE_VALUES.has(v)) continue
       if (k === 'acceptedLanguages') {
         if (!Array.isArray(v)) continue

@@ -32,7 +32,7 @@
   },
   "settings": {
     "libraryOutput": "ライブラリ出力",
-    "location": "地域",
+    "language": "言語",
     "followSystemDefault": "システム設定に従う",
     "acceptedLanguages": "楽曲メタデータの許容言語",
     "acceptedLanguagesHelp": "優先順のリストです（先頭ほど優先）。下の命名モードが、元の言語名を残すかどうかの判断に使います。",
@@ -44,7 +44,7 @@
     "namingModeDual": "表示言語を使い、両方が存在し異なる場合は元の言語名も併記",
     "cardAppleCredentials": "Apple ID の認証情報",
     "cardMediaUserToken": "media-user-token",
-    "cardCatalog": "カタログ",
+    "cardCatalog": "地域",
     "cardLibraryTags": "ライブラリタグ",
     "cardOtherVersions": "他のバージョン",
     "cardAutoDownloads": "自動ダウンロード",

@@ -25,6 +25,54 @@ const STATUS_CLASS: Record<ImportItem['status'], string> = {
   notfound: 'bg-amber-900 text-amber-200',
 }
 
+export const IMPORTER_LANGUAGES = [
+  { code: 'en', label: 'English' },
+  { code: 'zh', label: '简体中文 (Simplified Chinese)' },
+  { code: 'zh-hant', label: '繁體中文 (Traditional Chinese)' },
+  { code: 'ja', label: '日本語 (Japanese)' },
+  { code: 'ko', label: '한국어 (Korean)' },
+  { code: 'es', label: 'Español (Spanish)' },
+  { code: 'fr', label: 'Français (French)' },
+]
+
+export function getCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null
+  const match = document.cookie.match(new RegExp('(^|;\\s*)' + name + '=([^;]*)'))
+  return match ? decodeURIComponent(match[2]) : null
+}
+
+export function setCookie(name: string, value: string, days = 365) {
+  if (typeof document === 'undefined') return
+  const expires = new Date(Date.now() + days * 864e5).toUTCString()
+  document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`
+}
+
+export function detectDefaultLanguage(): string {
+  const saved = getCookie('importer_language')
+  if (saved && IMPORTER_LANGUAGES.some((l) => l.code === saved)) {
+    return saved
+  }
+  const browserLangs =
+    typeof navigator !== 'undefined' && navigator.languages?.length
+      ? navigator.languages
+      : typeof navigator !== 'undefined' && navigator.language
+        ? [navigator.language]
+        : []
+  for (const raw of browserLangs) {
+    const l = String(raw || '').toLowerCase()
+    if (l.startsWith('zh-tw') || l.startsWith('zh-hk') || l.startsWith('zh-hant') || l.startsWith('zh-mo')) {
+      return 'zh-hant'
+    }
+    if (l.startsWith('zh')) return 'zh'
+    if (l.startsWith('ja')) return 'ja'
+    if (l.startsWith('ko')) return 'ko'
+    if (l.startsWith('es')) return 'es'
+    if (l.startsWith('fr')) return 'fr'
+    if (l.startsWith('en')) return 'en'
+  }
+  return 'en'
+}
+
 export default function App() {
   const [authEnabled, setAuthEnabled] = useState<boolean | null>(null)
   const [loggedIn, setLoggedIn] = useState(false)
@@ -104,9 +152,15 @@ function LoginForm({ onLoggedIn }: { onLoggedIn: () => void }) {
 function ImporterApp() {
   const [text, setText] = useState('')
   const [title, setTitle] = useState('')
+  const [language, setLanguage] = useState<string>(() => detectDefaultLanguage())
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [session, setSession] = useState<ImportSession | null>(null)
+
+  function handleLanguageChange(newLang: string) {
+    setLanguage(newLang)
+    setCookie('importer_language', newLang)
+  }
 
   useEffect(() => {
     if (!session) return
@@ -119,7 +173,11 @@ function ImporterApp() {
     setSubmitting(true)
     setFormError(null)
     try {
-      const { session: created } = await api.submitImport({ text, title: title.trim() || undefined })
+      const { session: created } = await api.submitImport({
+        text,
+        title: title.trim() || undefined,
+        language,
+      })
       setSession(created)
     } catch (err) {
       setFormError(err instanceof HttpError ? err.message : 'import failed')
@@ -130,13 +188,32 @@ function ImporterApp() {
 
   return (
     <div className="min-h-screen max-w-3xl mx-auto p-6 space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold">Music Import</h1>
-        <p className="text-neutral-400 text-sm mt-1">
-          Paste a song list (one per line, search terms, or "Title - Artist") or playlist links from NetEase (163.com),
-          YouTube Music, Spotify, Qishui, KKBOX, or supported chart sites.
-        </p>
-      </header>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <header>
+          <h1 className="text-2xl font-semibold">Music Import</h1>
+          <p className="text-neutral-400 text-sm mt-1">
+            Paste a song list (one per line, search terms, or "Title - Artist") or playlist links from NetEase (163.com),
+            YouTube Music, Spotify, Qishui, KKBOX, or supported chart sites.
+          </p>
+        </header>
+        <div className="shrink-0 flex items-center gap-2 self-start sm:self-auto">
+          <label htmlFor="language-select" className="text-sm text-neutral-400">
+            Language:
+          </label>
+          <select
+            id="language-select"
+            value={language}
+            onChange={(e) => handleLanguageChange(e.target.value)}
+            className="rounded bg-neutral-800 border border-neutral-700 px-2.5 py-1.5 text-sm text-neutral-200 outline-none focus:ring-2 focus:ring-blue-600"
+          >
+            {IMPORTER_LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code} className="bg-neutral-900">
+                {l.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
 
       <form onSubmit={submit} className="space-y-3">
         <textarea
@@ -163,7 +240,13 @@ function ImporterApp() {
         </button>
       </form>
 
-      {session && <SessionView session={session} onSessionUpdate={setSession} />}
+      {session && (
+        <SessionView
+          session={session}
+          onSessionUpdate={setSession}
+          language={language}
+        />
+      )}
     </div>
   )
 }
@@ -171,10 +254,13 @@ function ImporterApp() {
 function SessionView({
   session,
   onSessionUpdate,
+  language,
 }: {
   session: ImportSession
   onSessionUpdate: (s: ImportSession) => void
+  language?: string
 }) {
+  const activeLanguage = session.language || language
   const needsReview = useMemo(
     () => session.items.filter((i) => i.status === 'notfound'),
     [session.items],
@@ -212,6 +298,7 @@ function SessionView({
             key={item.index}
             item={item}
             sessionId={session.id}
+            language={activeLanguage}
             onResolved={(updated) => onSessionUpdate(updated)}
           />
         ))}
@@ -246,10 +333,12 @@ function Pill({ label, className }: { label: string; className: string }) {
 function ItemRow({
   item,
   sessionId,
+  language,
   onResolved,
 }: {
   item: ImportItem
   sessionId: string
+  language?: string
   onResolved: (session: ImportSession) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -282,7 +371,13 @@ function ItemRow({
       </div>
       {item.error && <p className="mt-1 text-xs text-red-400">{item.error}</p>}
       {open && needsReview && (
-        <ReviewPicker item={item} sessionId={sessionId} onResolved={onResolved} onClose={() => setOpen(false)} />
+        <ReviewPicker
+          item={item}
+          sessionId={sessionId}
+          language={language}
+          onResolved={onResolved}
+          onClose={() => setOpen(false)}
+        />
       )}
     </li>
   )
@@ -291,11 +386,13 @@ function ItemRow({
 function ReviewPicker({
   item,
   sessionId,
+  language,
   onResolved,
   onClose,
 }: {
   item: ImportItem
   sessionId: string
+  language?: string
   onResolved: (session: ImportSession) => void
   onClose: () => void
 }) {
@@ -310,7 +407,7 @@ function ReviewPicker({
     setSearching(true)
     setError(null)
     try {
-      const { songs } = await api.manualSearch(query)
+      const { songs } = await api.manualSearch(query, language)
       setResults(songs)
     } catch (err) {
       setError(err instanceof HttpError ? err.message : 'search failed')

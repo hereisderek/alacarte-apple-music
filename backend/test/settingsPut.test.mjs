@@ -69,3 +69,22 @@ test('PUT rejects unknown namingConvention values', async () => {
     await jsonRequest(base, 'PUT', { namingConvention: 'apple' })
   })
 })
+
+test('PUT uiLanguage syncs catalog language when language not explicitly provided', async () => {
+  await withSettingsServer(async (base) => {
+    const putZh = await jsonRequest(base, 'PUT', { uiLanguage: 'zh' })
+    assert.equal(putZh.status, 200)
+    assert.equal(putZh.data.uiLanguage, 'zh')
+    assert.equal(putZh.data.language, 'zh-Hans')
+
+    const putHant = await jsonRequest(base, 'PUT', { uiLanguage: 'zh-hant' })
+    assert.equal(putHant.status, 200)
+    assert.equal(putHant.data.uiLanguage, 'zh-hant')
+    assert.equal(putHant.data.language, 'zh-Hant')
+
+    const putExplicit = await jsonRequest(base, 'PUT', { uiLanguage: 'zh', language: 'en-US' })
+    assert.equal(putExplicit.status, 200)
+    assert.equal(putExplicit.data.uiLanguage, 'zh')
+    assert.equal(putExplicit.data.language, 'en-US')
+  })
+})

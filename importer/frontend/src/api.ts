@@ -65,6 +65,7 @@ export type ImportCounts = {
 export type ImportSession = {
   id: string
   title: string
+  language?: string | null
   createdAt: number
   counts: ImportCounts
   items: ImportItem[]
@@ -79,11 +80,14 @@ export const api = {
       body: JSON.stringify({ username, password }),
     }),
   logout: () => http<{ ok: true }>('auth/logout', { method: 'POST' }),
-  submitImport: (payload: { text?: string; urls?: string[]; title?: string }) =>
+  submitImport: (payload: { text?: string; urls?: string[]; title?: string; language?: string }) =>
     http<{ session: ImportSession }>('import', { method: 'POST', body: JSON.stringify(payload) }),
   getSession: (id: string) => http<{ session: ImportSession }>(`import/${id}`),
-  manualSearch: (q: string) =>
-    http<{ songs: SongCandidate[] }>(`import/manual-search?q=${encodeURIComponent(q)}`),
+  manualSearch: (q: string, language?: string) => {
+    const qs = new URLSearchParams({ q })
+    if (language) qs.set('language', language)
+    return http<{ songs: SongCandidate[] }>(`import/manual-search?${qs.toString()}`)
+  },
   selectCandidate: (
     sessionId: string,
     itemIndex: number,

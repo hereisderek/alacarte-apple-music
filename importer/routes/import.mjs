@@ -14,7 +14,7 @@ export const importRouter = express.Router()
 
 importRouter.post('/', async (req, res) => {
   try {
-    const { text, urls, title } = req.body || {}
+    const { text, urls, title, language } = req.body || {}
     const parsed = await parseInput({ text, urls })
     if (!parsed.tracks.length) {
       return res.status(400).json({ error: 'no tracks found in that input' })
@@ -23,6 +23,7 @@ importRouter.post('/', async (req, res) => {
       title: title || parsed.title || 'Imported playlist',
       tracks: parsed.tracks,
       warnings: parsed.warnings,
+      language: language ? String(language) : undefined,
     })
     res.status(202).json({ session: publicSession(session) })
   } catch (err) {
@@ -34,8 +35,9 @@ importRouter.post('/', async (req, res) => {
 importRouter.get('/manual-search', async (req, res) => {
   try {
     const q = String(req.query.q || '').trim()
+    const language = req.query.language ? String(req.query.language) : undefined
     if (!q) return res.json({ songs: [] })
-    const songs = await searchSongs({ q, limit: 10 })
+    const songs = await searchSongs({ q, limit: 10, language })
     res.json({ songs })
   } catch (err) {
     res.status(502).json({ error: err.message })

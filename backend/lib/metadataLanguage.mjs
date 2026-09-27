@@ -28,6 +28,28 @@ export const LANGUAGE_CATALOG = [
   { code: 'fr', label: 'French' },
 ]
 
+export const CODE_TO_APPLE_LANGUAGE = {
+  en: 'en-US',
+  zh: 'zh-Hans',
+  'zh-hans': 'zh-Hans',
+  'zh-hant': 'zh-Hant',
+  ja: 'ja-JP',
+  ko: 'ko-KR',
+  es: 'es-ES',
+  fr: 'fr-FR',
+  de: 'de-DE',
+}
+
+export function toAppleLanguage(code) {
+  if (!code) return 'en-US'
+  const trimmed = String(code).trim()
+  const lower = trimmed.toLowerCase()
+  if (CODE_TO_APPLE_LANGUAGE[lower]) {
+    return CODE_TO_APPLE_LANGUAGE[lower]
+  }
+  return trimmed
+}
+
 export const ACCEPTED_LANGUAGE_VALUES = new Set(LANGUAGE_CATALOG.map((l) => l.code))
 
 // UI language adds 'system' — "follow the browser's language, falling back

@@ -42,10 +42,11 @@ async function call(path, { method = 'GET', body } = {}, attempt = 0) {
   return data
 }
 
-export async function searchSongs({ q, storefront, limit } = {}) {
+export async function searchSongs({ q, storefront, limit, language } = {}) {
   const params = new URLSearchParams({ q: q || '' })
   if (storefront) params.set('storefront', storefront)
   if (limit) params.set('limit', String(limit))
+  if (language) params.set('language', language)
   const data = await call(`/api/internal/search?${params}`)
   return data?.songs || []
 }
