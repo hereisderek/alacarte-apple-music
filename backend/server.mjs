@@ -19,6 +19,8 @@ import { playlistRouter } from './routes/playlist.mjs'
 import { followingRouter } from './routes/following.mjs'
 import { cloudLibraryRouter } from './routes/cloudLibrary.mjs'
 import { playlistFollowingRouter } from './routes/playlistFollowing.mjs'
+import { internalRouter } from './routes/internal.mjs'
+import { requireInternalKey } from './lib/requireInternalKey.mjs'
 import { ensureConfigDir } from './lib/settingsStore.mjs'
 import { loadSecretsAtBoot } from './lib/secretKey.mjs'
 import { originGuard } from './lib/originGuard.mjs'
@@ -81,6 +83,13 @@ app.use(
 )
 app.use(express.json({ limit: '64kb' }))
 app.use(cookieParser())
+
+// Server-to-server surface for the separate public import service (importer/).
+// Mounted ahead of originGuard/requireAuth (same trick as /api/auth below) so
+// it never depends on the owner's session cookie — it's gated by its own
+// shared-secret check instead. See requireInternalKey.mjs.
+app.use('/api/internal', requireInternalKey(), internalRouter)
+
 app.use(originGuard())
 
 if (isAuthDisabled()) {

@@ -205,6 +205,7 @@ alacarte runs on a shared Docker network with three primary components:
 - **web:** This repository. It wraps the downloader CLI as a child process and serves the React SPA on port `7373`.
 - **amdp:** The underlying downloader binary, included at build time.
 - **wrapper:** A FairPlay decryption daemon that handles the DRM removal, included at build time.
+- **importer** *(optional)*: A separate public-facing batch import front-end — paste a song list or a playlist link, get it queued into `web`'s download queue, without exposing `web`'s owner-facing controls. Off by default; see [importer/README.md](importer/README.md).
 
 ## Credits
 
