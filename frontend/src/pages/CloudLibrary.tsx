@@ -504,7 +504,7 @@ function NotConnectedScreen({
       ? 'Apple rejected the saved token. Refresh it in Settings — it expires periodically.'
       : reason === 'probe-failed'
         ? error || 'Network or token error while probing the Apple Music library.'
-        : 'To list your saved library here, paste your media-user-token in Settings. Without it, ALACarte can only fetch the public catalog.'
+        : 'To list your saved library here, paste your media-user-token in Settings. Without it, alacarte can only fetch the public catalog.'
   return (
     <div className="mx-auto w-full max-w-3xl pt-6">
       <Card className="relative overflow-hidden p-8 md:p-10">

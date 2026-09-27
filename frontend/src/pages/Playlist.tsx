@@ -16,6 +16,7 @@ import { useDownloadQualityPrompt } from '../hooks/useDownloadQualityPrompt'
 import { useQueue } from '../hooks/useQueue'
 import { useActivityFeed } from '../hooks/useActivityFeed'
 import { useAppSettings } from '../hooks/useAppSettings'
+import { AdmChip } from '../components/AdmChip'
 import { Badge } from '../components/Badge'
 import { ResolvedMediaLink } from '../components/ResolvedMediaLink'
 import { formatPercent } from '../lib/format'
@@ -400,6 +401,7 @@ export function PlaylistPage() {
                         {t.hasHiRes && (
                           <BadgeIcon className="h-3.5 w-3.5 text-accent inline ml-1.5" aria-label="Hi-Res" />
                         )}
+                        {t.isAppleDigitalMaster && <AdmChip />}
                       </div>
                       <div className="md:hidden truncate text-xs text-white/50">
                         <ResolvedMediaLink
@@ -461,7 +463,7 @@ export function PlaylistPage() {
                 {playlist?.name || 'Playlist'}
               </h2>
               <p className="mt-2 text-sm text-white/60">
-                ALACarte will watch this playlist and automatically download
+                alacarte will watch this playlist and automatically download
                 tracks you add to it. Removing a track from the playlist keeps
                 its download in your library.
               </p>

@@ -4,20 +4,24 @@ services:
     build:
       context: ./wrapper
       dockerfile: Dockerfile
+    pull_policy: build
     container_name: alacarte-wrapper
     # Wrapper binary + upstream rootfs are amd64-only. Pinning the platform makes
     # the build/run path explicit on arm64 hosts (Apple Silicon emulates via Rosetta).
     platform: linux/amd64
     volumes:
-      - ./data/wrapper:/app/rootfs/data
+      # ALACARTE_DATA_PATH lets hosts like Portainer (which resolve ./ per stack)
+      # keep settings and the Apple session at a fixed absolute path.
+      - ${ALACARTE_DATA_PATH:-./data}/wrapper:/app/rootfs/data
       # The chroot dev/ ships empty (.gitkeep only); the Android runtime needs
       # working device nodes.  Explicit bind-mounts work on both Docker and Podman.
       - /dev/null:/app/rootfs/dev/null
       - /dev/urandom:/app/rootfs/dev/urandom
       - /dev/random:/app/rootfs/dev/random
       - /dev/zero:/app/rootfs/dev/zero
-    # Copy the container runtime's DNS config into the Android chroot before
-    # handing argv straight to the wrapper binary.
+    # Copy the container runtime's DNS config into the Android chroot, then run
+    # the supervisor, which passes argv to the wrapper and serves the sign-in
+    # control API on 40020 (internal network only).
     entrypoint: ["/app/wrapper-entrypoint.sh"]
     environment:
       - LD_PRELOAD=/app/libwrapper_login_fix.so
@@ -28,8 +32,8 @@ services:
       - "40020"
     networks:
       - alacarte-net
-    # on-failure (not unless-stopped) so clean exit due to missing creds doesn't
-    # loop forever — the web container surfaces an "enter Apple creds" banner.
+    # The supervisor restarts the wrapper itself; this only covers the
+    # supervisor crashing.
     restart: on-failure
 
   web:
@@ -37,6 +41,7 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+    pull_policy: build
     container_name: alacarte-web
     # Upstream apple-music-downloader image is published amd64-only.
     platform: linux/amd64
@@ -65,11 +70,8 @@ services:
       # default; lower it if you have headroom to spare.
       - INTERNAL_SEARCH_MIN_INTERVAL_MS=${INTERNAL_SEARCH_MIN_INTERVAL_MS:-1500}
     volumes:
-      - ./data/web:/config
+      - ${ALACARTE_DATA_PATH:-./data}/web:/config
       - ${MUSIC_PATH:?Set MUSIC_PATH in .env}:/music
-      # Shared with the wrapper container so the web UI can drop a 2fa.txt file
-      # when the Apple ID requires a 2FA code (wrapper polls this path).
-      - ./data/wrapper:/wrapper-data
     # Default (WEB_BIND unset/empty) publishes on all interfaces — same as
     # docker's default. Set WEB_BIND=127.0.0.1 in .env to restrict the UI to
     # the host machine only when fronting with a reverse proxy.

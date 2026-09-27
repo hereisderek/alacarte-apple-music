@@ -136,7 +136,7 @@ export async function writePlaylistCoverFromAppleTemplate(artworkTemplate, absIm
     try {
         const res = await fetch(urlStr, {
             redirect: 'follow',
-            headers: { Accept: 'image/*', 'User-Agent': 'ALACarte/playlist-artwork' },
+            headers: { Accept: 'image/*', 'User-Agent': 'alacarte/playlist-artwork' },
         })
         if (!res.ok) return
         const buf = Buffer.from(await res.arrayBuffer())

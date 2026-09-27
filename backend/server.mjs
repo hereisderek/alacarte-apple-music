@@ -24,6 +24,7 @@ import { requireInternalKey } from './lib/requireInternalKey.mjs'
 import { ensureConfigDir } from './lib/settingsStore.mjs'
 import { loadSecretsAtBoot } from './lib/secretKey.mjs'
 import { originGuard } from './lib/originGuard.mjs'
+import { integrationRouter } from './routes/integration.mjs'
 import { isPasswordSet } from './lib/authStore.mjs'
 import { generateSetupToken } from './lib/setupToken.mjs'
 import { isAuthDisabled, requireAuth } from './lib/requireAuth.mjs'
@@ -124,6 +125,7 @@ app.use('/api/playlist', playlistRouter)
 app.use('/api/following', followingRouter)
 app.use('/api/playlist-following', playlistFollowingRouter)
 app.use('/api/cloud-library', cloudLibraryRouter)
+app.use('/api/integration/v1', integrationRouter)
 
 startAutoDownloadScheduler()
 startPlaylistSyncScheduler()

@@ -139,7 +139,6 @@ You don't need to clone the full repository to deploy. You can create a new fold
        volumes:
          - ./data/web:/config
          - ${MUSIC_PATH:?Set MUSIC_PATH in .env}:/music
-         - ./data/wrapper:/wrapper-data
        ports:
          - "${WEB_BIND:-0.0.0.0}:${WEB_PORT:-7373}:7373"
        networks:
@@ -214,7 +213,6 @@ If you prefer running standalone `docker run` commands without Docker Compose:
      -e TRUST_PROXY=loopback \
      -v "$(pwd)/data/web:/config" \
      -v "/path/to/your/music/library:/music" \
-     -v "$(pwd)/data/wrapper:/wrapper-data" \
      ghcr.io/hereisderek/alacarte-web:latest
    ```
 
@@ -232,7 +230,6 @@ If you prefer running standalone `docker run` commands without Docker Compose:
 |----------------|------------------|---------|
 | `alacarte-web:/config` | `./data/web` | Web settings (`settings.json`), auth state, encryption key (`.secret`), sync history |
 | `alacarte-web:/music` | `/path/to/music` | Destination music library where organized folders and tracks land |
-| `alacarte-web:/wrapper-data` | `./data/wrapper` | Shared data mount with wrapper (allows fast file drops for 2FA) |
 | `alacarte-wrapper:/app/rootfs/data` | `./data/wrapper` | Stores cached Apple account credentials and decryption tokens |
 | `alacarte-wrapper:/app/rootfs/dev/*` | `/dev/*` | Android chroot device nodes needed for crypto/random generation |
 
