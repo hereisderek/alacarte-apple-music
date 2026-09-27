@@ -12,6 +12,7 @@ docker-compose.override.yml
 **/dist
 backend/public
 frontend/dist
+importer/public
 
 # Local data + IDE noise
 data

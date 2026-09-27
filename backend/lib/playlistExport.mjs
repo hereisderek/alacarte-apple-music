@@ -3,7 +3,13 @@ import path from 'node:path'
 
 import { artworkUrl } from './appleApi.mjs'
 import { ensureDir, sanitizeSegment } from './folderLayout.mjs'
-import { getMusicRoot, purgePlaylistExportsSharingIds } from './libraryIndex.mjs'
+import {
+    getMusicRoot,
+    makeSongKey,
+    purgePlaylistExportsSharingIds,
+    scanLibraryOnce,
+} from './libraryIndex.mjs'
+import { normalizeForMatchKey } from './libraryMatchKey.mjs'
 
 
 // Shared playlist export writer: m3u8 under <music>/Playlists plus an Apple
@@ -67,6 +73,55 @@ export async function writePlaylistM3U({
         }
     }
     return filePath
+}
+
+// Resolves {name, artistName, version?} entries to on-disk file paths using
+// the same version-aware matching followedPlaylistsStore.mjs's
+// rebuildFollowedPlaylistM3u() uses, so callers that don't have a followed
+// playlist record (e.g. the public import service) get the same behavior.
+export async function resolveTracksToLocalPaths(trackIndex) {
+    if (!Array.isArray(trackIndex) || trackIndex.length === 0) return []
+    const index = await scanLibraryOnce()
+    const musicRoot = getMusicRoot()
+    const absPaths = []
+    for (const track of trackIndex) {
+        if (!track?.name) continue
+        const wanted = track.version || null
+        const key = track.artistName
+            ? makeSongKey(track.artistName, track.name)
+            : null
+
+        let candidates = key
+            ? (index.songVersionPaths?.get(key) || []).slice()
+            : []
+        if (candidates.length === 0) {
+            const suffix = `::${normalizeForMatchKey(track.name).toLowerCase()}`
+            for (const [songKey, versions] of index.songVersionPaths || []) {
+                if (!songKey.endsWith(suffix)) continue
+                for (const v of versions) candidates.push(v)
+            }
+        }
+        const seen = new Set()
+        candidates = candidates.filter((c) => {
+            if (seen.has(c.rel)) return false
+            seen.add(c.rel)
+            return true
+        })
+        if (candidates.length === 0) continue
+
+        let rel = null
+        if (wanted) {
+            const match = candidates.find((c) => c.group === wanted)
+            if (match) rel = match.rel
+        }
+        if (!rel) {
+            const lossless = candidates.find((c) => c.group === 'lossless')
+            const primary = candidates.find((c) => c.group === 'primary')
+            rel = (lossless || primary || candidates[0]).rel
+        }
+        absPaths.push(path.join(musicRoot, rel))
+    }
+    return absPaths
 }
 
 export async function unlinkPlaylistImageSidecars(playlistsDir, base) {
