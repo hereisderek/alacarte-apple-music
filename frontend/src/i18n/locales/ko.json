@@ -38,10 +38,10 @@
     "acceptedLanguagesHelp": "우선순위 목록입니다 (맨 앞이 가장 선호됨). 아래 명명 방식이 원어 이름을 유지할지 결정하는 데 사용합니다.",
     "acceptedLanguagesPlaceholder": "언어 입력…",
     "acceptedLanguagesEmpty": "추가된 언어가 없습니다 — 원어 이름이 우선되지 않습니다.",
-    "namingLanguageMode": "다운로드 파일 이름 언어",
-    "namingModeDisplay": "표시 언어로 이름 짓기, 번역이 없으면 원어로 대체",
-    "namingModeOriginalIfAccepted": "원어가 허용 목록에 있으면 원어 사용, 아니면 표시 언어로 대체",
-    "namingModeDual": "표시 언어를 사용하고, 둘 다 존재하며 다를 경우 원어 이름도 함께 표기",
+    "namingLanguageMode": "이름 언어",
+    "namingModeDisplay": "표시 언어",
+    "namingModeOriginalIfAccepted": "허용 시 원어",
+    "namingModeDual": "둘 다",
     "cardAppleCredentials": "Apple ID 자격 증명",
     "cardMediaUserToken": "media-user-token",
     "cardCatalog": "카탈로그",
@@ -102,7 +102,7 @@
     "autoIntervalAuto_one": "현재 팔로우 중인 아티스트 및 플레이리스트 {{count}}개를 기준으로 약 {{label}}마다 확인합니다. Apple Music API 호출이 일일 안전 한도를 넘지 않도록 자동으로 조정됩니다.",
     "autoIntervalAuto_other": "현재 팔로우 중인 아티스트 및 플레이리스트 {{count}}개를 기준으로 약 {{label}}마다 확인합니다. Apple Music API 호출이 일일 안전 한도를 넘지 않도록 자동으로 조정됩니다.",
     "autoIntervalManual": "각 아티스트와 플레이리스트는 최대 {{label}}마다 한 번씩 확인됩니다.",
-    "libraryTagsDescription": "다운로드에는 ISRC와 바코드 태그가 기록되어, 폴더 이름이 Apple의 메타데이터와 다르더라도 중복 감지가 작동합니다. 백필을 실행하면 라이브러리의 태그 없는 모든 FLAC 파일을 Apple Music과 대조하여 해당 위치에서 파일을 업데이트합니다.",
+    "libraryTagsDescription": "태그가 없는 FLAC에 ISRC와 바코드 태그를 추가해 이미 가진 음악을 알아보게 합니다.",
     "backfillProgress": "{{pct}}% · {{scanned}}/{{total}} 스캔됨",
     "stampedCount": "{{count}}개 기록됨",
     "alreadyTaggedCount": "{{count}}개 이미 태그됨",
@@ -205,7 +205,28 @@
     "hideToken": "토큰 숨기기",
     "showToken": "토큰 표시",
     "copyToken": "토큰 복사",
-    "regenerateToken": "토큰 재발급"
+    "regenerateToken": "토큰 재발급",
+    "cardLyrics": "가사",
+    "lyricsBackfillDescription": "가사 파일이 없는 트랙의 가사를 가져옵니다. media-user-token이 필요합니다.",
+    "backfillLyrics": "누락된 가사 가져오기",
+    "scanLibraryForMissingLyrics": "가사가 없는 트랙을 라이브러리에서 검색할까요?",
+    "lyricsBackfillStarted": "가사 보완을 시작했습니다",
+    "lyricsAddedCount": "{{count}}개 추가됨",
+    "lastRunLyricsAdded": "마지막 실행: {{count}}개 추가됨",
+    "alreadyHaveLyricsCount": "{{count}}개는 이미 가사 있음",
+    "noAppleLyricsCount": "{{count}}개는 Apple에 가사 없음",
+    "cardArtistCredits": "아티스트 크레딧",
+    "artistBackfillDescription": "아티스트와 작곡가를 각각 태그로 써서 미디어 서버가 \"A & B\"를 한 아티스트로 보지 않게 합니다.",
+    "backfillArtists": "아티스트 크레딧 수정",
+    "scanLibraryForArtistCredits": "라이브러리 전체의 아티스트 크레딧을 다시 쓸까요?",
+    "artistBackfillStarted": "아티스트 크레딧 수정을 시작했습니다",
+    "artistsUpdatedCount": "{{count}}개 업데이트됨",
+    "lastRunArtistsUpdated": "마지막 실행: {{count}}개 업데이트됨",
+    "alreadyCorrectCount": "{{count}}개는 이미 올바름",
+    "namingModeDisplayHelp": "표시 언어로 된 이름을 사용합니다.",
+    "namingModeOriginalIfAcceptedHelp": "원어가 허용 목록에 있으면 원어 이름을 사용합니다.",
+    "namingModeDualHelp": "표시 이름에 원어를 덧붙입니다. 예: Bubbles (泡沫).",
+    "cardLibraryMaintenance": "라이브러리 관리"
   },
   "album": {
     "loadError": "불러오지 못했습니다",
@@ -382,7 +403,9 @@
   "queueItem": {
     "version": "{{format}} 버전",
     "cancelled": "취소됨",
-    "cancel": "취소"
+    "cancel": "취소",
+    "moveToTop": "맨 위로 이동",
+    "dragToReorder": "드래그하여 순서 변경"
   },
   "healthPill": {
     "checking": "확인 중…",
@@ -493,7 +516,10 @@
     "activeCount": "진행 중 ({{count}})",
     "nothingActive": "진행 중인 항목이 없습니다.",
     "historyCount": "기록 ({{count}})",
-    "noCompletedDownloads": "아직 완료된 다운로드가 없습니다."
+    "noCompletedDownloads": "아직 완료된 다운로드가 없습니다.",
+    "pause": "대기열 일시정지",
+    "resume": "대기열 재개",
+    "pausedNotice": "대기열이 일시정지되었습니다. 현재 다운로드는 끝까지 진행되고, 재개할 때까지 새 다운로드는 시작되지 않습니다."
   },
   "cloudLibrary": {
     "albumsLower": "앨범",

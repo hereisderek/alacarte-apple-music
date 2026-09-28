@@ -38,10 +38,10 @@
     "acceptedLanguagesHelp": "優先順のリストです（先頭ほど優先）。下の命名モードが、元の言語名を残すかどうかの判断に使います。",
     "acceptedLanguagesPlaceholder": "言語を入力…",
     "acceptedLanguagesEmpty": "言語が追加されていません。元の言語名は優先されません。",
-    "namingLanguageMode": "ダウンロードファイルの命名言語",
-    "namingModeDisplay": "表示言語で名付け、翻訳がない場合は元の言語にフォールバック",
-    "namingModeOriginalIfAccepted": "元の言語が許容リストにあればそれを使用し、なければ表示言語にフォールバック",
-    "namingModeDual": "表示言語を使い、両方が存在し異なる場合は元の言語名も併記",
+    "namingLanguageMode": "名前の言語",
+    "namingModeDisplay": "表示言語",
+    "namingModeOriginalIfAccepted": "許可時は原語",
+    "namingModeDual": "両方",
     "cardAppleCredentials": "Apple ID の認証情報",
     "cardMediaUserToken": "media-user-token",
     "cardCatalog": "カタログ",
@@ -102,7 +102,7 @@
     "autoIntervalAuto_one": "現在、フォロー中のアーティストとプレイリスト {{count}} 件に対して約{{label}}ごとに確認しています。Apple Music API の呼び出しを1日の安全上限内に収めるため自動的に調整されます。",
     "autoIntervalAuto_other": "現在、フォロー中のアーティストとプレイリスト {{count}} 件に対して約{{label}}ごとに確認しています。Apple Music API の呼び出しを1日の安全上限内に収めるため自動的に調整されます。",
     "autoIntervalManual": "各アーティストとプレイリストは、最短でも{{label}}に1回のみ確認されます。",
-    "libraryTagsDescription": "ダウンロードには ISRC とバーコードのタグが付与されるため、フォルダー名が Apple のメタデータと一致しない場合でも重複検出が機能します。バックフィルを実行すると、ライブラリ内のタグなし FLAC すべてを Apple Music と照合し、ファイルをその場で更新します。",
+    "libraryTagsDescription": "タグのない FLAC に ISRC とバーコードのタグを付け、手持ちの曲を認識できるようにします。",
     "backfillProgress": "{{pct}}%・{{scanned}}/{{total}} 件をスキャン済み",
     "stampedCount": "{{count}} 件にタグ付け",
     "alreadyTaggedCount": "{{count}} 件は既にタグ付け済み",
@@ -205,7 +205,28 @@
     "hideToken": "トークンを隠す",
     "showToken": "トークンを表示",
     "copyToken": "トークンをコピー",
-    "regenerateToken": "トークンを再発行"
+    "regenerateToken": "トークンを再発行",
+    "cardLyrics": "歌詞",
+    "lyricsBackfillDescription": "歌詞ファイルのないトラックの歌詞を取得します。media-user-token が必要です。",
+    "backfillLyrics": "不足している歌詞を取得",
+    "scanLibraryForMissingLyrics": "歌詞のないトラックをライブラリでスキャンしますか？",
+    "lyricsBackfillStarted": "歌詞の補完を開始しました",
+    "lyricsAddedCount": "{{count}} 件追加",
+    "lastRunLyricsAdded": "前回の実行: {{count}} 件追加",
+    "alreadyHaveLyricsCount": "{{count}} 件は歌詞あり",
+    "noAppleLyricsCount": "{{count}} 件は Apple に歌詞なし",
+    "cardArtistCredits": "アーティストのクレジット",
+    "artistBackfillDescription": "アーティストと作曲者を個別にタグ付けし、「A & B」が一人のアーティストとして表示されないようにします。",
+    "backfillArtists": "アーティストのクレジットを修正",
+    "scanLibraryForArtistCredits": "ライブラリ全体のアーティストのクレジットを書き直しますか？",
+    "artistBackfillStarted": "アーティストのクレジット修正を開始しました",
+    "artistsUpdatedCount": "{{count}} 件更新",
+    "lastRunArtistsUpdated": "前回の実行: {{count}} 件更新",
+    "alreadyCorrectCount": "{{count}} 件は修正不要",
+    "namingModeDisplayHelp": "表示言語の名前を使います。",
+    "namingModeOriginalIfAcceptedHelp": "原語が許可リストにある場合は原語の名前を使います。",
+    "namingModeDualHelp": "表示名に原語を併記します（例: Bubbles (泡沫)）。",
+    "cardLibraryMaintenance": "ライブラリのメンテナンス"
   },
   "album": {
     "loadError": "読み込みに失敗しました",
@@ -382,7 +403,9 @@
   "queueItem": {
     "version": "{{format}} 版",
     "cancelled": "キャンセル済み",
-    "cancel": "キャンセル"
+    "cancel": "キャンセル",
+    "moveToTop": "先頭へ移動",
+    "dragToReorder": "ドラッグして並べ替え"
   },
   "healthPill": {
     "checking": "確認しています…",
@@ -493,7 +516,10 @@
     "activeCount": "アクティブ（{{count}}）",
     "nothingActive": "アクティブな項目はありません。",
     "historyCount": "履歴（{{count}}）",
-    "noCompletedDownloads": "完了したダウンロードはまだありません。"
+    "noCompletedDownloads": "完了したダウンロードはまだありません。",
+    "pause": "キューを一時停止",
+    "resume": "キューを再開",
+    "pausedNotice": "キューは一時停止中です。現在のダウンロードは完了し、再開するまで新しいダウンロードは始まりません。"
   },
   "cloudLibrary": {
     "albumsLower": "アルバム",

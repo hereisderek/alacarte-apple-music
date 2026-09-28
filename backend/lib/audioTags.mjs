@@ -3,6 +3,7 @@ import fsp from 'node:fs/promises'
 import path from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
+import { pipeline } from 'node:stream/promises'
 
 const execFileAsync = promisify(execFile)
 
@@ -405,5 +406,138 @@ export async function readAudioMetaTags(filePath) {
     }
   } catch {
     return empty
+  }
+}
+
+// Reads the FLAC metadata blocks up to the first audio frame.
+async function readFlacMetadata(filePath) {
+  const fh = await fsp.open(filePath, 'r')
+  try {
+    const head = Buffer.alloc(4)
+    await fh.read(head, 0, 4, 0)
+    if (head.toString('ascii') !== 'fLaC') return null
+    const blocks = []
+    let offset = 4
+    for (;;) {
+      const hdr = Buffer.alloc(4)
+      const { bytesRead } = await fh.read(hdr, 0, 4, offset)
+      if (bytesRead < 4) return null
+      const isLast = (hdr[0] & 0x80) !== 0
+      const type = hdr[0] & 0x7f
+      const length = hdr.readUIntBE(1, 3)
+      const data = Buffer.alloc(length)
+      await fh.read(data, 0, length, offset + 4)
+      blocks.push({ type, data })
+      offset += 4 + length
+      if (isLast) break
+    }
+    return { blocks, audioOffset: offset }
+  } finally {
+    await fh.close()
+  }
+}
+
+function parseVorbisBlock(data) {
+  let o = 0
+  const vendorLen = data.readUInt32LE(o)
+  o += 4
+  const vendor = data.toString('utf8', o, o + vendorLen)
+  o += vendorLen
+  const count = data.readUInt32LE(o)
+  o += 4
+  const comments = []
+  for (let i = 0; i < count; i++) {
+    const len = data.readUInt32LE(o)
+    o += 4
+    const raw = data.toString('utf8', o, o + len)
+    o += len
+    const eq = raw.indexOf('=')
+    if (eq > 0) comments.push([raw.slice(0, eq), raw.slice(eq + 1)])
+  }
+  return { vendor, comments }
+}
+
+function buildVorbisBlock({ vendor, comments }) {
+  const parts = []
+  const u32 = (n) => {
+    const b = Buffer.alloc(4)
+    b.writeUInt32LE(n)
+    return b
+  }
+  const v = Buffer.from(vendor, 'utf8')
+  parts.push(u32(v.length), v, u32(comments.length))
+  for (const [k, val] of comments) {
+    const c = Buffer.from(`${k}=${val}`, 'utf8')
+    parts.push(u32(c.length), c)
+  }
+  return Buffer.concat(parts)
+}
+
+/**
+ * Vorbis comments of a FLAC as { KEY: [values] } with upper-cased keys, or
+ * null when the file is not a readable FLAC.
+ */
+export async function readFlacComments(filePath) {
+  try {
+    const meta = await readFlacMetadata(filePath)
+    const block = meta?.blocks.find((b) => b.type === 4)
+    const out = {}
+    if (!block) return meta ? out : null
+    for (const [k, v] of parseVorbisBlock(block.data).comments) {
+      ;(out[k.toUpperCase()] ||= []).push(v)
+    }
+    return out
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Replaces the given Vorbis comment fields in a FLAC, one entry per value, so
+ * multi-valued tags (ARTISTS, COMPOSER) can be written, which the ffmpeg
+ * remux cannot do. Only the metadata is rebuilt; audio frames are copied
+ * byte for byte into a temp file that replaces the original.
+ */
+export function writeFlacComments(filePath, fields) {
+  const key = path.resolve(filePath)
+  const previous = stampQueues.get(key) || Promise.resolve()
+  const run = previous.catch(() => {}).then(() => rewriteFlacComments(filePath, fields))
+  stampQueues.set(key, run)
+  const release = () => {
+    if (stampQueues.get(key) === run) stampQueues.delete(key)
+  }
+  run.then(release, release)
+  return run
+}
+
+async function rewriteFlacComments(filePath, fields) {
+  const tmp = path.join(path.dirname(filePath), `.${path.basename(filePath)}.tags-tmp.flac`)
+  try {
+    const meta = await readFlacMetadata(filePath)
+    if (!meta) return false
+    const replace = new Set(Object.keys(fields).map((k) => k.toUpperCase()))
+    const existing = meta.blocks.find((b) => b.type === 4)
+    const vorbis = existing ? parseVorbisBlock(existing.data) : { vendor: 'alacarte', comments: [] }
+    vorbis.comments = vorbis.comments.filter(([k]) => !replace.has(k.toUpperCase()))
+    for (const [k, values] of Object.entries(fields)) {
+      for (const v of values || []) vorbis.comments.push([k.toUpperCase(), String(v)])
+    }
+    const blocks = meta.blocks.filter((b) => b.type !== 4 && b.type !== 1)
+    blocks.splice(1, 0, { type: 4, data: buildVorbisBlock(vorbis) })
+    const header = [Buffer.from('fLaC', 'ascii')]
+    blocks.forEach((b, i) => {
+      const h = Buffer.alloc(4)
+      h[0] = (i === blocks.length - 1 ? 0x80 : 0) | b.type
+      h.writeUIntBE(b.data.length, 1, 3)
+      header.push(h, b.data)
+    })
+    const out = fs.createWriteStream(tmp)
+    out.write(Buffer.concat(header))
+    await pipeline(fs.createReadStream(filePath, { start: meta.audioOffset }), out)
+    await fsp.rename(tmp, filePath)
+    return true
+  } catch {
+    await fsp.rm(tmp, { force: true }).catch(() => {})
+    return false
   }
 }

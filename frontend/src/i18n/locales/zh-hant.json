@@ -38,10 +38,10 @@
     "acceptedLanguagesHelp": "按優先順序排列的清單——排在最前面的最優先。下方的命名模式會用它來決定何時保留原始語言名稱。",
     "acceptedLanguagesPlaceholder": "輸入語言…",
     "acceptedLanguagesEmpty": "尚未新增任何語言——不會優先使用原始語言名稱。",
-    "namingLanguageMode": "下載檔案命名語言",
-    "namingModeDisplay": "使用我的顯示語言命名，若無翻譯則回退至原始語言",
-    "namingModeOriginalIfAccepted": "如果原始語言在我的接受清單中，則使用原始語言，否則回退至我的顯示語言",
-    "namingModeDual": "使用我的顯示語言，並在兩者皆存在且不同時附加原始語言名稱",
+    "namingLanguageMode": "命名語言",
+    "namingModeDisplay": "顯示語言",
+    "namingModeOriginalIfAccepted": "接受時用原文",
+    "namingModeDual": "兩者",
     "cardAppleCredentials": "Apple ID 帳號密碼",
     "cardMediaUserToken": "media-user-token",
     "cardCatalog": "目錄",
@@ -102,7 +102,7 @@
     "autoIntervalAuto_one": "目前約每 {{label}} 檢查一次，涵蓋 {{count}} 位已關注的藝人與播放清單。系統會自動調整，以將 Apple Music API 呼叫次數控制在每日安全額度內。",
     "autoIntervalAuto_other": "目前約每 {{label}} 檢查一次，涵蓋 {{count}} 位已關注的藝人與播放清單。系統會自動調整，以將 Apple Music API 呼叫次數控制在每日安全額度內。",
     "autoIntervalManual": "每位藝人與每個播放清單最多每 {{label}} 檢查一次。",
-    "libraryTagsDescription": "下載內容會標記 ISRC 與條碼標籤，即使資料夾名稱與 Apple 的元資料不符，重複偵測仍能正常運作。回填會將資料庫中每個未標記的 FLAC 檔案與 Apple Music 比對，並就地更新檔案。",
+    "libraryTagsDescription": "為缺少標籤的 FLAC 加上 ISRC 和條碼標籤，以便辨識已有的音樂。",
     "backfillProgress": "{{pct}}%・已掃描 {{scanned}}/{{total}}",
     "stampedCount": "{{count}} 個已標記",
     "alreadyTaggedCount": "{{count}} 個已有標記",
@@ -205,7 +205,28 @@
     "hideToken": "隱藏權杖",
     "showToken": "顯示權杖",
     "copyToken": "複製權杖",
-    "regenerateToken": "重新產生權杖"
+    "regenerateToken": "重新產生權杖",
+    "cardLyrics": "歌詞",
+    "lyricsBackfillDescription": "為沒有歌詞檔案的曲目取得歌詞。需要 media-user-token。",
+    "backfillLyrics": "取得缺少的歌詞",
+    "scanLibraryForMissingLyrics": "掃描資料庫中沒有歌詞的曲目？",
+    "lyricsBackfillStarted": "歌詞補全已開始",
+    "lyricsAddedCount": "已新增 {{count}} 首",
+    "lastRunLyricsAdded": "上次執行：已新增 {{count}} 首",
+    "alreadyHaveLyricsCount": "{{count}} 首已有歌詞",
+    "noAppleLyricsCount": "{{count}} 首在 Apple 上沒有歌詞",
+    "cardArtistCredits": "藝人署名",
+    "artistBackfillDescription": "將每位藝人和作曲者分別寫入標籤，媒體伺服器就不會把「A & B」當作一位藝人。",
+    "backfillArtists": "修正藝人署名",
+    "scanLibraryForArtistCredits": "要重寫資料庫中的藝人署名嗎？",
+    "artistBackfillStarted": "藝人署名修正已開始",
+    "artistsUpdatedCount": "已更新 {{count}} 首",
+    "lastRunArtistsUpdated": "上次執行：已更新 {{count}} 首",
+    "alreadyCorrectCount": "{{count}} 首已正確",
+    "namingModeDisplayHelp": "使用顯示語言的名稱。",
+    "namingModeOriginalIfAcceptedHelp": "原文語言在接受清單中時使用原文名稱。",
+    "namingModeDualHelp": "顯示名稱後附上原文，例如 Bubbles (泡沫)。",
+    "cardLibraryMaintenance": "資料庫維護"
   },
   "album": {
     "loadError": "載入失敗",
@@ -382,7 +403,9 @@
   "queueItem": {
     "version": "{{format}} 版本",
     "cancelled": "已取消",
-    "cancel": "取消"
+    "cancel": "取消",
+    "moveToTop": "移到頂端",
+    "dragToReorder": "拖曳以排序"
   },
   "healthPill": {
     "checking": "檢查中…",
@@ -493,7 +516,10 @@
     "activeCount": "進行中（{{count}}）",
     "nothingActive": "目前沒有進行中的項目。",
     "historyCount": "紀錄（{{count}}）",
-    "noCompletedDownloads": "尚無已完成的下載。"
+    "noCompletedDownloads": "尚無已完成的下載。",
+    "pause": "暫停佇列",
+    "resume": "繼續佇列",
+    "pausedNotice": "佇列已暫停。目前的下載會完成，恢復前不會開始新的下載。"
   },
   "cloudLibrary": {
     "albumsLower": "專輯",

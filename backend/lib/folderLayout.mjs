@@ -62,6 +62,59 @@ export async function assertWritableTarget(finalDir) {
   }
 }
 
+// Rough per-track sizes for the free-space check. Hi-res lossless runs well
+// above CD size, so these err high.
+const TRACK_BYTES = { flac: 100, alac: 100, atmos: 80, aac: 12 }
+const MIN_FREE_BYTES = 1024 ** 3
+
+export function estimateJobBytes(trackCount, quality) {
+  const mb = TRACK_BYTES[quality] ?? TRACK_BYTES.flac
+  return Math.max(1, Number(trackCount) || 1) * mb * 1024 ** 2
+}
+
+function nearestExisting(target) {
+  let dir = path.resolve(target)
+  while (!fs.existsSync(dir) && path.dirname(dir) !== dir) dir = path.dirname(dir)
+  return dir
+}
+
+function formatGb(bytes) {
+  return `${(bytes / 1024 ** 3).toFixed(1)} GB`
+}
+
+// Staging holds the download plus, when converting, the FLAC copy; the
+// library needs one copy. On a shared disk the staging peak is what counts.
+// Fail-soft when the platform cannot report free space.
+export async function assertFreeSpace({ stagingRoot, musicRoot, bytes, stagingFactor = 1, statfs = fsp.statfs }) {
+  const needs = new Map()
+  for (const [target, amount] of [
+    [stagingRoot, bytes * stagingFactor],
+    [musicRoot, bytes],
+  ]) {
+    const dir = nearestExisting(target)
+    let dev, free
+    try {
+      dev = (await fsp.stat(dir)).dev
+      const st = await statfs(dir)
+      free = Number(st.bavail) * Number(st.bsize)
+    } catch {
+      continue
+    }
+    const prev = needs.get(dev)
+    if (!prev || amount > prev.amount) needs.set(dev, { dir: target, amount, free })
+  }
+  for (const { dir, amount, free } of needs.values()) {
+    const required = amount + MIN_FREE_BYTES
+    if (free < required) {
+      const err = new Error(
+        `not enough free space for ${dir}: ${formatGb(free)} free, about ${formatGb(required)} needed`,
+      )
+      err.code = 'NO_SPACE'
+      throw err
+    }
+  }
+}
+
 export async function mergeMove(src, dest) {
   await ensureDir(dest)
   const entries = await fsp.readdir(src, { withFileTypes: true })

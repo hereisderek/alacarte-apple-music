@@ -1,7 +1,7 @@
 import crypto from 'node:crypto'
 import { readNavidromeCreds } from './settingsStore.mjs'
 
-export async function triggerNavidromeScan() {
+export async function triggerNavidromeScan({ fullScan = false } = {}) {
   const creds = await readNavidromeCreds()
   if (!creds.enabled || !creds.url || !creds.user || !creds.password) {
     return
@@ -18,6 +18,7 @@ export async function triggerNavidromeScan() {
     url.searchParams.set('v', '1.16.1')
     url.searchParams.set('c', 'alacarte')
     url.searchParams.set('f', 'json')
+    if (fullScan) url.searchParams.set('fullScan', 'true')
 
     const response = await fetch(url.toString(), {
       method: 'GET'

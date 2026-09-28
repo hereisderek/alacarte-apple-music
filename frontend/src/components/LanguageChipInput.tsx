@@ -117,7 +117,8 @@ export function LanguageChipInput({ value, onChange, options, placeholder, empty
             className="w-full min-w-[8rem] bg-transparent px-2 py-1 text-sm text-white placeholder:text-white/30 outline-none"
           />
           {suggestions.length > 0 && (
-            <ul className="absolute left-0 top-full z-10 mt-1 w-48 overflow-hidden rounded-app border border-white/10 bg-zinc-900 shadow-lg">
+            // opens upward: the input sits at the bottom of its card, which clips overflow
+            <ul className="absolute left-0 bottom-full z-10 mb-1 w-48 overflow-hidden rounded-app border border-white/10 bg-zinc-900 shadow-lg">
               {suggestions.map((o) => (
                 <li key={o.code}>
                   <button

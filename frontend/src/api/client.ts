@@ -145,6 +145,7 @@ export type Job = {
   quality?: QualityPreference
   variant?: QualityGroup | null
   stats?: { total?: number; done?: number; failed?: number; converted?: number }
+  queueSeq?: number
 }
 
 export type QualityPreference = 'flac' | 'alac' | 'atmos' | 'aac'
@@ -394,6 +395,37 @@ export type TagBackfillStatus = {
   scanned: number
   total: number
   stamped: number
+  skipped: number
+  noMatch: number
+  failed: number
+  current: string | null
+  startedAt: number | null
+  finishedAt: number | null
+  stopRequested: boolean
+  error: string | null
+}
+
+export type LyricsBackfillStatus = {
+  running: boolean
+  scanned: number
+  total: number
+  added: number
+  skipped: number
+  noLyrics: number
+  noMatch: number
+  failed: number
+  current: string | null
+  startedAt: number | null
+  finishedAt: number | null
+  stopRequested: boolean
+  error: string | null
+}
+
+export type ArtistBackfillStatus = {
+  running: boolean
+  scanned: number
+  total: number
+  updated: number
   skipped: number
   noMatch: number
   failed: number
@@ -715,7 +747,11 @@ export const api = {
       `/api/playlist-following/${encodeURIComponent(id)}/download-missing`,
       { method: 'POST', body: JSON.stringify({ quality }) },
     ),
-  queue: () => http<{ jobs: Job[] }>('/api/queue'),
+  queue: () => http<{ jobs: Job[]; paused: boolean }>('/api/queue'),
+  reorderQueue: (ids: string[]) =>
+    http<{ order: string[] }>('/api/queue/order', { method: 'PUT', body: JSON.stringify({ ids }) }),
+  pauseQueue: () => http<{ paused: boolean }>('/api/queue/pause', { method: 'POST' }),
+  resumeQueue: () => http<{ paused: boolean }>('/api/queue/resume', { method: 'POST' }),
   library: () =>
     http<{
       albums: LibraryAlbum[]
@@ -829,6 +865,16 @@ export const api = {
     }),
   stopTagBackfill: () =>
     http<{ ok: boolean }>('/api/settings/tag-backfill/stop', { method: 'POST' }),
+  lyricsBackfillStatus: () => http<LyricsBackfillStatus>('/api/settings/lyrics-backfill'),
+  startLyricsBackfill: () =>
+    http<LyricsBackfillStatus>('/api/settings/lyrics-backfill', { method: 'POST' }),
+  stopLyricsBackfill: () =>
+    http<{ ok: boolean }>('/api/settings/lyrics-backfill/stop', { method: 'POST' }),
+  artistBackfillStatus: () => http<ArtistBackfillStatus>('/api/settings/artist-backfill'),
+  startArtistBackfill: () =>
+    http<ArtistBackfillStatus>('/api/settings/artist-backfill', { method: 'POST' }),
+  stopArtistBackfill: () =>
+    http<{ ok: boolean }>('/api/settings/artist-backfill/stop', { method: 'POST' }),
 }
 
 export function artworkUrl(

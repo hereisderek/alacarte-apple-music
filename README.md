@@ -15,7 +15,8 @@ alacarte is a browser-based tool that downloads lossless audio from Apple Music,
 
 - **Search & Discover:** Full access to the Apple Music catalog (albums, artists, songs, playlists).
 - **Lossless & Hi-Res:** Download ALAC streams and auto-convert to FLAC with embedded artwork and metadata.
-- **Lyrics Support:** Fetch embedded lyrics and sidecar `.lrc` files (requires `media-user-token`).
+- **Artist credits:** Songs and albums with several artists get one ARTISTS / ALBUMARTISTS tag per artist and one COMPOSER tag per composer (from Apple Music), so Navidrome links each real artist instead of a combined "A & B" one. Settings → Artist credits fixes tracks already in your library.
+- **Lyrics Support:** Fetch embedded lyrics and sidecar `.lrc` files (requires `media-user-token`). Settings → Lyrics fetches them for tracks already in your library that have none.
 - **Smart Queuing:** Queue individual tracks, whole albums, playlists, or bulk-select entire artist discographies (filtered by LPs/EPs/Singles).
 - **Library Awareness:** Duplicate prevention visually flags what is already in your library so you don't re-download.
 - **Explicit / clean filtering:** Apple lists explicit and clean masters as separate albums. Pick your preference in Settings (or show both) to keep search results tidy.

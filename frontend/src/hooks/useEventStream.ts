@@ -16,6 +16,7 @@ const EVENT_TYPES = [
   'job.created',
   'job.update',
   'job.log',
+  'queue.state',
   'wrapper.login',
   'wrapper.login.log',
   'wrapper.health',
@@ -28,6 +29,8 @@ const EVENT_TYPES = [
   'playlist-following.updated',
   'cloud-library.download-all.progress',
   'tags.backfill.progress',
+  'lyrics.backfill.progress',
+  'artists.backfill.progress',
   'library.changed',
 ] as const
 

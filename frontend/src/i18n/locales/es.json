@@ -38,10 +38,10 @@
     "acceptedLanguagesHelp": "Una lista ordenada de preferencia — el primero es el más preferido. El modo de nomenclatura de abajo la usa para decidir cuándo conservar un nombre en el idioma original.",
     "acceptedLanguagesPlaceholder": "Escribe un idioma…",
     "acceptedLanguagesEmpty": "No se ha añadido ningún idioma — nunca se prefieren los nombres en el idioma original.",
-    "namingLanguageMode": "Idioma de nomenclatura de los archivos descargados",
-    "namingModeDisplay": "Usar mi idioma de visualización, y recurrir al idioma original si no existe traducción",
-    "namingModeOriginalIfAccepted": "Usar el idioma original si está en mi lista aceptada; si no, usar mi idioma de visualización",
-    "namingModeDual": "Usar mi idioma de visualización y añadir también el nombre en el idioma original cuando ambos existan y difieran",
+    "namingLanguageMode": "Idioma de nombres",
+    "namingModeDisplay": "Idioma de visualización",
+    "namingModeOriginalIfAccepted": "Original si se acepta",
+    "namingModeDual": "Ambos",
     "cardAppleCredentials": "Credenciales de Apple ID",
     "cardMediaUserToken": "media-user-token",
     "cardCatalog": "Catálogo",
@@ -102,7 +102,7 @@
     "autoIntervalAuto_one": "Actualmente ≈ cada {{label}} en {{count}} artista y lista de reproducción seguidos. Se ajusta automáticamente para mantener las llamadas a la API de Apple Music por debajo del límite diario de seguridad.",
     "autoIntervalAuto_other": "Actualmente ≈ cada {{label}} en {{count}} artistas y listas de reproducción seguidos. Se ajusta automáticamente para mantener las llamadas a la API de Apple Music por debajo del límite diario de seguridad.",
     "autoIntervalManual": "Cada artista y lista de reproducción se comprueba como máximo una vez cada {{label}}.",
-    "libraryTagsDescription": "Las descargas se marcan con etiquetas ISRC y de código de barras para que la detección de duplicados funcione incluso cuando los nombres de las carpetas no coincidan con los metadatos de Apple. El relleno retroactivo compara cada archivo FLAC sin etiquetar de tu biblioteca con Apple Music y actualiza los archivos directamente.",
+    "libraryTagsDescription": "Añade etiquetas ISRC y de código de barras a los FLAC sin etiquetar para reconocer la música que ya tienes.",
     "backfillProgress": "{{pct}}% · analizados {{scanned}}/{{total}}",
     "stampedCount": "{{count}} marcados",
     "alreadyTaggedCount": "{{count}} ya etiquetados",
@@ -205,7 +205,28 @@
     "hideToken": "Ocultar token",
     "showToken": "Mostrar token",
     "copyToken": "Copiar token",
-    "regenerateToken": "Regenerar token"
+    "regenerateToken": "Regenerar token",
+    "cardLyrics": "Letras",
+    "lyricsBackfillDescription": "Obtiene letras para pistas sin archivo de letra. Requiere un media-user-token.",
+    "backfillLyrics": "Obtener letras que faltan",
+    "scanLibraryForMissingLyrics": "¿Buscar en tu biblioteca pistas sin letra?",
+    "lyricsBackfillStarted": "Completado de letras iniciado",
+    "lyricsAddedCount": "{{count}} añadidas",
+    "lastRunLyricsAdded": "Última ejecución: {{count}} añadidas",
+    "alreadyHaveLyricsCount": "{{count}} ya tienen letra",
+    "noAppleLyricsCount": "{{count}} sin letra en Apple",
+    "cardArtistCredits": "Créditos de artistas",
+    "artistBackfillDescription": "Etiqueta cada artista y compositor por separado para que los servidores no muestren \"A & B\" como un solo artista.",
+    "backfillArtists": "Corregir créditos de artistas",
+    "scanLibraryForArtistCredits": "¿Reescribir los créditos de artistas en tu biblioteca?",
+    "artistBackfillStarted": "Corrección de créditos iniciada",
+    "artistsUpdatedCount": "{{count}} actualizadas",
+    "lastRunArtistsUpdated": "Última ejecución: {{count}} actualizadas",
+    "alreadyCorrectCount": "{{count}} ya correctas",
+    "namingModeDisplayHelp": "Nombres en tu idioma de visualización.",
+    "namingModeOriginalIfAcceptedHelp": "Nombres originales si su idioma está en tu lista aceptada.",
+    "namingModeDualHelp": "Nombre visible con el original añadido, p. ej. Bubbles (泡沫).",
+    "cardLibraryMaintenance": "Mantenimiento de la biblioteca"
   },
   "album": {
     "loadError": "Error al cargar",
@@ -382,7 +403,9 @@
   "queueItem": {
     "version": "Versión {{format}}",
     "cancelled": "Cancelado",
-    "cancel": "Cancelar"
+    "cancel": "Cancelar",
+    "moveToTop": "Mover arriba del todo",
+    "dragToReorder": "Arrastra para reordenar"
   },
   "healthPill": {
     "checking": "Comprobando…",
@@ -493,7 +516,10 @@
     "activeCount": "Activas ({{count}})",
     "nothingActive": "No hay nada activo.",
     "historyCount": "Historial ({{count}})",
-    "noCompletedDownloads": "Aún no hay descargas completadas."
+    "noCompletedDownloads": "Aún no hay descargas completadas.",
+    "pause": "Pausar cola",
+    "resume": "Reanudar cola",
+    "pausedNotice": "Cola en pausa. La descarga actual termina y no empieza ninguna nueva hasta que la reanudes."
   },
   "cloudLibrary": {
     "albumsLower": "álbumes",

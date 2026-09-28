@@ -73,6 +73,33 @@ export async function listStorefronts(language = 'en-US') {
   return out
 }
 
+export async function getSongsByIsrc({ storefront, isrcs, language = 'en-US', include }) {
+  const qs = new URLSearchParams({ 'filter[isrc]': isrcs.join(','), l: language })
+  if (include) qs.set('include', include)
+  return apiGet(`${BASE}/${encodeURIComponent(storefront)}/songs?${qs.toString()}`, { language })
+}
+
+// Needs a media-user-token. Returns the TTML document, or null when Apple has
+// no lyrics for the song.
+export async function getSongLyricsTtml({ storefront, id, language = 'en-US', mediaUserToken }) {
+  const qs = new URLSearchParams({ l: language, extend: 'ttmlLocalizations' })
+  const url = `${BASE}/${encodeURIComponent(storefront)}/songs/${encodeURIComponent(id)}/lyrics?${qs.toString()}`
+  try {
+    const json = await apiGet(url, { language, mediaUserToken })
+    const attrs = json?.data?.[0]?.attributes || {}
+    return attrs.ttml || attrs.ttmlLocalizations || null
+  } catch (err) {
+    if (/Apple API 404/.test(err.message)) return null
+    throw err
+  }
+}
+
+export async function getAlbumsByUpc({ storefront, upcs, language = 'en-US', include }) {
+  const qs = new URLSearchParams({ 'filter[upc]': upcs.join(','), l: language })
+  if (include) qs.set('include', include)
+  return apiGet(`${BASE}/${encodeURIComponent(storefront)}/albums?${qs.toString()}`, { language })
+}
+
 export async function getAlbum({ storefront, id, language = 'en-US' }) {
   const qs = new URLSearchParams({
     'omit[resource]': 'autos',

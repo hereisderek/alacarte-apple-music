@@ -16,6 +16,7 @@ type QueueContextValue = {
   active: Job[]
   recent: Job[]
   loading: boolean
+  paused: boolean
 }
 
 const QueueContext = createContext<QueueContextValue | null>(null)
@@ -23,6 +24,7 @@ const QueueContext = createContext<QueueContextValue | null>(null)
 export function QueueProvider({ children }: { children: ReactNode }) {
   const [jobs, setJobs] = useState<Record<string, Job>>({})
   const [loading, setLoading] = useState(true)
+  const [paused, setPaused] = useState(false)
   const requestIdRef = useRef(0)
   const wasOpenRef = useRef(false)
 
@@ -32,6 +34,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
       .queue()
       .then((r) => {
         if (requestId !== requestIdRef.current) return
+        setPaused(Boolean(r.paused))
         setJobs((prev) => {
           const next: Record<string, Job> = {}
           for (const j of r.jobs) next[j.id] = j
@@ -55,6 +58,8 @@ export function QueueProvider({ children }: { children: ReactNode }) {
     (type, data) => {
       if (type === 'job.created' || type === 'job.update') {
         setJobs((prev) => ({ ...prev, [data.id]: { ...prev[data.id], ...data } }))
+      } else if (type === 'queue.state') {
+        setPaused(Boolean(data.paused))
       }
     },
     {
@@ -70,13 +75,21 @@ export function QueueProvider({ children }: { children: ReactNode }) {
     const list = Object.values(jobs).sort(
       (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0),
     )
+    // running first, then queued jobs in the order they will run
+    const seq = (j: Job) => j.queueSeq ?? j.createdAt ?? 0
+    const active = list
+      .filter((j) => j.status === 'queued' || j.status === 'running')
+      .sort((a, b) =>
+        a.status !== b.status ? (a.status === 'running' ? -1 : 1) : seq(a) - seq(b),
+      )
     return {
       jobs: list,
-      active: list.filter((j) => j.status === 'queued' || j.status === 'running'),
+      active,
       recent: list.filter((j) => j.status === 'done' || j.status === 'failed'),
       loading,
+      paused,
     }
-  }, [jobs, loading])
+  }, [jobs, loading, paused])
 
   return <QueueContext.Provider value={value}>{children}</QueueContext.Provider>
 }

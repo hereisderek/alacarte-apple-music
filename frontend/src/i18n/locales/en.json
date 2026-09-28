@@ -38,10 +38,10 @@
     "acceptedLanguagesHelp": "An ordered preference list — first is most preferred. Used by the naming mode below to decide when to keep an original-language name.",
     "acceptedLanguagesPlaceholder": "Type a language…",
     "acceptedLanguagesEmpty": "No languages added — original-language names are never preferred.",
-    "namingLanguageMode": "Downloaded file naming language",
-    "namingModeDisplay": "Use my display language for names, falling back to the original language if no translation exists",
-    "namingModeOriginalIfAccepted": "Use the original language if it's in my accepted list, otherwise fall back to my display language",
-    "namingModeDual": "Use my display language, and append the original-language name too when both exist and differ",
+    "namingLanguageMode": "Naming language",
+    "namingModeDisplay": "Display language",
+    "namingModeOriginalIfAccepted": "Original if accepted",
+    "namingModeDual": "Both",
     "cardAppleCredentials": "Apple ID credentials",
     "cardMediaUserToken": "media-user-token",
     "cardCatalog": "Catalog",
@@ -102,7 +102,7 @@
     "autoIntervalAuto_one": "Currently ≈ every {{label}} across {{count}} followed artist and playlist. Adjusts automatically to keep Apple Music API calls under the daily safety budget.",
     "autoIntervalAuto_other": "Currently ≈ every {{label}} across {{count}} followed artists and playlists. Adjusts automatically to keep Apple Music API calls under the daily safety budget.",
     "autoIntervalManual": "Each artist and playlist is checked at most once every {{label}}.",
-    "libraryTagsDescription": "Downloads are stamped with ISRC and barcode tags so duplicate detection works even when folder names don't match Apple's metadata. Backfilling matches every untagged FLAC in your library against Apple Music and updates the files in place.",
+    "libraryTagsDescription": "Adds ISRC and barcode tags to untagged FLACs so music you already have is recognized.",
     "backfillProgress": "{{pct}}% · scanned {{scanned}}/{{total}}",
     "stampedCount": "{{count}} stamped",
     "alreadyTaggedCount": "{{count}} already tagged",
@@ -205,7 +205,28 @@
     "hideToken": "Hide token",
     "showToken": "Show token",
     "copyToken": "Copy token",
-    "regenerateToken": "Regenerate token"
+    "regenerateToken": "Regenerate token",
+    "cardLyrics": "Lyrics",
+    "lyricsBackfillDescription": "Fetches lyrics for tracks without a lyrics file. Needs a media-user-token.",
+    "backfillLyrics": "Fetch missing lyrics",
+    "scanLibraryForMissingLyrics": "Scan your library for tracks without lyrics?",
+    "lyricsBackfillStarted": "Lyrics backfill started",
+    "lyricsAddedCount": "{{count}} added",
+    "lastRunLyricsAdded": "Last run: {{count}} added",
+    "alreadyHaveLyricsCount": "{{count}} already have lyrics",
+    "noAppleLyricsCount": "{{count}} without lyrics on Apple",
+    "cardArtistCredits": "Artist credits",
+    "artistBackfillDescription": "Tags each artist and composer separately so media servers don't show \"A & B\" as one artist.",
+    "backfillArtists": "Fix artist credits",
+    "scanLibraryForArtistCredits": "Rewrite artist credits across your library?",
+    "artistBackfillStarted": "Artist credit fix started",
+    "artistsUpdatedCount": "{{count}} updated",
+    "lastRunArtistsUpdated": "Last run: {{count}} updated",
+    "alreadyCorrectCount": "{{count}} already correct",
+    "namingModeDisplayHelp": "Names in your display language.",
+    "namingModeOriginalIfAcceptedHelp": "Original names when their language is in your accepted list.",
+    "namingModeDualHelp": "Display name with the original added, e.g. Bubbles (泡沫).",
+    "cardLibraryMaintenance": "Library maintenance"
   },
   "album": {
     "loadError": "Failed to load",
@@ -382,7 +403,9 @@
   "queueItem": {
     "version": "{{format}} version",
     "cancelled": "Cancelled",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "moveToTop": "Move to top",
+    "dragToReorder": "Drag to reorder"
   },
   "healthPill": {
     "checking": "Checking…",
@@ -493,7 +516,10 @@
     "activeCount": "Active ({{count}})",
     "nothingActive": "Nothing active.",
     "historyCount": "History ({{count}})",
-    "noCompletedDownloads": "No completed downloads yet."
+    "noCompletedDownloads": "No completed downloads yet.",
+    "pause": "Pause queue",
+    "resume": "Resume queue",
+    "pausedNotice": "Queue paused. The current download finishes, nothing new starts until you resume."
   },
   "cloudLibrary": {
     "albumsLower": "albums",

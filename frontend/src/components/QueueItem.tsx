@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
-import { X, CheckCircle2, AlertCircle, Loader2, Clock, CircleSlash } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { X, CheckCircle2, AlertCircle, Loader2, Clock, CircleSlash, ArrowUpToLine } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { api, type Job } from '../api/client'
@@ -10,9 +11,11 @@ import { ResolvedMediaLink } from './ResolvedMediaLink'
 
 type Props = {
   job: Job
+  onMoveTop?: () => void
+  dragHandle?: ReactNode
 }
 
-export function QueueItem({ job }: Props) {
+export function QueueItem({ job, onMoveTop, dragHandle }: Props) {
   const { t } = useTranslation()
   const cancelled = Boolean(job.cancelled || job.error === 'Cancelled')
   const StatusIcon =
@@ -50,6 +53,7 @@ export function QueueItem({ job }: Props) {
 
   return (
     <Card hover className="flex items-center gap-3 p-3 md:gap-4">
+      {dragHandle}
       <div className="shrink-0 h-14 w-14 md:h-16 md:w-16 overflow-hidden rounded-xl bg-black/50">
         {job.artworkUrl ? (
           <Link to={isPlaylist ? playlistHref || '/search' : `/album/${job.albumId}`} className="block h-full w-full">
@@ -106,6 +110,17 @@ export function QueueItem({ job }: Props) {
           <div className="mt-1 text-xs text-rose-400 truncate">{job.error || job.message}</div>
         )}
       </div>
+      {onMoveTop && (
+        <button
+          type="button"
+          onClick={onMoveTop}
+          aria-label={t('queueItem.moveToTop')}
+          title={t('queueItem.moveToTop')}
+          className="shrink-0 h-10 w-10 rounded-full flex items-center justify-center bg-white/[0.06] hover:bg-white/[0.12] hover:text-accent transition-colors"
+        >
+          <ArrowUpToLine className="h-4 w-4" />
+        </button>
+      )}
       {(job.status === 'queued' || job.status === 'running') && (
         <button
           type="button"
