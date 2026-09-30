@@ -15,6 +15,8 @@ import {
   iterateCatalogPlaylistTracks,
   normalizeAlbum,
   normalizePlaylist,
+  formatReleaseDate,
+  isReleasedTrack,
 } from './appleApi.mjs'
 import { getLibraryPlaylistDetail } from './appleLibraryApi.mjs'
 import { triggerNavidromeScan } from './navidromeApi.mjs'
@@ -513,8 +515,18 @@ function jobPublic(j) {
     stats: j.stats,
     quality: j.quality,
     variant: j.variant || null,
+    unavailable: Boolean(j.unavailable),
     queueSeq: queueSeq(j),
   }
+}
+
+export function notReleasedError(releaseDate) {
+  const date = formatReleaseDate(releaseDate)
+  const err = new Error(date ? `Not released yet (out ${date})` : 'Not released yet')
+  err.code = 'NOT_RELEASED'
+  err.statusCode = 409
+  err.releaseDate = releaseDate || null
+  return err
 }
 
 function alreadyInLibraryError(message) {
@@ -701,6 +713,15 @@ export async function enqueueAlbum({ albumId, storefront, quality, expectedArtis
     ) {
       variant = requestedGroup
     }
+  }
+
+  // Only the tracks already out can be downloaded from a pre-release album.
+  const allTracks = meta?.tracks || []
+  if (!variant && allTracks.some((t) => !t.released)) {
+    const wantedIds = new Set((missingTracks || allTracks).map((t) => t.id))
+    const wanted = allTracks.filter((t) => t.released && wantedIds.has(t.id))
+    if (wanted.length === 0) throw notReleasedError(meta?.releaseDate)
+    missingTracks = wanted.map((t) => ({ id: t.id, name: t.name, isrc: t.isrc }))
   }
 
   const job = {
@@ -1002,6 +1023,8 @@ export async function enqueueSong({ songId, albumId, storefront, quality, follow
   } catch (err) {
     console.error('song metadata lookup failed', err.message)
   }
+
+  if (trackMeta && !isReleasedTrack(trackMeta)) throw notReleasedError(meta?.releaseDate)
 
   const trackName = trackMeta?.attributes?.name || 'Unknown track'
   const trackIsrc = trackMeta?.attributes?.isrc || null
@@ -1611,7 +1634,7 @@ async function runJob(job) {
     const audioCount = finalFiles.filter((f) =>
       /\.(flac|m4a|mp3)$/i.test(f),
     ).length
-    if (audioCount === 0) throw new Error('no audio files in final folder')
+    if (audioCount === 0) throw await explainNoAudio(job)
 
     const convention = settings.namingConvention || 'apple'
 
@@ -1772,6 +1795,15 @@ async function runJob(job) {
         message: 'Cancelled',
         cancelled: true,
       })
+    } else if (err.code === 'NOT_RELEASED' || err.code === 'NOT_AVAILABLE') {
+      // Nothing went wrong on our side; shown muted rather than as an error.
+      updateJob(job.id, {
+        status: 'failed',
+        error: err.message,
+        message: err.message,
+        cancelled: false,
+        unavailable: true,
+      })
     } else {
       console.error(`[job ${job.id}] failed:`, err)
       updateJob(job.id, {
@@ -1788,6 +1820,24 @@ async function runJob(job) {
     }
     state.running.delete(job.id)
   }
+}
+
+// amdp finishing without any audio usually means Apple had nothing to give:
+// the track is not out yet, or not offered in this storefront.
+async function explainNoAudio(job) {
+  try {
+    const raw = await getAlbum({ storefront: job.storefront, id: job.albumId })
+    const album = raw?.data?.[0]
+    const tracks = album?.relationships?.tracks?.data || []
+    const wanted = job.songId ? tracks.filter((t) => t.id === job.songId) : tracks
+    if (wanted.length && wanted.every((t) => !isReleasedTrack(t))) {
+      if (album?.attributes?.isPrerelease) return notReleasedError(album.attributes.releaseDate)
+      const err = new Error('Not available on Apple Music in this storefront')
+      err.code = 'NOT_AVAILABLE'
+      return err
+    }
+  } catch {}
+  return new Error('Apple returned no audio for this download')
 }
 
 // Downloads one track into trackStaging, retrying as FLAC when Atmos is

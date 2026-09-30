@@ -253,7 +253,9 @@
     "artist": "艺人",
     "hiRes": "高解析度",
     "downloadTrack": "下载 {{name}}",
-    "appleDigitalMaster": "Apple Digital Master"
+    "appleDigitalMaster": "Apple Digital Master",
+    "notOutYet": "{{date}} 发行",
+    "trackNotOutYet": "尚未发行，{{date}} 发行"
   },
   "artist": {
     "loadError": "加载失败",

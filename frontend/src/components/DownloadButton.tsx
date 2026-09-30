@@ -8,8 +8,10 @@ import { cx } from '../lib/cx'
 
 export type DownloadState = 'idle' | 'queued' | 'running' | 'done' | 'failed'
 
+// Cancelled, or ended with nothing to download (e.g. not released yet):
+// neither is shown as a failure.
 function isCancelledJob(job: Job | null | undefined) {
-  return Boolean(job?.cancelled || job?.error === 'Cancelled')
+  return Boolean(job?.cancelled || job?.unavailable || job?.error === 'Cancelled')
 }
 
 function stateFromJob(job: Job): DownloadState {

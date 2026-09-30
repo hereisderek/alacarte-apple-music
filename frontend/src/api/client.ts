@@ -106,6 +106,7 @@ export type AlbumTrack = {
   hasHiRes?: boolean
   hasAtmos?: boolean
   isAppleDigitalMaster?: boolean
+  released?: boolean
 }
 
 export type AlbumDetail = Album & {
@@ -118,6 +119,7 @@ export type AlbumDetail = Album & {
   hasHiRes: boolean
   hasAtmos: boolean
   isAppleDigitalMaster?: boolean
+  isPrerelease?: boolean
   tracks: AlbumTrack[]
 }
 
@@ -146,6 +148,7 @@ export type Job = {
   variant?: QualityGroup | null
   stats?: { total?: number; done?: number; failed?: number; converted?: number }
   queueSeq?: number
+  unavailable?: boolean
 }
 
 export type QualityPreference = 'flac' | 'alac' | 'atmos' | 'aac'

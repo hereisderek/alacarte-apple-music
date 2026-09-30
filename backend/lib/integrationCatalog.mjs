@@ -6,6 +6,7 @@ import {
   getArtist,
   getPlaylist,
   getSong,
+  isReleasedTrack,
   iterateCatalogPlaylistTracks,
   searchCatalog,
 } from './appleApi.mjs'
@@ -16,7 +17,7 @@ import {
   invalidateLibraryCache,
   scanLibraryOnce,
 } from './libraryIndex.mjs'
-import { enqueueSong, getJob } from './queue.mjs'
+import { enqueueSong, getJob, notReleasedError } from './queue.mjs'
 import { readSettings } from './settingsStore.mjs'
 
 // Flat shapes for the octo-fiesta Apple Music provider. Artwork is returned
@@ -98,6 +99,32 @@ export function mapPlaylist(raw) {
   }
 }
 
+// octo-fiesta asks for the same album on every album open, so Apple's answers
+// are kept for a while (in-flight requests are shared). Library presence is
+// still worked out per request, so a finished download shows up straight away.
+const HOUR = 60 * 60_000
+const CACHE_MAX = 500
+const catalogCache = new Map()
+
+function cached(ttlMs, key, load) {
+  const hit = catalogCache.get(key)
+  if (hit && hit.expires > Date.now()) return hit.value
+  const value = load().catch((err) => {
+    if (catalogCache.get(key)?.value === value) catalogCache.delete(key)
+    throw err
+  })
+  catalogCache.delete(key)
+  catalogCache.set(key, { value, expires: Date.now() + ttlMs })
+  while (catalogCache.size > CACHE_MAX) catalogCache.delete(catalogCache.keys().next().value)
+  return value
+}
+
+function cachedAlbum(storefront, language, id) {
+  return cached(6 * HOUR, `album|${storefront}|${language}|${id}`, () => getAlbum({ storefront, id, language }))
+}
+
+export const __catalogCache = { cached, clear: () => catalogCache.clear() }
+
 async function context() {
   const settings = await readSettings()
   return { storefront: settings.storefront || 'us', language: settings.language || 'en-US', settings }
@@ -114,11 +141,13 @@ export async function searchAll(term, { songs = 20, albums = 20, artists = 20, p
   ].filter(Boolean)
   if (!term || types.length === 0) return { songs: [], albums: [], artists: [], playlists: [] }
   const limit = Math.max(clamp(songs), clamp(albums), clamp(artists), clamp(playlists))
-  const json = await searchCatalog({ storefront, term, types: types.join(','), limit, language, withRelationships: true })
+  const json = await cached(HOUR, `search|${storefront}|${language}|${types}|${limit}|${term}`, () =>
+    searchCatalog({ storefront, term, types: types.join(','), limit, language, withRelationships: true }),
+  )
   const r = json?.results || {}
   const index = await scanLibraryOnce()
   const songResults = await Promise.all(
-    (r.songs?.data || []).slice(0, clamp(songs)).map(async (x) => {
+    (r.songs?.data || []).filter(isReleasedTrack).slice(0, clamp(songs)).map(async (x) => {
       const song = mapSong(x)
       return { ...song, inLibrary: Boolean(await findInLibrary(song, index)) }
     }),
@@ -136,26 +165,41 @@ export async function searchAll(term, { songs = 20, albums = 20, artists = 20, p
   }
 }
 
-export async function songById(id) {
+// Unreleased tracks of a pre-release album are left out everywhere octo-fiesta
+// looks, so it never offers a song that cannot be downloaded yet.
+async function releasedSong(id) {
   const { storefront, language } = await context()
-  const raw = (await getSong({ storefront, id, language }))?.data?.[0]
+  const raw = (await cached(HOUR, `song|${storefront}|${language}|${id}`, () => getSong({ storefront, id, language })))?.data?.[0]
+  if (!raw) return null
+  if (!isReleasedTrack(raw)) {
+    const albumId = raw.relationships?.albums?.data?.[0]?.id
+    const album = albumId ? (await cachedAlbum(storefront, language, albumId))?.data?.[0] : null
+    const err = notReleasedError(album?.attributes?.releaseDate)
+    err.status = 404
+    throw err
+  }
+  return raw
+}
+
+export async function songById(id) {
+  const raw = await releasedSong(id)
   return raw ? mapSong(raw) : null
 }
 
 export async function albumById(id) {
   const { storefront, language } = await context()
-  const raw = (await getAlbum({ storefront, id, language }))?.data?.[0]
+  const raw = (await cachedAlbum(storefront, language, id))?.data?.[0]
   if (!raw) return null
   const album = mapAlbum(raw)
   const tracks = (raw.relationships?.tracks?.data || [])
-    .filter((t) => t.type === 'songs')
+    .filter((t) => t.type === 'songs' && isReleasedTrack(t))
     .map((t) => mapSong(t, album))
   return { ...album, tracks }
 }
 
 export async function artistById(id) {
   const { storefront, language } = await context()
-  const raw = (await getArtist({ storefront, id, language }))?.data?.[0]
+  const raw = (await cached(6 * HOUR, `artist|${storefront}|${language}|${id}`, () => getArtist({ storefront, id, language })))?.data?.[0]
   if (!raw) return null
   const albums = (raw.relationships?.albums?.data || [])
     .filter((x) => x.attributes)
@@ -169,7 +213,7 @@ export async function playlistById(id) {
   if (!raw) return null
   const tracks = []
   for await (const t of iterateCatalogPlaylistTracks({ storefront, id, language })) {
-    if (t?.type === 'songs' && t.attributes) tracks.push(mapSong(t))
+    if (t?.type === 'songs' && t.attributes && isReleasedTrack(t)) tracks.push(mapSong(t))
   }
   return { ...mapPlaylist(raw), trackCount: tracks.length, tracks }
 }
@@ -190,7 +234,13 @@ const JOB_POLL_MS = 1000
 // Returns the song's library-relative path, downloading it through the
 // normal queue first when it is not in the library yet.
 export async function ensureSongInLibrary(id, { timeoutMs = 15 * 60_000, pollMs = JOB_POLL_MS } = {}) {
-  const song = await songById(id)
+  let song
+  try {
+    song = await songById(id)
+  } catch (err) {
+    if (err.code === 'NOT_RELEASED') err.status = 409
+    throw err
+  }
   if (!song) {
     const err = new Error('song not found in the Apple Music catalog')
     err.status = 404
