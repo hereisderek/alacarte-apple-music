@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import type { ReactNode } from 'react'
-import { X, CheckCircle2, AlertCircle, Loader2, Clock, CircleSlash, ArrowUpToLine } from 'lucide-react'
+import { X, CheckCircle2, AlertCircle, Loader2, Clock, CircleSlash, ArrowUpToLine, CalendarClock } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { api, type Job } from '../api/client'
@@ -18,11 +18,14 @@ type Props = {
 export function QueueItem({ job, onMoveTop, dragHandle }: Props) {
   const { t } = useTranslation()
   const cancelled = Boolean(job.cancelled || job.error === 'Cancelled')
+  const unavailable = Boolean(job.unavailable)
   const StatusIcon =
     job.status === 'done'
       ? CheckCircle2
       : cancelled
         ? CircleSlash
+        : unavailable
+        ? CalendarClock
         : job.status === 'failed'
         ? AlertCircle
         : job.status === 'running'
@@ -31,7 +34,7 @@ export function QueueItem({ job, onMoveTop, dragHandle }: Props) {
   const statusColor =
     job.status === 'done'
       ? 'text-emerald-400'
-      : cancelled
+      : cancelled || unavailable
         ? 'text-white/45'
         : job.status === 'failed'
         ? 'text-rose-400'
@@ -101,12 +104,18 @@ export function QueueItem({ job, onMoveTop, dragHandle }: Props) {
           >
             {job.artist}
           </ResolvedMediaLink>
-          {job.status !== 'failed' && job.message ? ` · ${job.message}` : cancelled ? ` · ${t('queueItem.cancelled')}` : ''}
+          {job.status !== 'failed' && job.message
+            ? ` · ${job.message}`
+            : cancelled
+              ? ` · ${t('queueItem.cancelled')}`
+              : unavailable && job.message
+                ? ` · ${job.message}`
+                : ''}
         </div>
         {(job.status === 'running' || job.status === 'queued') && (
           <div className="mt-2"><ProgressBar value={job.progress} label={formatPercent(job.progress)} /></div>
         )}
-        {job.status === 'failed' && !cancelled && (job.error || job.message) && (
+        {job.status === 'failed' && !cancelled && !unavailable && (job.error || job.message) && (
           <div className="mt-1 text-xs text-rose-400 truncate">{job.error || job.message}</div>
         )}
       </div>

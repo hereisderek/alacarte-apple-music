@@ -252,7 +252,9 @@
     "artist": "Artista",
     "hiRes": "Hi-Res",
     "downloadTrack": "Descargar {{name}}",
-    "appleDigitalMaster": "Apple Digital Master"
+    "appleDigitalMaster": "Apple Digital Master",
+    "notOutYet": "Sale el {{date}}",
+    "trackNotOutYet": "Aún no ha salido, sale el {{date}}"
   },
   "artist": {
     "loadError": "Error al cargar",

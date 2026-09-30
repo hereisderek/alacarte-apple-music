@@ -252,7 +252,9 @@
     "artist": "아티스트",
     "hiRes": "고해상도",
     "downloadTrack": "{{name}} 다운로드",
-    "appleDigitalMaster": "Apple Digital Master"
+    "appleDigitalMaster": "Apple Digital Master",
+    "notOutYet": "{{date}} 발매",
+    "trackNotOutYet": "아직 발매 전, {{date}} 발매"
   },
   "artist": {
     "loadError": "불러오지 못했습니다",

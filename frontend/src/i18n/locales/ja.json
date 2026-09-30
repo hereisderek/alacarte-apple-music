@@ -252,7 +252,9 @@
     "artist": "アーティスト",
     "hiRes": "ハイレゾ",
     "downloadTrack": "{{name}} をダウンロード",
-    "appleDigitalMaster": "Apple Digital Master"
+    "appleDigitalMaster": "Apple Digital Master",
+    "notOutYet": "{{date}} 配信",
+    "trackNotOutYet": "未配信、{{date}} に配信"
   },
   "artist": {
     "loadError": "読み込みに失敗しました",

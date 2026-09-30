@@ -185,6 +185,19 @@ export async function* iterateCatalogPlaylistTracks({
   }
 }
 
+// A pre-release album lists every track, but only the ones already out have
+// playParams; the rest cannot be played or downloaded until release day.
+export function isReleasedTrack(raw) {
+  return Boolean(raw?.attributes?.playParams)
+}
+
+export function formatReleaseDate(date) {
+  if (!date) return null
+  const d = new Date(`${String(date).slice(0, 10)}T00:00:00Z`)
+  if (Number.isNaN(d.getTime())) return null
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
+}
+
 export function normalizeAlbum(raw) {
   if (!raw) return null
   const a = raw.attributes || {}
@@ -209,6 +222,7 @@ export function normalizeAlbum(raw) {
           ta.audioTraits?.includes?.('spatial'),
       ),
       isAppleDigitalMaster: Boolean(ta.isAppleDigitalMaster),
+      released: isReleasedTrack(t),
     }
   })
   return {
@@ -220,6 +234,7 @@ export function normalizeAlbum(raw) {
     artists,
     genreNames: a.genreNames || [],
     releaseDate: a.releaseDate,
+    isPrerelease: Boolean(a.isPrerelease),
     year: a.releaseDate ? String(a.releaseDate).slice(0, 4) : null,
     trackCount: a.trackCount,
     isCompilation: a.isCompilation,

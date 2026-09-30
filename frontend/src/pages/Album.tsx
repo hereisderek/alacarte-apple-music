@@ -38,7 +38,7 @@ function formatDur(ms: number | undefined) {
 }
 
 export function AlbumPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { id } = useParams<{ id: string }>()
   const [album, setAlbum] = useState<AlbumDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -65,7 +65,19 @@ export function AlbumPage() {
   const partialState = trackPresence
     ? presentCount > 0 && presentCount < expectedCount
     : false
-  const missingCount = Math.max(0, expectedCount - presentCount)
+  // Tracks of a pre-release album that are not out yet cannot be filled in.
+  const unreleasedMissing = (album?.tracks || []).filter(
+    (tr) => tr.released === false && !trackPresence?.tracks?.[tr.id],
+  ).length
+  const missingCount = Math.max(0, expectedCount - presentCount - unreleasedMissing)
+  const releaseDay = album?.releaseDate
+    ? new Date(`${String(album.releaseDate).slice(0, 10)}T00:00:00Z`).toLocaleDateString(i18n.language, {
+        day: 'numeric',
+        month: 'short',
+        timeZone: 'UTC',
+      })
+    : null
+  const nothingOutYet = unreleasedMissing > 0 && missingCount === 0
 
   const existingJob: Job | undefined = useMemo(
     () =>
@@ -199,6 +211,8 @@ export function AlbumPage() {
     ? t('album.queued')
     : existingJob?.status === 'running'
     ? t('album.downloading')
+    : nothingOutYet
+    ? t('album.notOutYet', { date: releaseDay })
     : partialState && missingCount > 0
     ? t('album.fillMissingTracks', { count: missingCount })
     : t('album.download')
@@ -279,6 +293,7 @@ export function AlbumPage() {
                     disabled={
                       enqueueing ||
                       alreadyInLibrary ||
+                      nothingOutYet ||
                       (existingJob && existingJob.status !== 'failed')
                     }
                     className="flex-1 md:min-w-[200px] md:flex-none disabled:cursor-not-allowed disabled:opacity-50"
@@ -324,6 +339,7 @@ export function AlbumPage() {
                   ? primaryArtistId
                   : album.artists?.find(a => a.name === track.artistName)?.id
                 const trackDownloaded = Boolean(trackPresence?.tracks?.[track.id])
+                const notOut = track.released === false && !trackDownloaded
                 const trackJob = trackDownloaded
                   ? null
                   : jobs.find(
@@ -339,7 +355,7 @@ export function AlbumPage() {
                   className="group/track grid grid-cols-[2rem_1fr_auto_2.25rem] md:grid-cols-[2rem_1fr_8rem_5rem_2.25rem] gap-x-3 py-2.5 items-center border-b border-white/5 hover:bg-accent/[0.05] transition-colors rounded-[6px]"
                 >
                   <div className="text-white/45 tabular-nums text-sm">{track.trackNumber ?? '—'}</div>
-                  <div className="min-w-0">
+                  <div className={cx('min-w-0', notOut && 'opacity-50')}>
                     <div className="truncate text-sm font-medium">{track.name}</div>
                     <div className="md:hidden truncate text-xs text-white/50">
                       <ResolvedMediaLink
@@ -370,6 +386,14 @@ export function AlbumPage() {
                     {track.isAppleDigitalMaster && !album.isAppleDigitalMaster && <AdmChip />}
                   </div>
                   <div className="flex items-center justify-end">
+                    {notOut ? (
+                      <span
+                        className="whitespace-nowrap text-[11px] text-white/40"
+                        title={t('album.trackNotOutYet', { date: releaseDay })}
+                      >
+                        {releaseDay}
+                      </span>
+                    ) : (
                     <DownloadButton
                       job={trackJob}
                       size="sm"
@@ -403,6 +427,7 @@ export function AlbumPage() {
                           : 'opacity-0 group-hover/track:opacity-100 focus-within:opacity-100 transition-opacity duration-200',
                       )}
                     />
+                    )}
                   </div>
                 </StaggeredItem>
                 )
