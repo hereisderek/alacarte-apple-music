@@ -104,7 +104,9 @@ authRouter.get('/state', async (req, res) => {
     let authed = authDisabled
     if (passwordSet && !authDisabled) {
       const session = verifyToken(getRequestSessionToken(req))
-      authed = Boolean(session)
+      // Same check as requireAuth: a session from before a password change
+      // or "sign out everywhere" no longer counts.
+      authed = Boolean(session) && session.sv >= (await getSessionVersion())
     }
     // Only expose the username to authed requests so unauthenticated
     // probes can't enumerate it.
