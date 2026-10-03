@@ -5,6 +5,9 @@ import { getSessionHmacKey } from './secretKey.mjs'
 export const SESSION_COOKIE_NAME = 'alacarte_session'
 export const SESSION_COOKIE_HOST_PREFIX = '__Host-alacarte_session'
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
+// A session is refreshed while in use, but never outlives this long after
+// the password was last entered.
+export const SESSION_ABSOLUTE_MAX_MS = 90 * 24 * 60 * 60 * 1000
 
 function b64urlEncode(buf) {
   return buf
@@ -29,6 +32,8 @@ export function issueToken(extra = {}) {
   const payload = {
     iat: now,
     exp: now + SESSION_TTL_MS,
+    // When the password was entered; refreshed tokens carry it over.
+    authAt: now,
     ...extra,
   }
   const payloadJson = JSON.stringify(payload)
@@ -66,7 +71,13 @@ export function verifyToken(token) {
   if (!payload || typeof payload.exp !== 'number' || typeof payload.iat !== 'number') return null
   if (!Number.isInteger(payload.sv) || payload.sv < 1) return null
   if (Date.now() >= payload.exp) return null
+  if (Date.now() - sessionAuthAt(payload) >= SESSION_ABSOLUTE_MAX_MS) return null
   return payload
+}
+
+// Tokens from before authAt existed count from their issue time.
+export function sessionAuthAt(payload) {
+  return typeof payload?.authAt === 'number' ? payload.authAt : payload?.iat
 }
 
 export function tokenAgeMs(payload) {

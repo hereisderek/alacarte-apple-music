@@ -10,13 +10,13 @@ import {
   getRequestSessionToken,
   issueToken,
   isSecureRequest,
+  sessionAuthAt,
   shouldRefresh,
   verifyToken,
 } from './sessionToken.mjs'
 
 const AUTH_DISABLED = String(process.env.AUTH_DISABLED || '').trim().toLowerCase() === 'true'
 const REFRESH_AFTER_MS = 7 * 24 * 60 * 60 * 1000
-const ABSOLUTE_SESSION_MAX_MS = 90 * 24 * 60 * 60 * 1000
 
 let cachedSessionVersion = 1
 
@@ -73,10 +73,15 @@ export function requireAuth() {
       }
     }
 
-    const age = Date.now() - payload.iat
-    if (shouldRefresh(payload, REFRESH_AFTER_MS) && age < ABSOLUTE_SESSION_MAX_MS) {
+    // verifyToken already rejects sessions past the absolute limit; the
+    // refreshed token keeps the original authAt so that limit still holds.
+    if (shouldRefresh(payload, REFRESH_AFTER_MS)) {
       const secure = isSecureRequest(req)
-      const refreshed = issueToken({ user: payload.user, sv: payload.sv })
+      const refreshed = issueToken({
+        user: payload.user,
+        sv: payload.sv,
+        authAt: sessionAuthAt(payload),
+      })
       res.cookie(
         buildSessionCookieName(secure),
         refreshed,
