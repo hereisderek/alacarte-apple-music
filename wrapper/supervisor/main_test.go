@@ -73,15 +73,32 @@ func waitForMode(t *testing.T, srv *httptest.Server, want Mode) {
 	t.Fatalf("mode never became %q (last %q)", want, health(t, srv).Mode)
 }
 
-// assertChildGone checks that the forked child of the given run mode was
-// killed along with its parent (a zombie counts as gone).
-func assertChildGone(t *testing.T, sup *Supervisor, mode string) {
+// childPid returns the pid of the child the fake wrapper of the given run
+// mode forked. The supervisor reports a mode as soon as it starts the
+// process, which can be before the script has recorded the pid, so wait for
+// it. Read it before the process is meant to go: a later run of the same
+// mode overwrites the file with its own, live child.
+func childPid(t *testing.T, sup *Supervisor, mode string) string {
 	t.Helper()
-	raw, err := os.ReadFile(filepath.Join(filepath.Dir(sup.wrapperBin), mode+".child"))
-	if err != nil {
-		t.Fatal(err)
+	file := filepath.Join(filepath.Dir(sup.wrapperBin), mode+".child")
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		raw, err := os.ReadFile(file)
+		if pid := strings.TrimSpace(string(raw)); err == nil && pid != "" {
+			return pid
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%s wrapper never recorded its child: %v", mode, err)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
-	stat := "/proc/" + strings.TrimSpace(string(raw)) + "/stat"
+}
+
+// assertChildGone checks that the given forked child was killed along with
+// its parent (a zombie counts as gone).
+func assertChildGone(t *testing.T, mode, pid string) {
+	t.Helper()
+	stat := "/proc/" + pid + "/stat"
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
 		b, err := os.ReadFile(stat)
@@ -166,6 +183,7 @@ func TestLoginStopsWorkerOnSuccessAndRestoresNormal(t *testing.T) {
 	sup, srv := newTestSupervisor(t, "[.] account info cached successfully")
 	sup.StartNormal()
 	waitForMode(t, srv, ModeNormal)
+	normalChild := childPid(t, sup, "normal")
 
 	start := time.Now()
 	res, err := postLogin(context.Background(), srv)
@@ -180,8 +198,8 @@ func TestLoginStopsWorkerOnSuccessAndRestoresNormal(t *testing.T) {
 	if time.Since(start) > 2*time.Second {
 		t.Fatalf("worker was not stopped promptly after success (took %s)", time.Since(start))
 	}
-	assertChildGone(t, sup, "normal")
-	assertChildGone(t, sup, "login")
+	assertChildGone(t, "normal", normalChild)
+	assertChildGone(t, "login", childPid(t, sup, "login"))
 	waitForMode(t, srv, ModeNormal)
 }
 
@@ -196,6 +214,7 @@ func TestLoginCancelledByClientDisconnect(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitForMode(t, srv, ModeLoggingIn)
+	loginChild := childPid(t, sup, "login")
 
 	if r, _ := postLogin(context.Background(), srv); r.StatusCode != http.StatusConflict {
 		t.Errorf("concurrent login status = %d, want 409", r.StatusCode)
@@ -208,7 +227,7 @@ func TestLoginCancelledByClientDisconnect(t *testing.T) {
 	cancel()
 	res.Body.Close()
 	waitForMode(t, srv, ModeNormal)
-	assertChildGone(t, sup, "login")
+	assertChildGone(t, "login", loginChild)
 	if _, err := os.Stat(sup.get2faFilePath()); !os.IsNotExist(err) {
 		t.Errorf("2fa file should be cleared after sign-in ends: %v", err)
 	}
