@@ -145,32 +145,68 @@ export function decryptSecret(b64) {
   }
 }
 
+// Writes do a read-modify-write of the whole file; serialize them so two
+// saves can't clobber each other with stale snapshots.
+let writeChain = Promise.resolve()
+function serialize(operation) {
+  const run = writeChain.then(operation, operation)
+  writeChain = run.then(
+    () => undefined,
+    () => undefined,
+  )
+  return run
+}
+
+// A missing file means defaults. A file that is not valid JSON is moved
+// aside so the encrypted credentials in it are kept for recovery; any
+// other read error is thrown so a write never commits defaults over a
+// file it could not read.
+async function loadSettingsFile() {
+  let raw
+  try {
+    raw = await fsp.readFile(SETTINGS_FILE, 'utf8')
+  } catch (err) {
+    if (err?.code === 'ENOENT') return {}
+    throw err
+  }
+  try {
+    return JSON.parse(raw)
+  } catch (err) {
+    console.error('settings.json unreadable:', err.message)
+    await fsp
+      .rename(SETTINGS_FILE, `${SETTINGS_FILE}.corrupt-${Date.now()}`)
+      .catch(() => null)
+    return {}
+  }
+}
+
 export async function readSettings() {
   try {
-    const raw = await fsp.readFile(SETTINGS_FILE, 'utf8')
-    const parsed = JSON.parse(raw)
-    return normalizeSettings(parsed)
-  } catch {
+    return normalizeSettings(await loadSettingsFile())
+  } catch (err) {
+    console.error('settings.json read failed:', err.message)
     return normalizeSettings({})
   }
 }
 
-export async function writeSettings(patch) {
-  const current = await readSettings()
-  const merged = { ...current, ...patch }
-  if (
-    Object.prototype.hasOwnProperty.call(patch, 'convertToFlac') &&
-    !Object.prototype.hasOwnProperty.call(patch, 'quality')
-  ) {
-    merged.quality = patch.convertToFlac === false ? 'alac' : 'flac'
-  }
-  const next = normalizeSettings(merged)
-  await fsp.writeFile(
-    SETTINGS_FILE,
-    JSON.stringify(next, null, 2),
-    { mode: 0o600 },
-  )
-  return next
+export function writeSettings(patch) {
+  return serialize(async () => {
+    const current = normalizeSettings(await loadSettingsFile())
+    const merged = { ...current, ...patch }
+    if (
+      Object.prototype.hasOwnProperty.call(patch, 'convertToFlac') &&
+      !Object.prototype.hasOwnProperty.call(patch, 'quality')
+    ) {
+      merged.quality = patch.convertToFlac === false ? 'alac' : 'flac'
+    }
+    const next = normalizeSettings(merged)
+    // Write a temp file and rename it over the old one so a reader (or a
+    // crash) never sees a half-written file.
+    const tmpFile = `${SETTINGS_FILE}.tmp`
+    await fsp.writeFile(tmpFile, JSON.stringify(next, null, 2), { mode: 0o600 })
+    await fsp.rename(tmpFile, SETTINGS_FILE)
+    return next
+  })
 }
 
 function normalizeSettings(parsed) {
