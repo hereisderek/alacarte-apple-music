@@ -1,3 +1,5 @@
+import fs from 'node:fs'
+
 import { emitEvent } from './eventBus.mjs'
 import {
   buildFailureTail,
@@ -12,6 +14,20 @@ function getSupervisorUrl() {
   const host = process.env.AMDL_WRAPPER_HOST || '127.0.0.1'
   const port = process.env.AMDL_WRAPPER_SUPERVISOR_PORT || 40020
   return `http://${host}:${port}`
+}
+
+// The supervisor creates this token on its first start and requires it on
+// its control endpoints; it is re-read so a recreated token is picked up.
+function supervisorAuthHeaders() {
+  const file = process.env.AMDL_SUPERVISOR_TOKEN_FILE
+  if (!file) return {}
+  try {
+    const token = fs.readFileSync(file, 'utf8').trim()
+    return token ? { 'X-Supervisor-Token': token } : {}
+  } catch (err) {
+    console.error(`[wrapper] cannot read the supervisor token (${file}): ${err.code || err.message}`)
+    return {}
+  }
 }
 
 const REACHABILITY_ERROR =
@@ -115,6 +131,7 @@ export async function wakeWrapper() {
   try {
     const res = await fetch(`${getSupervisorUrl()}/wake`, {
       method: 'POST',
+      headers: supervisorAuthHeaders(),
       signal: AbortSignal.timeout(3000),
     })
     return res.ok ? await res.json() : null
@@ -206,7 +223,7 @@ async function runLoginFlow() {
   try {
     res = await fetch(`${getSupervisorUrl()}/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...supervisorAuthHeaders() },
       body: JSON.stringify({ email: current.email, password: current.password }),
       signal: current.abortController.signal,
     })
@@ -322,7 +339,7 @@ export async function submit2FA(code) {
   try {
     const res = await fetch(`${getSupervisorUrl()}/login/2fa`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...supervisorAuthHeaders() },
       body: JSON.stringify({ code: code.trim() }),
       signal: AbortSignal.timeout(5000),
     })

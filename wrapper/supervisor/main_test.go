@@ -286,3 +286,62 @@ func TestLeaseLossWaitsAndWakeRestarts(t *testing.T) {
 		t.Fatalf("wake should start the wrapper right away, starts = %d", n)
 	}
 }
+
+func TestControlEndpointsNeedTheToken(t *testing.T) {
+	sup, srv := newTestSupervisor(t, "")
+	sup.controlToken = "s3cret"
+
+	post := func(path, token string) int {
+		req, _ := http.NewRequest(http.MethodPost, srv.URL+path, strings.NewReader(`{"email":"a@b.c","password":"pw","code":"123456"}`))
+		if token != "" {
+			req.Header.Set("X-Supervisor-Token", token)
+		}
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res.Body.Close()
+		return res.StatusCode
+	}
+	for _, path := range []string{"/login", "/login/2fa", "/wake"} {
+		if got := post(path, ""); got != http.StatusUnauthorized {
+			t.Errorf("%s without token = %d", path, got)
+		}
+		if got := post(path, "wrong"); got != http.StatusUnauthorized {
+			t.Errorf("%s with wrong token = %d", path, got)
+		}
+	}
+	// The right token gets through to the handler (no sign-in running).
+	if got := post("/login/2fa", "s3cret"); got != http.StatusConflict {
+		t.Errorf("2FA with token = %d", got)
+	}
+	if got := post("/wake", "s3cret"); got != http.StatusOK {
+		t.Errorf("wake with token = %d", got)
+	}
+	// Health stays open for the backend's reachability probe.
+	if res, err := http.Get(srv.URL + "/health"); err != nil || res.StatusCode != http.StatusOK {
+		t.Errorf("health without token failed: %v", err)
+	}
+}
+
+func TestLoadControlTokenCreatesThenReuses(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "secret", "token")
+	first, err := loadControlToken(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first) != 64 {
+		t.Fatalf("token %q is not 32 random bytes", first)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0600 {
+		t.Errorf("token file mode = %v", info.Mode().Perm())
+	}
+	second, err := loadControlToken(path)
+	if err != nil || second != first {
+		t.Fatalf("token changed on reload: %q -> %q (%v)", first, second, err)
+	}
+}
