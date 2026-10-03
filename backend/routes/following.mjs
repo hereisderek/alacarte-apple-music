@@ -59,43 +59,52 @@ followingRouter.get('/check/effective-interval', async (req, res) => {
   }
 })
 
+// Queues every release of a followed artist that is not in the library
+// yet, using the same catalog view (storefront, language, explicit/clean
+// preference) as the follow and the auto-download check.
+async function queueMissingReleases(artist, { settings, quality, libIndex, followedCount }) {
+  const catalog = await loadArtistCatalogCached(
+    {
+      artistId: artist.id,
+      storefront: artist.storefront || settings.storefront || 'us',
+      language: settings.language || 'en-US',
+      explicitFilter: settings.explicitFilter || 'explicit',
+    },
+    { followedCount },
+  )
+  if (!catalog?.albums) return 0
+  let queued = 0
+  for (const album of filterReleasesByScope(catalog.albums, artist.releaseScope)) {
+    if (!album.artistName || !album.name) continue
+    if (await hasAlbumInLibrary(album.artistName, album.name, libIndex)) continue
+    try {
+      await enqueueAlbum({
+        albumId: album.id,
+        storefront: artist.storefront,
+        expectedArtistId: artist.id,
+        quality,
+      })
+      queued++
+    } catch {}
+  }
+  return queued
+}
+
 followingRouter.post('/download-missing', async (req, res) => {
   try {
-    const quality = req.body?.quality
+    const settings = await readSettings()
     const store = await readFollowingStore()
     const libIndex = await scanLibraryOnce()
     const followedCount = Object.keys(store.artists || {}).length
     let queuedCount = 0
     for (const artist of Object.values(store.artists)) {
       if (!artist.missingReleaseCount) continue
-
-      const catalog = await loadArtistCatalogCached(
-        {
-          artistId: artist.id,
-          storefront: artist.storefront,
-          language: 'en-US',
-        },
-        { followedCount },
-      )
-      
-      if (!catalog?.albums) continue
-      const albums = filterReleasesByScope(catalog.albums, artist.releaseScope)
-      
-      for (const album of albums) {
-        if (!album.artistName || !album.name) continue
-        if (!(await hasAlbumInLibrary(album.artistName, album.name, libIndex))) {
-          try {
-            await enqueueAlbum({ 
-              albumId: album.id, 
-              storefront: artist.storefront,
-              expectedArtistId: artist.id,
-              quality,
-            })
-            queuedCount++
-          } catch {
-          }
-        }
-      }
+      queuedCount += await queueMissingReleases(artist, {
+        settings,
+        quality: req.body?.quality,
+        libIndex,
+        followedCount,
+      })
     }
     res.json({ ok: true, queued: queuedCount })
   } catch (err) {
@@ -110,35 +119,15 @@ followingRouter.post('/:id/download-missing', async (req, res) => {
     const store = await readFollowingStore()
     const artist = store.artists[id]
     if (!artist) return res.status(404).json({ error: 'artist not found' })
-    const quality = req.body?.quality
 
-    const libIndex = await scanLibraryOnce()
     let queuedCount = 0
     if (artist.missingReleaseCount > 0) {
-      const catalog = await loadArtistCatalogCached({
-        artistId: id,
-        storefront: artist.storefront || 'us',
-        language: 'en-US',
+      queuedCount = await queueMissingReleases(artist, {
+        settings: await readSettings(),
+        quality: req.body?.quality,
+        libIndex: await scanLibraryOnce(),
+        followedCount: Object.keys(store.artists).length,
       })
-
-      if (catalog?.albums) {
-        const albums = filterReleasesByScope(catalog.albums, artist.releaseScope)
-        for (const album of albums) {
-          if (!album.artistName || !album.name) continue
-          if (!(await hasAlbumInLibrary(album.artistName, album.name, libIndex))) {
-            try {
-              await enqueueAlbum({ 
-                albumId: album.id, 
-                storefront: artist.storefront,
-                expectedArtistId: artist.id,
-                quality,
-              })
-              queuedCount++
-            } catch {
-            }
-          }
-        }
-      }
     }
     res.json({ ok: true, queued: queuedCount })
   } catch (err) {
