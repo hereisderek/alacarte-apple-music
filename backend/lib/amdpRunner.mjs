@@ -1,6 +1,7 @@
-import { spawn } from 'node:child_process'
+import { execFile, spawn } from 'node:child_process'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
+import { promisify } from 'node:util'
 
 const CONFIG_DIR = process.env.AMDL_CONFIG_DIR || '/config'
 const AMDP_CONFIG = path.join(CONFIG_DIR, 'amdp-config.yaml')
@@ -162,3 +163,23 @@ export function stripAnsi(s) {
 }
 
 export const AMDP_CONFIG_PATH = AMDP_CONFIG
+
+const execFileAsync = promisify(execFile)
+
+// amdp needs MP4Box to finalize files. Shared by the job preflight and the
+// health page so both judge it the same way.
+export async function probeMp4Box() {
+  try {
+    const { stdout, stderr } = await execFileAsync('MP4Box', ['-version'], { timeout: 2500 })
+    if (/GPAC version/i.test(`${stdout}\n${stderr}`)) return { ok: true, error: null }
+    return { ok: false, error: 'unexpected MP4Box -version output' }
+  } catch (err) {
+    if (err.code === 'ENOENT') return { ok: false, error: 'executable not found in PATH' }
+    // MP4Box -version exits non-zero on some builds while still printing it
+    if (/GPAC version/i.test(`${err.stdout || ''}\n${err.stderr || ''}`)) return { ok: true, error: null }
+    return {
+      ok: false,
+      error: `exit ${err.code ?? 'unknown'}${err.signal ? ` (${err.signal})` : ''}`,
+    }
+  }
+}

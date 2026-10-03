@@ -2,8 +2,6 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import fsp from 'node:fs/promises'
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
 
 import { emitEvent } from './eventBus.mjs'
 import { readSettings, readAppleCreds } from './settingsStore.mjs'
@@ -21,7 +19,7 @@ import {
 import { getLibraryPlaylistDetail } from './appleLibraryApi.mjs'
 import { triggerNavidromeScan } from './navidromeApi.mjs'
 import { creditImportedFiles } from './artistCredits.mjs'
-import { writeAmdpConfig, spawnAmdp, stripAnsi } from './amdpRunner.mjs'
+import { probeMp4Box, writeAmdpConfig, spawnAmdp, stripAnsi } from './amdpRunner.mjs'
 import { applyVariantSuffix, groupOf } from './qualityGroups.mjs'
 import {
   convertDirToFlac,
@@ -2453,24 +2451,6 @@ function isProgressOnlyLine(line) {
 function extractBracketTitle(line) {
   const m = line.match(/\]\s*(.+?)(?:\s*\[|$)/)
   return m ? m[1].trim() : null
-}
-
-const execFileAsync = promisify(execFile)
-
-async function probeMp4Box() {
-  try {
-    const { stdout, stderr } = await execFileAsync('MP4Box', ['-version'], { timeout: 2500 })
-    if (/GPAC version/i.test(`${stdout}\n${stderr}`)) return { ok: true, error: null }
-    return { ok: false, error: 'unexpected MP4Box -version output' }
-  } catch (err) {
-    if (err.code === 'ENOENT') return { ok: false, error: 'executable not found in PATH' }
-    // MP4Box -version exits non-zero on some builds while still printing it
-    if (/GPAC version/i.test(`${err.stdout || ''}\n${err.stderr || ''}`)) return { ok: true, error: null }
-    return {
-      ok: false,
-      error: `exit ${err.code ?? 'unknown'}${err.signal ? ` (${err.signal})` : ''}`,
-    }
-  }
 }
 
 function buildAmdpArgs({ isSong, quality, url }) {
