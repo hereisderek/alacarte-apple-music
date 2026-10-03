@@ -3,22 +3,39 @@ import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 
-function runFfmpeg(args, { signal } = {}) {
+// A single track converts in seconds; a hung ffmpeg would otherwise hold
+// the one-at-a-time queue forever.
+const FFMPEG_TIMEOUT_MS = Math.max(
+  10_000,
+  Number(process.env.AMDL_FFMPEG_TIMEOUT_MS) || 15 * 60_000,
+)
+
+function runFfmpeg(args, { signal, timeoutMs = FFMPEG_TIMEOUT_MS } = {}) {
   return new Promise((resolve, reject) => {
     const proc = spawn('ffmpeg', args, { stdio: ['ignore', 'pipe', 'pipe'], signal })
     let stderr = ''
+    let timedOut = false
+    const timer = setTimeout(() => {
+      timedOut = true
+      proc.kill('SIGKILL')
+    }, timeoutMs)
     proc.stderr.on('data', (d) => {
-      stderr += d.toString()
+      stderr = (stderr + d.toString()).slice(-4000)
     })
     proc.on('close', (code) => {
+      clearTimeout(timer)
       if (code === 0) resolve()
+      else if (timedOut) reject(new Error(`ffmpeg timed out after ${Math.round(timeoutMs / 1000)}s`))
       else reject(new Error(`ffmpeg exit ${code}: ${stderr.slice(-500)}`))
     })
-    proc.on('error', reject)
+    proc.on('error', (err) => {
+      clearTimeout(timer)
+      reject(err)
+    })
   })
 }
 
-export async function convertToFlac(inputPath, { deleteOriginal = true, signal } = {}) {
+export async function convertToFlac(inputPath, { deleteOriginal = true, signal, timeoutMs } = {}) {
   const dir = path.dirname(inputPath)
   const base = path.basename(inputPath, path.extname(inputPath))
   const outPath = path.join(dir, `${base}.flac`)
@@ -41,7 +58,7 @@ export async function convertToFlac(inputPath, { deleteOriginal = true, signal }
     '-metadata',
     'encoder=FLAC',
     outPath,
-  ], { signal })
+  ], { signal, timeoutMs })
   if (deleteOriginal) {
     try {
       await fsp.unlink(inputPath)
