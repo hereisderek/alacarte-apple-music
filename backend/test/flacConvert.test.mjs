@@ -54,3 +54,25 @@ test('a real ALAC file still converts to FLAC', async () => {
   assert.deepEqual(r, { converted: 1, failed: 0, total: 1 })
   assert.deepEqual(await fsp.readdir(dir), ['01. Tone.flac'])
 })
+
+test('a failed conversion leaves no partial flac behind', async () => {
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'alacarte-convert-'))
+  await fsp.writeFile(path.join(dir, '01. A.m4a'), 'x')
+  // Writes half a file to its output path (the last argument), then fails.
+  const body = 'for last; do :; done\nprintf partial > "$last"\nexit 1'
+  await withFakeFfmpeg(body, async () => {
+    const r = await convertDirToFlac(dir)
+    assert.deepEqual(r, { converted: 0, failed: 1, total: 1 })
+  })
+  assert.deepEqual(await fsp.readdir(dir), ['01. A.m4a'])
+})
+
+test('a killed conversion leaves no partial flac behind', async () => {
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'alacarte-convert-'))
+  await fsp.writeFile(path.join(dir, '01. A.m4a'), 'x')
+  const body = 'for last; do :; done\nprintf partial > "$last"\nexec sleep 30'
+  await withFakeFfmpeg(body, async () => {
+    await assert.rejects(convertToFlac(path.join(dir, '01. A.m4a'), { timeoutMs: 300 }))
+  })
+  assert.deepEqual(await fsp.readdir(dir), ['01. A.m4a'])
+})

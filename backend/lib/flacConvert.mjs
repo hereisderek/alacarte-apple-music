@@ -39,26 +39,36 @@ export async function convertToFlac(inputPath, { deleteOriginal = true, signal, 
   const dir = path.dirname(inputPath)
   const base = path.basename(inputPath, path.extname(inputPath))
   const outPath = path.join(dir, `${base}.flac`)
-  await runFfmpeg([
-    '-y',
-    '-i',
-    inputPath,
-    '-map',
-    '0',
-    '-map_metadata',
-    '0',
-    '-c:a',
-    'flac',
-    '-compression_level',
-    '8',
-    '-c:v',
-    'copy',
-    '-disposition:v:0',
-    'attached_pic',
-    '-metadata',
-    'encoder=FLAC',
-    outPath,
-  ], { signal, timeoutMs })
+  // ffmpeg writes to a hidden temp file that only becomes the .flac once it
+  // finished, so a failed or killed conversion leaves no partial track to be
+  // moved into the library next to the original.
+  const tmpPath = path.join(dir, `.${base}.converting.flac`)
+  try {
+    await runFfmpeg([
+      '-y',
+      '-i',
+      inputPath,
+      '-map',
+      '0',
+      '-map_metadata',
+      '0',
+      '-c:a',
+      'flac',
+      '-compression_level',
+      '8',
+      '-c:v',
+      'copy',
+      '-disposition:v:0',
+      'attached_pic',
+      '-metadata',
+      'encoder=FLAC',
+      tmpPath,
+    ], { signal, timeoutMs })
+    await fsp.rename(tmpPath, outPath)
+  } catch (err) {
+    await fsp.rm(tmpPath, { force: true }).catch(() => {})
+    throw err
+  }
   if (deleteOriginal) {
     try {
       await fsp.unlink(inputPath)
