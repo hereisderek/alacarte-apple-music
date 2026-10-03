@@ -3,9 +3,9 @@ import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 
-function runFfmpeg(args) {
+function runFfmpeg(args, { signal } = {}) {
   return new Promise((resolve, reject) => {
-    const proc = spawn('ffmpeg', args, { stdio: ['ignore', 'pipe', 'pipe'] })
+    const proc = spawn('ffmpeg', args, { stdio: ['ignore', 'pipe', 'pipe'], signal })
     let stderr = ''
     proc.stderr.on('data', (d) => {
       stderr += d.toString()
@@ -18,7 +18,7 @@ function runFfmpeg(args) {
   })
 }
 
-export async function convertToFlac(inputPath, { deleteOriginal = true } = {}) {
+export async function convertToFlac(inputPath, { deleteOriginal = true, signal } = {}) {
   const dir = path.dirname(inputPath)
   const base = path.basename(inputPath, path.extname(inputPath))
   const outPath = path.join(dir, `${base}.flac`)
@@ -41,7 +41,7 @@ export async function convertToFlac(inputPath, { deleteOriginal = true } = {}) {
     '-metadata',
     'encoder=FLAC',
     outPath,
-  ])
+  ], { signal })
   if (deleteOriginal) {
     try {
       await fsp.unlink(inputPath)
@@ -73,10 +73,13 @@ export async function convertDirToFlac(dir, opts = {}) {
   let failed = 0
   for (let i = 0; i < files.length; i++) {
     const p = files[i]
+    // A cancelled job stops converting instead of counting the rest as failed.
+    convertOpts.signal?.throwIfAborted()
     try {
       await convertToFlac(p, convertOpts)
       converted++
     } catch (err) {
+      convertOpts.signal?.throwIfAborted()
       console.error(`FLAC convert failed for ${p}: ${err.message}`)
       failed++
     }

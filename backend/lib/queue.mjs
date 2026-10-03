@@ -457,6 +457,26 @@ function throwIfCancelled(job) {
   if (job?.cancelled) throw makeAbortError()
 }
 
+// Aborts a running job's work outside amdp (FLAC conversion).
+const jobAborts = new Map()
+// Jobs moving files into the library. Cancelling is refused in that window,
+// so a cancelled job never leaves part of an album behind or turns up as
+// done afterwards.
+const importingJobs = new Set()
+
+function jobSignal(job) {
+  return jobAborts.get(job.id)?.signal
+}
+
+function beginLibraryImport(job) {
+  throwIfCancelled(job)
+  importingJobs.add(job.id)
+}
+
+function endLibraryImport(job) {
+  importingJobs.delete(job.id)
+}
+
 function jobPublic(j) {
   return {
     id: j.id,
@@ -1062,9 +1082,13 @@ export async function cancelJob(id) {
   if (j.status === 'done' || j.status === 'failed') {
     return { ok: true, noop: true }
   }
+  if (importingJobs.has(id)) {
+    return { ok: false, error: 'already moving into the library' }
+  }
   const ctl = state.running.get(id)
   const wasActive = state.active.has(id)
   if (ctl) ctl.abort()
+  jobAborts.get(id)?.abort()
   state.queue = state.queue.filter((qid) => qid !== id)
   updateJob(id, {
     status: 'failed',
@@ -1135,6 +1159,7 @@ export const __test__ = {
   state,
   wakeAndWaitForWrapper,
   tickQueue,
+  importingJobs,
 }
 
 // Stamp ISRC/BARCODE tags onto downloaded FLACs so presence matching has an
@@ -1239,6 +1264,7 @@ async function tickQueue() {
 
 async function runJob(job) {
   let jobStaging = null
+  jobAborts.set(job.id, new AbortController())
   try {
     throwIfCancelled(job)
     updateJob(job.id, { status: 'running', message: 'Preparing' })
@@ -1424,6 +1450,7 @@ async function runJob(job) {
           currentTrack: null,
         })
         const conv = await convertDirToFlac(jobStaging, {
+          signal: jobSignal(job),
           onProgress: ({ index, total }) => {
             if (total > 0) {
               progressState.convertTotal = total
@@ -1458,6 +1485,7 @@ async function runJob(job) {
         currentTrack: null,
       })
 
+      beginLibraryImport(job)
       const importedTracks = await importPlaylistTracks({
         job,
         jobStaging,
@@ -1536,6 +1564,7 @@ async function runJob(job) {
         currentTrack: null,
       })
       const conv = await convertDirToFlac(albumPath, {
+        signal: jobSignal(job),
         onProgress: ({ index, total }) => {
           if (total > 0) {
             progressState.convertTotal = total
@@ -1587,6 +1616,7 @@ async function runJob(job) {
     ).length
     if (audioCount === 0) throw await explainNoAudio(job)
 
+    beginLibraryImport(job)
     const convention = settings.namingConvention || 'apple'
 
     let finalDir
@@ -1762,6 +1792,8 @@ async function runJob(job) {
       await fsp.rm(jobStaging, { recursive: true, force: true }).catch(() => {})
     }
     state.running.delete(job.id)
+    jobAborts.delete(job.id)
+    importingJobs.delete(job.id)
   }
 }
 
@@ -1964,6 +1996,7 @@ async function runPartialAlbumFill({
     let convertedFailed = 0
     for (const albumPath of trackAlbumPaths) {
       const conv = await convertDirToFlac(albumPath, {
+        signal: jobSignal(job),
         onProgress: ({ index, total }) => {
           if (total > 0) {
             progressState.convertTotal = Math.max(progressState.convertTotal, missing.length)
@@ -1992,6 +2025,7 @@ async function runPartialAlbumFill({
     applyProgress(job, progressState, { message: 'Converting to FLAC' })
   }
 
+  beginLibraryImport(job)
   const convention = settings?.namingConvention || 'apple'
   const finalDir = await computeFinalDir(
     MUSIC_ROOT,
@@ -2153,7 +2187,7 @@ async function runLibraryPlaylistFill({
     if (progressState.convertEnabled) {
       const albumDirs = await collectAlbumStagingDirs(trackStaging)
       for (const albumPath of albumDirs) {
-        const conv = await convertDirToFlac(albumPath, {})
+        const conv = await convertDirToFlac(albumPath, { signal: jobSignal(job) })
         progressState.convertDone = Math.min(
           progressState.convertTotal,
           progressState.convertDone + (conv.converted || 0),
@@ -2162,6 +2196,7 @@ async function runLibraryPlaylistFill({
       applyProgress(job, progressState)
     }
 
+    beginLibraryImport(job)
     const importedHere = await importPlaylistTracks({
       job,
       jobStaging: trackStaging,
@@ -2172,6 +2207,7 @@ async function runLibraryPlaylistFill({
         await writeAudioIdentityTags(importedPath, { isrc: fillTrackIsrc })
       }
     }
+    endLibraryImport(job)
     for (const p of importedHere) importedPaths.push(p)
 
     progressState.downloadDone = i + 1
@@ -2186,6 +2222,7 @@ async function runLibraryPlaylistFill({
     throw new Error(job.lastTrackError || 'no tracks were imported from playlist')
   }
 
+  beginLibraryImport(job)
   progressState.finalizeProgress = Math.max(progressState.finalizeProgress, 0.93)
   applyProgress(job, progressState, {
     message: 'Writing playlist file',
