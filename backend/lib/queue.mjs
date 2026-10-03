@@ -635,7 +635,26 @@ function restorePersistedJobs() {
   }
 }
 
-export async function enqueueAlbum({ albumId, storefront, quality, expectedArtistId }) {
+// Enqueueing looks things up (catalog, library) before the job exists, so
+// two requests for the same thing arriving together would both pass the
+// "already queued" check. Requests with the same key share one enqueue.
+const pendingEnqueues = new Map()
+
+function coalesceEnqueue(key, create) {
+  const pending = pendingEnqueues.get(key)
+  if (pending) return pending
+  const run = create().finally(() => pendingEnqueues.delete(key))
+  pendingEnqueues.set(key, run)
+  return run
+}
+
+export async function enqueueAlbum(opts) {
+  const settings = await readSettings()
+  const group = groupOf(normalizeQuality(opts?.quality, settings.quality))
+  return coalesceEnqueue(`album:${opts?.albumId}:${group}`, () => createAlbumJob(opts))
+}
+
+async function createAlbumJob({ albumId, storefront, quality, expectedArtistId }) {
   const settings = await readSettings()
   const requestedQuality = normalizeQuality(quality, settings.quality)
   const requestedGroup = groupOf(requestedQuality)
@@ -755,13 +774,18 @@ export async function enqueueAlbum({ albumId, storefront, quality, expectedArtis
   return jobPublic(job)
 }
 
-export async function enqueuePlaylist({ playlistId, libraryId, storefront, quality }) {
+export async function enqueuePlaylist(opts) {
+  const { playlistId, libraryId } = opts || {}
   if (!playlistId && !libraryId) {
     throw new Error('playlistId or libraryId required')
   }
   if (libraryId) {
-    return enqueueLibraryPlaylist({ libraryId, storefront, quality })
+    return coalesceEnqueue(`library-playlist:${libraryId}`, () => enqueueLibraryPlaylist(opts))
   }
+  return coalesceEnqueue(`playlist:${playlistId}`, () => createPlaylistJob(opts))
+}
+
+async function createPlaylistJob({ playlistId, storefront, quality }) {
 
   for (const j of state.jobs.values()) {
     if (
@@ -965,8 +989,12 @@ async function enqueueLibraryPlaylist({ libraryId, storefront, quality }) {
   return jobPublic(job)
 }
 
-export async function enqueueSong({ songId, albumId, storefront, quality, followedPlaylistId }) {
-  if (!songId) throw new Error('songId required')
+export async function enqueueSong(opts) {
+  if (!opts?.songId) throw new Error('songId required')
+  return coalesceEnqueue(`song:${opts.songId}`, () => createSongJob(opts))
+}
+
+async function createSongJob({ songId, albumId, storefront, quality, followedPlaylistId }) {
 
   for (const j of state.jobs.values()) {
     if (
