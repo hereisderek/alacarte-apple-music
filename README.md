@@ -117,7 +117,7 @@ Wrapper response type 4 is a generic StoreServices failure, not a credential dia
 - Jobs run **one at a time** — queuing many items won't speed things up, it just lines them up.
 - Download speed is throttled by Apple and varies by time of day.
 - After a download completes, each track is converted from ALAC to FLAC and moved into your library (although you can disable this in the settings).
-- The queue survives page refreshes but not container restarts.
+- The queue survives page refreshes and container restarts; a download that was running when the container stopped starts again from the beginning.
 - If a job fails (network hiccup, decryption glitch), you can re-queue it manually.
 
 ## Language support
