@@ -11,7 +11,10 @@ export async function triggerNavidromeScan({ fullScan = false } = {}) {
     const salt = crypto.randomBytes(6).toString('hex')
     const token = crypto.createHash('md5').update(creds.password + salt).digest('hex')
     
-    const url = new URL('/rest/startScan', creds.url)
+    // Relative to the configured URL so a Navidrome served under a path
+    // (https://host/navidrome) keeps it.
+    const base = creds.url.endsWith('/') ? creds.url : `${creds.url}/`
+    const url = new URL('rest/startScan', base)
     url.searchParams.set('u', creds.user)
     url.searchParams.set('t', token)
     url.searchParams.set('s', salt)
@@ -21,7 +24,8 @@ export async function triggerNavidromeScan({ fullScan = false } = {}) {
     if (fullScan) url.searchParams.set('fullScan', 'true')
 
     const response = await fetch(url.toString(), {
-      method: 'GET'
+      method: 'GET',
+      signal: AbortSignal.timeout(15_000),
     })
 
     if (!response.ok) {

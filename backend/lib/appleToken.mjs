@@ -1,6 +1,7 @@
 let cached = { token: null, expiresAt: 0 }
 let inFlight = null
 const TTL_MS = 25 * 60 * 1000
+const FETCH_TIMEOUT_MS = 15_000
 
 // Callers arriving while the token is being fetched share that fetch
 // instead of each scraping music.apple.com.
@@ -18,6 +19,7 @@ async function fetchBearerToken() {
   const now = Date.now()
 
   const rootRes = await fetch('https://music.apple.com', {
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     headers: {
       'User-Agent':
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -28,7 +30,9 @@ async function fetchBearerToken() {
   const m = html.match(/\/assets\/index~[^"']+\.js/)
   if (!m) throw new Error('could not locate index~*.js bundle URL')
 
-  const jsRes = await fetch('https://music.apple.com' + m[0])
+  const jsRes = await fetch('https://music.apple.com' + m[0], {
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  })
   if (!jsRes.ok) throw new Error(`bundle returned ${jsRes.status}`)
   const js = await jsRes.text()
   const tokenMatch = js.match(/eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/)
