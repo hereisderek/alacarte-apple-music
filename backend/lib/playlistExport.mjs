@@ -6,6 +6,12 @@ import { ensureDir, sanitizeSegment } from './folderLayout.mjs'
 import { getMusicRoot, purgePlaylistExportsSharingIds } from './libraryIndex.mjs'
 
 
+// Header values come from playlist names (user-editable in an Apple Music
+// library); a line break in one would add entries to the playlist.
+function headerValue(value) {
+    return String(value).replace(/[\x00-\x1f\x7f]+/g, ' ').trim()
+}
+
 // Shared playlist export writer: m3u8 under <music>/Playlists plus an Apple
 // cover image sidecar. Used by full playlist downloads and followed-playlist
 // syncs alike so both produce the same file conventions.
@@ -28,12 +34,12 @@ export async function writePlaylistM3U({
         keepAbsPath: filePath,
     })
 
-    const lines = ['#EXTM3U', `#PLAYLIST:${playlistName || 'Playlist'}`]
+    const lines = ['#EXTM3U', `#PLAYLIST:${headerValue(playlistName || '') || 'Playlist'}`]
     if (playlistId) {
-        lines.push(`#ALACARTE_PLAYLIST_ID:${playlistId}`)
+        lines.push(`#ALACARTE_PLAYLIST_ID:${headerValue(playlistId)}`)
     }
     if (libraryPlaylistId) {
-        lines.push(`#ALACARTE_LIBRARY_PLAYLIST_ID:${libraryPlaylistId}`)
+        lines.push(`#ALACARTE_LIBRARY_PLAYLIST_ID:${headerValue(libraryPlaylistId)}`)
     }
     for (const absPath of tracks) {
         const rel = path
