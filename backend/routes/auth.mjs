@@ -31,8 +31,9 @@ import {
 import { buildLoginLimiter } from '../lib/loginLimiter.mjs'
 import { logAuth } from '../lib/authLog.mjs'
 import {
-  requiresSetupToken,
-  verifyAndConsumeSetupToken,
+  checkSetupToken,
+  consumeSetupToken,
+  ensureSetupToken,
 } from '../lib/setupToken.mjs'
 import { isAuthDisabled } from '../lib/requireAuth.mjs'
 
@@ -71,9 +72,9 @@ function sessionCookieParts(req) {
   }
 }
 
-function setupTokenRequired() {
-  return requiresSetupToken()
-}
+// Set while a setup is saving credentials, so two requests holding the
+// token can't both run setup and overwrite each other.
+let setupInFlight = false
 
 function mapValidationStatus(err) {
   if (!err?.code) return null
@@ -103,7 +104,7 @@ authRouter.get('/state', async (req, res) => {
       minPasswordLength: MIN_PASSWORD_LENGTH,
       usernameMinLength: USERNAME_MIN_LENGTH,
       usernameMaxLength: USERNAME_MAX_LENGTH,
-      requiresSetupToken: !passwordSet && !authDisabled && setupTokenRequired(),
+      requiresSetupToken: !passwordSet && !authDisabled && Boolean(ensureSetupToken()),
     })
   } catch (err) {
     res.status(500).json({ error: 'internal error' })
@@ -143,18 +144,28 @@ authRouter.post('/setup', async (req, res) => {
         .json({ error: `password must be ${MIN_PASSWORD_LENGTH}-${MAX_PASSWORD_LENGTH} characters` })
     }
 
-    if (setupTokenRequired()) {
-      const setupToken = rawStringField(req.headers['x-setup-token'])
-      if (!verifyAndConsumeSetupToken(setupToken)) {
-        const penalty = loginLimiter.recordFailure(key)
-        if (penalty.status === 429) {
-          return sendRateLimited(res, penalty)
-        }
-        return res.status(403).json({ error: 'invalid setup token' })
+    ensureSetupToken()
+    const setupToken = rawStringField(req.headers['x-setup-token'])
+    if (!checkSetupToken(setupToken)) {
+      const penalty = loginLimiter.recordFailure(key)
+      if (penalty.status === 429) {
+        return sendRateLimited(res, penalty)
       }
+      return res.status(403).json({ error: 'invalid setup token' })
+    }
+    if (setupInFlight) {
+      return res.status(409).json({ error: 'setup already in progress' })
     }
 
-    await setCredentials(username, password)
+    // The token is only used up once the credentials are saved; a failed
+    // save leaves it valid instead of leaving setup open to anyone.
+    setupInFlight = true
+    try {
+      await setCredentials(username, password)
+    } finally {
+      setupInFlight = false
+    }
+    consumeSetupToken()
     const sv = await getSessionVersion()
     const token = issueToken({ user: username, sv })
     const { cookieName, cookieOptions } = sessionCookieParts(req)

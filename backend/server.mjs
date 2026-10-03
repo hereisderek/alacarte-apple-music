@@ -40,13 +40,8 @@ await initQueue().catch((err) => {
   console.error('queue init failed:', err.message)
 })
 
-const setupToken =
-  !isAuthDisabled() && !(await isPasswordSet())
-    ? generateSetupToken()
-    : null
-
-if (setupToken) {
-  console.log(`[auth] one-time setup token: ${setupToken}  (use it in the X-Setup-Token header)`)
+if (!isAuthDisabled() && !(await isPasswordSet())) {
+  generateSetupToken()
 }
 
 const app = express()
