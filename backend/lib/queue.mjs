@@ -1199,6 +1199,7 @@ export const __test__ = {
   wakeAndWaitForWrapper,
   tickQueue,
   importingJobs,
+  applyQobuzFileNames,
 }
 
 // Stamp ISRC/BARCODE tags onto downloaded FLACs so presence matching has an
@@ -1250,6 +1251,62 @@ async function stampAlbumIdentityTags(dir, upc, tracks, { originalAlbum, origina
     }
   } catch (err) {
     console.error('identity tag stamping failed:', err.message)
+  }
+}
+
+// Converts a staging folder to FLAC, reporting per-track progress on the
+// job. Shared by album, song and catalog playlist downloads.
+async function convertStagingToFlac(job, dir, progressState) {
+  applyProgress(job, progressState, {
+    message: 'Converting to FLAC',
+    currentTrack: null,
+  })
+  const conv = await convertDirToFlac(dir, {
+    signal: jobSignal(job),
+    onProgress: ({ index, total }) => {
+      if (total > 0) {
+        progressState.convertTotal = total
+      }
+      progressState.convertDone = Math.max(
+        progressState.convertDone,
+        Math.min(progressState.convertTotal || index, index),
+      )
+      applyProgress(job, progressState, {
+        message: `Converting to FLAC (${index}/${progressState.convertTotal || total || index})`,
+      })
+    },
+  })
+  job.stats.converted = conv.converted
+  job.stats.flacFailed = conv.failed
+  if (conv.total > 0) {
+    progressState.convertTotal = conv.total
+    progressState.convertDone = Math.max(progressState.convertDone, conv.total)
+  }
+  progressState.convertDone = Math.max(
+    progressState.convertDone,
+    progressState.convertTotal,
+  )
+  applyProgress(job, progressState, {
+    message: 'Converting to FLAC',
+  })
+}
+
+// Renames the audio and lyrics files in a staging folder to the qobuz
+// naming convention before they are moved. A file whose new name is
+// already taken keeps its name.
+async function applyQobuzFileNames(dir) {
+  const files = await fsp.readdir(dir).catch(() => [])
+  for (const fn of files) {
+    if (!/\.(flac|m4a|mp3|lrc)$/i.test(fn)) continue
+    const ext = path.extname(fn)
+    const stem = path.basename(fn, ext)
+    const newStem = applyNamingConvention(stem, 'qobuz')
+    if (newStem !== stem) {
+      const dst = path.join(dir, newStem + ext)
+      if (!(await fsp.stat(dst).catch(() => null))) {
+        await fsp.rename(path.join(dir, fn), dst)
+      }
+    }
   }
 }
 
@@ -1484,38 +1541,7 @@ async function runJob(job) {
 
     if (isPlaylist) {
       if (progressState.convertEnabled) {
-        applyProgress(job, progressState, {
-          message: 'Converting to FLAC',
-          currentTrack: null,
-        })
-        const conv = await convertDirToFlac(jobStaging, {
-          signal: jobSignal(job),
-          onProgress: ({ index, total }) => {
-            if (total > 0) {
-              progressState.convertTotal = total
-            }
-            progressState.convertDone = Math.max(
-              progressState.convertDone,
-              Math.min(progressState.convertTotal || index, index),
-            )
-            applyProgress(job, progressState, {
-              message: `Converting to FLAC (${index}/${progressState.convertTotal || total || index})`,
-            })
-          },
-        })
-        job.stats.converted = conv.converted
-        job.stats.flacFailed = conv.failed
-        if (conv.total > 0) {
-          progressState.convertTotal = conv.total
-          progressState.convertDone = Math.max(progressState.convertDone, conv.total)
-        }
-        progressState.convertDone = Math.max(
-          progressState.convertDone,
-          progressState.convertTotal,
-        )
-        applyProgress(job, progressState, {
-          message: 'Converting to FLAC',
-        })
+        await convertStagingToFlac(job, jobStaging, progressState)
       }
 
       progressState.finalizeProgress = Math.max(progressState.finalizeProgress, 0.55)
@@ -1598,38 +1624,7 @@ async function runJob(job) {
     if (partial) await removeOrphanLyrics(albumPath)
 
     if (progressState.convertEnabled) {
-      applyProgress(job, progressState, {
-        message: 'Converting to FLAC',
-        currentTrack: null,
-      })
-      const conv = await convertDirToFlac(albumPath, {
-        signal: jobSignal(job),
-        onProgress: ({ index, total }) => {
-          if (total > 0) {
-            progressState.convertTotal = total
-          }
-          progressState.convertDone = Math.max(
-            progressState.convertDone,
-            Math.min(progressState.convertTotal || index, index),
-          )
-          applyProgress(job, progressState, {
-            message: `Converting to FLAC (${index}/${progressState.convertTotal || total || index})`,
-          })
-        },
-      })
-      job.stats.converted = conv.converted
-      job.stats.flacFailed = conv.failed
-      if (conv.total > 0) {
-        progressState.convertTotal = conv.total
-        progressState.convertDone = Math.max(progressState.convertDone, conv.total)
-      }
-      progressState.convertDone = Math.max(
-        progressState.convertDone,
-        progressState.convertTotal,
-      )
-      applyProgress(job, progressState, {
-        message: 'Converting to FLAC',
-      })
+      await convertStagingToFlac(job, albumPath, progressState)
     }
 
     if (!isSong && !isPlaylist) {
@@ -1675,21 +1670,7 @@ async function runJob(job) {
       )
       await ensureDir(finalDir)
 
-      if (convention === 'qobuz') {
-        for (const fn of finalFiles) {
-          if (!/\.(flac|m4a|mp3|lrc)$/i.test(fn)) continue
-          const ext = path.extname(fn)
-          const stem = path.basename(fn, ext)
-          const newStem = applyNamingConvention(stem, 'qobuz')
-          if (newStem !== stem) {
-            const src = path.join(albumPath, fn)
-            const dst = path.join(albumPath, newStem + ext)
-            if (!(await fsp.stat(dst).catch(() => null))) {
-              await fsp.rename(src, dst)
-            }
-          }
-        }
-      }
+      if (convention === 'qobuz') await applyQobuzFileNames(albumPath)
 
       if (settings.namingLanguageMode !== 'display' && job.trackNameOverrides?.length) {
         await renameTrackFilesForLanguage(albumPath, job.trackNameOverrides)
@@ -1745,22 +1726,7 @@ async function runJob(job) {
         finalDir = applyVariantSuffix(finalDir, job.variant, job.quality)
       }
 
-      if (convention === 'qobuz') {
-        const audioFiles = await fsp.readdir(albumPath)
-        for (const fn of audioFiles) {
-          if (!/\.(flac|m4a|mp3|lrc)$/i.test(fn)) continue
-          const ext = path.extname(fn)
-          const stem = path.basename(fn, ext)
-          const newStem = applyNamingConvention(stem, 'qobuz')
-          if (newStem !== stem) {
-            const src = path.join(albumPath, fn)
-            const dst = path.join(albumPath, newStem + ext)
-            if (!await fsp.stat(dst).catch(() => null)) {
-              await fsp.rename(src, dst)
-            }
-          }
-        }
-      }
+      if (convention === 'qobuz') await applyQobuzFileNames(albumPath)
 
       if (settings.namingLanguageMode !== 'display' && job.trackNameOverrides?.length) {
         await renameTrackFilesForLanguage(albumPath, job.trackNameOverrides)
@@ -2073,22 +2039,7 @@ async function runPartialAlbumFill({
     job.year,
   )
   if (convention === 'qobuz') {
-    for (const albumPath of trackAlbumPaths) {
-      const audioFiles = await fsp.readdir(albumPath).catch(() => [])
-      for (const fn of audioFiles) {
-        if (!/\.(flac|m4a|mp3|lrc)$/i.test(fn)) continue
-        const ext = path.extname(fn)
-        const stem = path.basename(fn, ext)
-        const newStem = applyNamingConvention(stem, 'qobuz')
-        if (newStem !== stem) {
-          const src = path.join(albumPath, fn)
-          const dst = path.join(albumPath, newStem + ext)
-          if (!(await fsp.stat(dst).catch(() => null))) {
-            await fsp.rename(src, dst)
-          }
-        }
-      }
-    }
+    for (const albumPath of trackAlbumPaths) await applyQobuzFileNames(albumPath)
   }
   progressState.finalizeProgress = Math.max(progressState.finalizeProgress, 0.5)
   applyProgress(job, progressState, {
