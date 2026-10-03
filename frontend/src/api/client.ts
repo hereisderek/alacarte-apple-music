@@ -183,11 +183,7 @@ export type PublicSettings = {
   storefront: string
   language: string
   quality: QualityPreference
-  albumFolderFormat: string
-  artistFolderFormat: string
-  songFileFormat: string
   convertToFlac: boolean
-  keepAlac: boolean
   coverSize: string
   downloadLyrics: boolean
   promptForDownloadQuality: boolean

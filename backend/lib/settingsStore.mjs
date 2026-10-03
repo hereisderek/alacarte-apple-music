@@ -26,11 +26,7 @@ const DEFAULTS = {
   storefront: 'us',
   language: 'en-US',
   quality: 'flac',
-  albumFolderFormat: '{AlbumName} ({ReleaseYear})',
-  artistFolderFormat: '{ArtistName}',
-  songFileFormat: '{SongNumer}. {SongName}',
   convertToFlac: true,
-  keepAlac: false,
   coverSize: '1400x1400',
   downloadLyrics: false,
   lyricsFormat: 'lrc',
@@ -209,7 +205,14 @@ export function writeSettings(patch) {
   })
 }
 
-function normalizeSettings(parsed) {
+// Settings that never had any effect (amdp's folder and file names are fixed
+// in amdpRunner, and ALAC is not kept next to the FLAC); dropped from older
+// settings files on the next save.
+const RETIRED_KEYS = ['albumFolderFormat', 'artistFolderFormat', 'songFileFormat', 'keepAlac']
+
+function normalizeSettings(input) {
+  const parsed = { ...input }
+  for (const key of RETIRED_KEYS) delete parsed[key]
   const hasQuality = QUALITY_VALUES.has(parsed?.quality)
   const legacyFlacConversion =
     parsed?.convertToFlac ?? parsed?.flac_conversion ?? DEFAULTS.convertToFlac
@@ -225,7 +228,6 @@ function normalizeSettings(parsed) {
     ...parsed,
     quality,
     convertToFlac: quality === 'flac',
-    keepAlac: toBool(parsed?.keepAlac, DEFAULTS.keepAlac),
     downloadLyrics: toBool(parsed?.downloadLyrics, DEFAULTS.downloadLyrics),
     promptForDownloadQuality: toBool(
       parsed?.promptForDownloadQuality,
@@ -276,11 +278,7 @@ export async function readPublicSettings() {
     storefront: s.storefront,
     language: s.language,
     quality: s.quality,
-    albumFolderFormat: s.albumFolderFormat,
-    artistFolderFormat: s.artistFolderFormat,
-    songFileFormat: s.songFileFormat,
     convertToFlac: s.quality === 'flac',
-    keepAlac: s.keepAlac,
     coverSize: s.coverSize,
     downloadLyrics: Boolean(s.downloadLyrics),
     lyricsFormat: s.lyricsFormat || 'lrc',
