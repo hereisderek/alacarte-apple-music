@@ -22,6 +22,10 @@ export const libraryRouter = express.Router()
 const MUSIC_ROOT = process.env.AMDL_MUSIC_PATH || '/music'
 const AUDIO_RE = /\.(flac|m4a|mp3)$/i
 const ARTIST_RESOLVE_TTL_MS = 24 * 60 * 60 * 1000
+// A failed lookup (rate limit, network) is retried much sooner.
+const ARTIST_RESOLVE_ERROR_TTL_MS = 10 * 60 * 1000
+// Apple rate-limits by IP, so a large library resolves a few names at a time.
+const ARTIST_RESOLVE_CONCURRENCY = 4
 const artistResolveCache = new Map()
 
 libraryRouter.get('/', async (_req, res) => {
@@ -277,17 +281,16 @@ async function resolveArtistIdsByName(index, storefront, language) {
     ...index.albums.map((a) => a.artistName),
     ...index.singles.map((s) => s.artistName),
   ])
-  await Promise.all(
-    [...names]
-      .map((name) => String(name || '').trim())
-      .filter(Boolean)
-      .map(async (name) => {
-        const key = normalizeArtistName(name)
-        if (!key) return
-        const id = await resolveArtistId(name, storefront, language)
-        byName.set(key, id)
-      }),
-  )
+  const pending = [...names].map((name) => String(name || '').trim()).filter(Boolean)
+  const worker = async () => {
+    while (pending.length > 0) {
+      const name = pending.shift()
+      const key = normalizeArtistName(name)
+      if (!key) continue
+      byName.set(key, await resolveArtistId(name, storefront, language))
+    }
+  }
+  await Promise.all(Array.from({ length: ARTIST_RESOLVE_CONCURRENCY }, worker))
   return byName
 }
 
@@ -300,6 +303,7 @@ async function resolveArtistId(artistName, storefront, language) {
   if (cached && cached.expiresAt > now) return cached.artistId
 
   let artistId = null
+  let ttlMs = ARTIST_RESOLVE_TTL_MS
   try {
     const raw = await searchCatalog({
       storefront,
@@ -313,11 +317,12 @@ async function resolveArtistId(artistName, storefront, language) {
     artistId = pickBestArtistId(artistName, candidates)
   } catch {
     artistId = null
+    ttlMs = ARTIST_RESOLVE_ERROR_TTL_MS
   }
 
   artistResolveCache.set(cacheKey, {
     artistId,
-    expiresAt: now + ARTIST_RESOLVE_TTL_MS,
+    expiresAt: now + ttlMs,
   })
   return artistId
 }

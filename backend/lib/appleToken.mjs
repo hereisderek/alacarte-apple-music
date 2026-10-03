@@ -1,8 +1,21 @@
 let cached = { token: null, expiresAt: 0 }
+let inFlight = null
 const TTL_MS = 25 * 60 * 1000
-export async function getBearerToken() {
+
+// Callers arriving while the token is being fetched share that fetch
+// instead of each scraping music.apple.com.
+export function getBearerToken() {
+  if (cached.token && cached.expiresAt > Date.now()) return Promise.resolve(cached.token)
+  if (!inFlight) {
+    inFlight = fetchBearerToken().finally(() => {
+      inFlight = null
+    })
+  }
+  return inFlight
+}
+
+async function fetchBearerToken() {
   const now = Date.now()
-  if (cached.token && cached.expiresAt > now) return cached.token
 
   const rootRes = await fetch('https://music.apple.com', {
     headers: {
