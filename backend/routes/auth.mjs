@@ -39,6 +39,10 @@ import { isAuthDisabled } from '../lib/requireAuth.mjs'
 
 export const authRouter = express.Router()
 const loginLimiter = buildLoginLimiter()
+// Every login attempt costs a full scrypt hash whatever the username, so
+// attempts are also limited per IP: rotating usernames can't buy an
+// attacker fresh attempts. Looser than the per-user limit for shared IPs.
+const ipLimiter = buildLoginLimiter({ softFailThreshold: 10, hardFailThreshold: 50 })
 
 function trimStringField(v) {
   return typeof v === 'string' ? v.trim() : null
@@ -50,6 +54,15 @@ function rawStringField(v) {
 
 function limiterKey(req, username) {
   return `${req.ip}|${username || '?'}`
+}
+
+function ipLimiterKey(req) {
+  return `${req.ip}|*`
+}
+
+function sendBusy(res) {
+  res.set('Retry-After', '2')
+  return res.status(503).json({ error: 'busy, try again shortly' })
 }
 
 function sendRateLimited(res, result) {
@@ -178,6 +191,7 @@ authRouter.post('/setup', async (req, res) => {
     logAuth('setup.ok', { user: username, ip: req.ip })
     res.json({ ok: true, username })
   } catch (err) {
+    if (err?.code === 'SCRYPT_BUSY') return sendBusy(res)
     const status = mapValidationStatus(err)
     if (status) {
       return res.status(400).json({ error: err.message })
@@ -194,7 +208,9 @@ authRouter.post('/login', async (req, res) => {
   const username = trimStringField(req.body?.username) || ''
   const password = rawStringField(req.body?.password) || ''
   const key = limiterKey(req, username)
-  const check = loginLimiter.check(key)
+  const ipKey = ipLimiterKey(req)
+  const ipCheck = ipLimiter.check(ipKey)
+  const check = ipCheck.allowed ? loginLimiter.check(key) : ipCheck
   if (!check.allowed) {
     logAuth('login.locked', { user: username || null, ip: req.ip, until: check.lockedUntil || null })
     return sendRateLimited(res, check)
@@ -209,7 +225,9 @@ authRouter.post('/login', async (req, res) => {
     }
     const matchedHash = await verifyCredentials(username, password)
     if (!matchedHash) {
-      const penalty = loginLimiter.recordFailure(key)
+      const ipPenalty = ipLimiter.recordFailure(ipKey)
+      const userPenalty = loginLimiter.recordFailure(key)
+      const penalty = userPenalty.status === 429 ? userPenalty : ipPenalty
       if (penalty.status === 429) {
         logAuth('login.locked', { user: username, ip: req.ip, until: penalty.lockedUntil || null })
         return sendRateLimited(res, penalty)
@@ -219,6 +237,7 @@ authRouter.post('/login', async (req, res) => {
     }
 
     loginLimiter.recordSuccess(key)
+    ipLimiter.recordSuccess(ipKey)
 
     // Transparently upgrade hash if stored with older scrypt params.
     // Fire-and-forget: non-fatal if it fails; next login retries.
@@ -235,6 +254,7 @@ authRouter.post('/login', async (req, res) => {
     logAuth('login.ok', { user: username, ip: req.ip })
     res.json({ ok: true, username })
   } catch (err) {
+    if (err?.code === 'SCRYPT_BUSY') return sendBusy(res)
     res.status(500).json({ error: 'internal error' })
   }
 })
@@ -301,6 +321,7 @@ authRouter.post('/change-password', async (req, res) => {
     logAuth('password.changed', { user: sessionPayload.user, ip: req.ip })
     res.json({ ok: true })
   } catch (err) {
+    if (err?.code === 'SCRYPT_BUSY') return sendBusy(res)
     const status = mapValidationStatus(err)
     if (status) {
       return res.status(status).json({ error: err.message })
@@ -356,6 +377,7 @@ authRouter.post('/change-username', async (req, res) => {
     logAuth('username.changed', { from: sessionPayload.user, to: newUsername, ip: req.ip })
     res.json({ ok: true, username: newUsername })
   } catch (err) {
+    if (err?.code === 'SCRYPT_BUSY') return sendBusy(res)
     const status = mapValidationStatus(err)
     if (status) {
       return res.status(400).json({ error: err.message })
@@ -402,7 +424,8 @@ authRouter.post('/revoke-all', async (req, res) => {
     res.cookie(cookieName, token, cookieOptions)
     logAuth('revoke.all', { user: sessionPayload.user, ip: req.ip })
     res.json({ ok: true })
-  } catch {
+  } catch (err) {
+    if (err?.code === 'SCRYPT_BUSY') return sendBusy(res)
     res.status(500).json({ error: 'internal error' })
   }
 })
