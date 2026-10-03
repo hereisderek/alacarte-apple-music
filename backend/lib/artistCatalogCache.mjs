@@ -50,6 +50,7 @@ export async function loadArtistCatalogCached(opts, { force = false, followedCou
   }
   stats.misses += 1
   const ttlMs = await currentTtlMs(followedCount)
+  sweepExpired(now)
   const promise = loadArtistCatalogRaw(opts)
     .then((catalog) => {
       if (catalog) {
@@ -62,6 +63,17 @@ export async function loadArtistCatalogCached(opts, { force = false, followedCou
     })
   inFlight.set(key, promise)
   return promise
+}
+
+// Every artist page visited adds an entry. Stale entries are still useful
+// to peekAnyCachedCatalog for a while, so only those older than a day are
+// dropped, which keeps the cache from growing for as long as the server runs.
+const SWEEP_AFTER_MS = 24 * 60 * 60 * 1000
+
+function sweepExpired(now) {
+  for (const [key, entry] of cache) {
+    if (now - entry.fetchedAt >= SWEEP_AFTER_MS) cache.delete(key)
+  }
 }
 
 export function peekArtistCatalog(opts) {

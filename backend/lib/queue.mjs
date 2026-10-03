@@ -408,11 +408,24 @@ function updateJob(id, patch) {
   Object.assign(j, patch, { updatedAt: Date.now() })
   persistJob(j, statusChanged)
   emitJobUpdate(j, visibleChange)
+  if (statusChanged && (j.status === 'done' || j.status === 'failed')) pruneFinishedJobs()
 }
 
 const PERSIST_MIN_INTERVAL_MS = 1_000
 const PERSIST_JOB_CAP = 300
 const lastPersistAt = new Map()
+
+// Finished jobs stay listed in memory like they stay in the database, up to
+// the same cap; older ones only remain in the download history.
+function pruneFinishedJobs() {
+  const finished = [...state.jobs.values()]
+    .filter((j) => j.status === 'done' || j.status === 'failed')
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+  for (const j of finished.slice(PERSIST_JOB_CAP)) {
+    state.jobs.delete(j.id)
+    lastPersistAt.delete(j.id)
+  }
+}
 
 // Persist a job snapshot to SQLite. Progress-only updates are throttled;
 // status changes (and new jobs) always write. Fail-soft: a DB problem must
