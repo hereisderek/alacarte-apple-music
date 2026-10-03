@@ -100,16 +100,7 @@ export function getLoginStatus() {
 }
 
 export async function isWrapperReachable() {
-  try {
-    const res = await fetch(`${getSupervisorUrl()}/health`, {
-      signal: AbortSignal.timeout(2000),
-    })
-    if (!res.ok) return false
-    const data = await res.json()
-    return Boolean(data.ok)
-  } catch {
-    return false
-  }
+  return Boolean((await getSupervisorHealth())?.ok)
 }
 
 // Supervisor state, including why and when it will restart a wrapper that
