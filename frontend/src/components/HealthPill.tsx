@@ -18,6 +18,15 @@ export function HealthPill({ health, loading, variant = 'default' }: Props) {
     return <Badge className={shellClass}>{t('healthPill.checking')}</Badge>
   }
   if (health.ok) {
+    if (health.wrapper?.stallActive) {
+      return (
+        <Badge variant="warn" className={shellClass} title={t('healthPill.stalledTitle')}>
+          ● {t('healthPill.stalled')}
+        </Badge>
+      )
+    }
+    // Only shown for a couple of minutes after a stall ended; the backend
+    // then reports it as over and the pill returns to ready.
     if (health.wrapper?.stallRecent) {
       return (
         <Badge

@@ -412,6 +412,8 @@
     "checking": "Vérification…",
     "stalledRecoveredTitle": "Le wrapper de téléchargement s'est bloqué et a été récupéré automatiquement.",
     "recovered": "Récupéré",
+    "stalled": "Bloqué",
+    "stalledTitle": "Le wrapper de téléchargement ne répond plus depuis un moment ; le téléchargement sera arrêté s'il ne se rétablit pas.",
     "ready": "Prêt",
     "issue": "Problème",
     "somethingNotReady": "Quelque chose n'est pas prêt",

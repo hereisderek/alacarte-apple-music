@@ -412,6 +412,8 @@
     "checking": "확인 중…",
     "stalledRecoveredTitle": "다운로드 래퍼가 멈췄다가 자동으로 복구되었습니다.",
     "recovered": "복구됨",
+    "stalled": "멈춤",
+    "stalledTitle": "다운로드 래퍼가 한동안 응답이 없습니다. 복구되지 않으면 다운로드가 중단됩니다.",
     "ready": "준비됨",
     "issue": "문제",
     "somethingNotReady": "일부 항목이 준비되지 않았습니다",

@@ -412,6 +412,8 @@
     "checking": "Comprobando…",
     "stalledRecoveredTitle": "El wrapper de descargas se detuvo y se recuperó automáticamente.",
     "recovered": "Recuperado",
+    "stalled": "Detenido",
+    "stalledTitle": "El wrapper de descargas lleva un rato sin responder; la descarga se detendrá si no se recupera.",
     "ready": "Listo",
     "issue": "Problema",
     "somethingNotReady": "Algo no está listo",

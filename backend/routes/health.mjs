@@ -22,6 +22,7 @@ const WRAPPER_PORTS = {
   account: _ports.account,
 }
 const MUSIC_PATH = process.env.AMDL_MUSIC_PATH || '/music'
+const RECOVERED_SHOW_MS = 2 * 60_000
 
 function humanize(probe) {
   if (probe.ok) return probe
@@ -59,14 +60,19 @@ healthRouter.get('/', async (_req, res) => {
   }
   const wrapperUp = decrypt.ok && m3u8.ok && account.ok
   const events = getWrapperEventState()
-  const recentStallMs = 5 * 60_000
+  // "Recovered" is shown for a short while after a stall ended, then the
+  // pill goes back to ready; a stall still going on is reported as such.
+  const stallActive = Boolean(events.stallActive)
   const stallRecent =
-    events.stallSuspectedAt && Date.now() - events.stallSuspectedAt < recentStallMs
+    !stallActive &&
+    events.stallEndedAt &&
+    Date.now() - events.stallEndedAt < RECOVERED_SHOW_MS
   res.json({
     ok: wrapperUp && tokenOk && musicOk && mp4box.ok,
     wrapper: {
       host: WRAPPER_HOST,
       up: wrapperUp,
+      stallActive,
       stallRecent: Boolean(stallRecent),
       lastStallAt: events.stallSuspectedAt || null,
       lastStallAbortedAt: events.stallAbortedAt || null,

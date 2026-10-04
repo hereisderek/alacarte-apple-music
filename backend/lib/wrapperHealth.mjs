@@ -12,15 +12,38 @@ const WRAPPER_PORTS = {
 const lastEventTs = {
   stallSuspectedAt: 0,
   stallAbortedAt: 0,
+  // When the last stall ended: the download produced output again, the job
+  // finished, or the stalled download was aborted.
+  stallEndedAt: 0,
   downAt: 0,
+}
+// Jobs whose download is stalled right now.
+const stalledJobs = new Set()
+
+function endStall(jobId, now) {
+  if (stalledJobs.delete(jobId)) lastEventTs.stallEndedAt = now
 }
 
 subscribeEvent((evt) => {
   if (!evt) return
+  const jobId = evt.data?.jobId
   if (evt.type === 'wrapper.stall.suspected') {
     const now = Date.now()
     lastEventTs.stallSuspectedAt = now
-    if (evt.data?.phase === 'aborting') lastEventTs.stallAbortedAt = now
+    if (evt.data?.phase === 'aborting') {
+      lastEventTs.stallAbortedAt = now
+      lastEventTs.stallEndedAt = now
+      stalledJobs.delete(jobId)
+    } else if (jobId) {
+      stalledJobs.add(jobId)
+    }
+  }
+  if (evt.type === 'wrapper.stall.cleared' && jobId) endStall(jobId, Date.now())
+  if (
+    evt.type === 'job.update' &&
+    (evt.data?.status === 'done' || evt.data?.status === 'failed')
+  ) {
+    endStall(evt.data.id, Date.now())
   }
   if (evt.type === 'wrapper.health' && evt.data?.ok === false) {
     lastEventTs.downAt = Date.now()
@@ -32,7 +55,7 @@ export function getWrapperPorts() {
 }
 
 export function getWrapperEventState() {
-  return { ...lastEventTs }
+  return { ...lastEventTs, stallActive: stalledJobs.size > 0 }
 }
 
 export function probeTcp(host, port, timeout = 1500) {

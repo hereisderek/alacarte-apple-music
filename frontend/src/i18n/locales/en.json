@@ -412,6 +412,8 @@
     "checking": "Checking…",
     "stalledRecoveredTitle": "Download wrapper stalled and was auto-recovered.",
     "recovered": "Recovered",
+    "stalled": "Stalled",
+    "stalledTitle": "The download wrapper has produced no output for a while; the download is stopped if it does not recover.",
     "ready": "Ready",
     "issue": "Issue",
     "somethingNotReady": "Something is not ready",

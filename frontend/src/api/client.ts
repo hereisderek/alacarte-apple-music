@@ -161,6 +161,7 @@ export type HealthReport = {
   wrapper: {
     host: string
     up?: boolean
+    stallActive?: boolean
     stallRecent?: boolean
     lastStallAt?: number | null
     lastStallAbortedAt?: number | null

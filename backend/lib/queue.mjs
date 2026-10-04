@@ -2506,6 +2506,8 @@ async function runAmdpDownload({ job, jobStaging, url, quality, isSong, progress
       })
     } else if (idleMs < STALL_WARN_MS && warnFired) {
       warnFired = false
+      // Output resumed, so the suspected stall is over.
+      emitEvent('wrapper.stall.cleared', { jobId: job.id })
     }
   }, STALL_TICK_MS)
 
@@ -2548,6 +2550,9 @@ async function runAmdpDownload({ job, jobStaging, url, quality, isSong, progress
     }
   } finally {
     clearInterval(watchdog)
+    // A pass that ends while a stall warning stands (e.g. one track of a
+    // partial fill) ends that stall too.
+    if (warnFired && !stallReason) emitEvent('wrapper.stall.cleared', { jobId: job.id })
     if (state.running.get(job.id) === ctl) {
       state.running.delete(job.id)
     }
