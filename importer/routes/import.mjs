@@ -8,9 +8,14 @@ import {
   selectCandidate,
 } from '../lib/importSession.mjs'
 import { onEvent } from '../lib/eventBus.mjs'
-import { searchSongs } from '../lib/backendClient.mjs'
+import { getBackendHealth, searchSongs } from '../lib/backendClient.mjs'
 
 export const importRouter = express.Router()
+
+importRouter.get('/status', async (_req, res) => {
+  const health = await getBackendHealth()
+  res.json(health)
+})
 
 importRouter.post('/', async (req, res) => {
   try {

@@ -1,3 +1,4 @@
+import dns from 'node:dns'
 import express from 'express'
 import cookieParser from 'cookie-parser'
 import helmet from 'helmet'
@@ -5,10 +6,15 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs'
 
+if (typeof dns.setDefaultResultOrder === 'function') {
+  dns.setDefaultResultOrder('ipv6first')
+}
+
 import { authRouter } from './routes/auth.mjs'
 import { importRouter } from './routes/import.mjs'
 import { requireImporterAuth, isAuthEnabled } from './lib/auth.mjs'
 import { createRateLimiter } from './lib/rateLimiter.mjs'
+import { getBackendHealth } from './lib/backendClient.mjs'
 
 const PORT = Number(process.env.PORT || 8080)
 
@@ -60,6 +66,7 @@ const loginLimiter = createRateLimiter({ windowMs: 60_000, max: 10 })
 const importLimiter = createRateLimiter({ windowMs: 60_000, max: 5 })
 
 const root = express.Router()
+root.get('/api/status', async (_req, res) => res.json(await getBackendHealth()))
 root.use('/api/auth/login', loginLimiter)
 root.use('/api/auth', authRouter)
 root.use(requireImporterAuth())

@@ -84,8 +84,35 @@ export type ImportSession = {
   warnings?: string[]
 }
 
+export type FailedPort = {
+  name: string
+  port: number
+  error: string
+  friendlyError?: string
+}
+
+export type ServerStatus = {
+  connected: boolean
+  ok: boolean
+  error?: string | null
+  wrapper: {
+    ok: boolean
+    host?: string
+    failedPorts?: FailedPort[]
+  }
+  appleToken: {
+    ok: boolean
+    error?: string | null
+  }
+  queue: {
+    running: number
+    queued: number
+  }
+}
+
 export const api = {
   authState: () => http<{ authEnabled: boolean }>('auth/state'),
+  serverStatus: () => http<ServerStatus>('status'),
   login: (username: string, password: string) =>
     http<{ ok: true }>('auth/login', {
       method: 'POST',

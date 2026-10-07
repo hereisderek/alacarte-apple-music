@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   api,
@@ -6,6 +6,7 @@ import {
   HttpError,
   type ImportItem,
   type ImportSession,
+  type ServerStatus,
   type SongCandidate,
 } from './api'
 
@@ -149,6 +150,170 @@ function LoginForm({ onLoggedIn }: { onLoggedIn: () => void }) {
   )
 }
 
+function ServerStatusIndicator({
+  status,
+  loading,
+  onRefresh,
+}: {
+  status: ServerStatus | null
+  loading: boolean
+  onRefresh: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  let tone: 'green' | 'amber' | 'red' | 'gray' = 'gray'
+  let label = 'Checking…'
+
+  if (loading && !status) {
+    tone = 'gray'
+    label = 'Checking…'
+  } else if (!status || !status.connected) {
+    tone = 'red'
+    label = 'Backend Down'
+  } else if (!status.wrapper?.ok) {
+    tone = 'red'
+    label = 'Wrapper Offline'
+  } else if (!status.appleToken?.ok) {
+    tone = 'amber'
+    label = 'Apple Token Expired'
+  } else if (status.ok) {
+    tone = 'green'
+    label = 'Ready'
+  } else {
+    tone = 'amber'
+    label = 'Degraded'
+  }
+
+  const dotColor = {
+    green: 'bg-emerald-500',
+    amber: 'bg-amber-500',
+    red: 'bg-rose-500',
+    gray: 'bg-neutral-500',
+  }[tone]
+
+  const pingColor = {
+    green: 'bg-emerald-400',
+    amber: 'bg-amber-400',
+    red: 'bg-rose-400',
+    gray: 'bg-neutral-400',
+  }[tone]
+
+  return (
+    <div className="relative inline-block" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="inline-flex items-center gap-2 rounded-full bg-neutral-800/90 hover:bg-neutral-800 border border-neutral-700/80 px-2.5 py-1 text-xs font-medium text-neutral-300 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-600/50"
+        title="Click to view server status details"
+      >
+        <span className="relative flex h-2 w-2">
+          {tone === 'green' && (
+            <span
+              className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${pingColor}`}
+            />
+          )}
+          <span className={`relative inline-flex rounded-full h-2 w-2 ${dotColor}`} />
+        </span>
+        <span>{label}</span>
+        <span className="text-[10px] text-neutral-400">▾</span>
+      </button>
+
+      {open && (
+        <div className="absolute left-0 mt-2 w-72 rounded-lg bg-neutral-900 border border-neutral-700/80 p-3.5 shadow-xl text-xs z-50 animate-in fade-in zoom-in-95 duration-100">
+          <div className="flex items-center justify-between pb-2 mb-2 border-b border-neutral-800 text-neutral-200">
+            <span className="font-semibold text-neutral-100">Server Status</span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onRefresh()
+              }}
+              disabled={loading}
+              className="text-neutral-400 hover:text-neutral-200 disabled:opacity-40"
+              title="Refresh status"
+            >
+              ⟳ Refresh
+            </button>
+          </div>
+
+          <div className="space-y-2 text-neutral-300">
+            <div className="flex items-center justify-between">
+              <span className="text-neutral-400">Main Backend:</span>
+              <span className="flex items-center gap-1.5 font-medium">
+                <span
+                  className={`inline-block h-1.5 w-1.5 rounded-full ${
+                    status?.connected ? 'bg-emerald-500' : 'bg-rose-500'
+                  }`}
+                />
+                {status?.connected ? 'Connected' : 'Unreachable'}
+              </span>
+            </div>
+
+            <div className="flex items-start justify-between">
+              <span className="text-neutral-400">FairPlay Wrapper:</span>
+              <div className="text-right">
+                <span className="flex items-center justify-end gap-1.5 font-medium">
+                  <span
+                    className={`inline-block h-1.5 w-1.5 rounded-full ${
+                      status?.wrapper?.ok ? 'bg-emerald-500' : 'bg-rose-500'
+                    }`}
+                  />
+                  {status?.wrapper?.ok ? 'Ready (3/3 ports)' : 'Offline'}
+                </span>
+                {status?.wrapper?.failedPorts && status.wrapper.failedPorts.length > 0 && (
+                  <div className="text-[11px] text-rose-400 mt-0.5 max-w-[170px] leading-tight">
+                    {status.wrapper.failedPorts.map((p) => (
+                      <div key={p.name}>
+                        {p.name}: {p.friendlyError || p.error}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <span className="text-neutral-400">Apple Music Session:</span>
+              <span className="flex items-center gap-1.5 font-medium">
+                <span
+                  className={`inline-block h-1.5 w-1.5 rounded-full ${
+                    status?.appleToken?.ok ? 'bg-emerald-500' : 'bg-amber-500'
+                  }`}
+                />
+                {status?.appleToken?.ok ? 'Active' : 'Unauthenticated'}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <span className="text-neutral-400">Download Queue:</span>
+              <span className="font-medium text-neutral-300">
+                {status ? `${status.queue.running} active, ${status.queue.queued} queued` : '—'}
+              </span>
+            </div>
+          </div>
+
+          {status && (!status.connected || !status.wrapper?.ok) && (
+            <div className="mt-3 pt-2.5 border-t border-neutral-800 text-[11px] text-rose-300/90 leading-snug">
+              ⚠️ Downloads will fail while the FairPlay decryption wrapper is unreachable.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ImporterApp() {
   const [text, setText] = useState('')
   const [title, setTitle] = useState('')
@@ -156,6 +321,35 @@ function ImporterApp() {
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [session, setSession] = useState<ImportSession | null>(null)
+  const [serverStatus, setServerStatus] = useState<ServerStatus | null>(null)
+  const [statusLoading, setStatusLoading] = useState(false)
+
+  const fetchStatus = useCallback(() => {
+    setStatusLoading(true)
+    api
+      .serverStatus()
+      .then((s) => setServerStatus(s))
+      .catch((err) => {
+        setServerStatus({
+          connected: false,
+          ok: false,
+          error: err instanceof Error ? err.message : 'Failed to reach server',
+          wrapper: { ok: false },
+          appleToken: { ok: false },
+          queue: { running: 0, queued: 0 },
+        })
+      })
+      .finally(() => setStatusLoading(false))
+  }, [])
+
+  useEffect(() => {
+    fetchStatus()
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return
+      fetchStatus()
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [fetchStatus])
 
   function handleLanguageChange(newLang: string) {
     setLanguage(newLang)
@@ -190,7 +384,14 @@ function ImporterApp() {
     <div className="min-h-screen max-w-3xl mx-auto p-6 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <header>
-          <h1 className="text-2xl font-semibold">Music Import</h1>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-semibold">Music Import</h1>
+            <ServerStatusIndicator
+              status={serverStatus}
+              loading={statusLoading}
+              onRefresh={fetchStatus}
+            />
+          </div>
           <p className="text-neutral-400 text-sm mt-1">
             Paste a song list (one per line, search terms, or "Title - Artist") or playlist links from NetEase (163.com),
             YouTube Music, Spotify, Qishui, KKBOX, or supported chart sites.
@@ -214,6 +415,24 @@ function ImporterApp() {
           </select>
         </div>
       </div>
+
+      {serverStatus && (!serverStatus.connected || !serverStatus.wrapper?.ok) && (
+        <div className="rounded border border-rose-800/80 bg-rose-950/40 p-3.5 text-sm text-rose-200 flex items-start gap-2.5">
+          <span className="text-base select-none">⚠️</span>
+          <div>
+            <p className="font-medium">
+              {!serverStatus.connected
+                ? 'Main backend is unreachable'
+                : 'FairPlay decryption wrapper is unreachable'}
+            </p>
+            <p className="text-xs text-rose-300/80 mt-0.5">
+              {!serverStatus.connected
+                ? 'Check that the alacarte-web container is running on the network.'
+                : 'Downloads will fail until the alacarte-wrapper container is running on the same network.'}
+            </p>
+          </div>
+        </div>
+      )}
 
       <form onSubmit={submit} className="space-y-3">
         <textarea

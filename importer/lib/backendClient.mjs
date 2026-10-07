@@ -75,3 +75,26 @@ export async function exportPlaylistM3u({ title, tracks }) {
     body: { title, tracks },
   })
 }
+
+export async function getBackendHealth() {
+  try {
+    const data = await call('/api/internal/health')
+    return {
+      connected: true,
+      ok: Boolean(data?.ok),
+      wrapper: data?.wrapper || { ok: false },
+      appleToken: data?.appleToken || { ok: false },
+      queue: data?.queue || { running: 0, queued: 0 },
+    }
+  } catch (err) {
+    return {
+      connected: false,
+      ok: false,
+      error: err.message || 'Main backend unreachable',
+      wrapper: { ok: false, failedPorts: [] },
+      appleToken: { ok: false },
+      queue: { running: 0, queued: 0 },
+    }
+  }
+}
+

@@ -2,11 +2,13 @@ import express from 'express'
 
 import { searchCatalog } from '../lib/appleApi.mjs'
 import { readSettings } from '../lib/settingsStore.mjs'
-import { enqueueSong, getJob } from '../lib/queue.mjs'
+import { enqueueSong, getJob, listJobs } from '../lib/queue.mjs'
 import { resolveTracksToLocalPaths, writePlaylistM3U } from '../lib/playlistExport.mjs'
 import { createSpacer } from '../lib/requestSpacer.mjs'
 import { toAppleLanguage } from '../lib/metadataLanguage.mjs'
 import { resolveLocalizedArtistName } from '../lib/localizedArtist.mjs'
+import { probeWrapperPorts } from '../lib/wrapperHealth.mjs'
+import { getBearerToken } from '../lib/appleToken.mjs'
 
 // Minimal surface for the separate public import service (importer/) to call
 // server-to-server. Guarded by requireInternalKey(), not the owner session —
@@ -144,3 +146,48 @@ internalRouter.post('/playlist/m3u-export', async (req, res) => {
     res.status(500).json({ error: err.message })
   }
 })
+
+internalRouter.get('/health', async (_req, res) => {
+  try {
+    const wrapper = await probeWrapperPorts({ timeoutMs: 1500 })
+    let appleTokenOk = false
+    let appleTokenError = null
+    try {
+      const token = await getBearerToken()
+      appleTokenOk = Boolean(token)
+    } catch (err) {
+      appleTokenError = err.message
+    }
+    const jobs = listJobs()
+    const running = jobs.filter((j) => j.status === 'running').length
+    const queued = jobs.filter((j) => j.status === 'queued').length
+
+    const failedPorts = (wrapper.failedPorts || []).map((p) => {
+      let friendlyError = p.error
+      if (p.error === 'ENOTFOUND') friendlyError = 'wrapper container is not running (ENOTFOUND)'
+      else if (p.error === 'ECONNREFUSED') friendlyError = 'wrapper starting or no credentials (ECONNREFUSED)'
+      else if (p.error === 'timeout') friendlyError = 'connection timed out'
+      return { ...p, friendlyError }
+    })
+
+    res.json({
+      ok: Boolean(wrapper.ok && appleTokenOk),
+      wrapper: {
+        ok: Boolean(wrapper.ok),
+        host: wrapper.host,
+        failedPorts,
+      },
+      appleToken: {
+        ok: appleTokenOk,
+        error: appleTokenError,
+      },
+      queue: {
+        running,
+        queued,
+      },
+    })
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message })
+  }
+})
+
