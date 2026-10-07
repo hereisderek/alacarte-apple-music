@@ -30,6 +30,8 @@ import { isAuthDisabled, requireAuth } from './lib/requireAuth.mjs'
 import { startAutoDownloadScheduler } from './lib/autoDownloads.mjs'
 import { startPlaylistSyncScheduler } from './lib/playlistSync.mjs'
 import { initQueue } from './lib/queue.mjs'
+import { internalRouter } from './routes/internal.mjs'
+import { requireInternalKey } from './lib/requireInternalKey.mjs'
 
 const PORT = Number(process.env.PORT || 7373)
 const CONFIG_DIR = process.env.AMDL_CONFIG_DIR || '/config'
@@ -97,6 +99,11 @@ app.use((req, _res, next) => {
 // Auth router is mounted before the guard so /state, /setup, and /login
 // remain reachable for bootstrap. The guard then protects everything else.
 app.use('/api/auth', authRouter)
+
+// Internal router is mounted before the session guard and protected by its own
+// API key, so the standalone importer container can query and enqueue server-to-server.
+app.use('/api/internal', requireInternalKey(), internalRouter)
+
 app.use(requireAuth())
 
 app.use('/api/health', healthRouter)

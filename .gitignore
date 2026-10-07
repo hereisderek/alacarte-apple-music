@@ -7,6 +7,7 @@ backend/data/
 backend/public/
 frontend/dist/
 frontend/tsconfig.app.tsbuildinfo
+importer/public/
 *.log
 .DS_Store
 docker-compose.override.yml

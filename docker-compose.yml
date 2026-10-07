@@ -1,11 +1,9 @@
 services:
   wrapper:
+    image: ghcr.io/hereisderek/alacarte-wrapper:latest
     build:
       context: ./wrapper
       dockerfile: Dockerfile
-    image: alacarte-wrapper:local
-    # Built from source, never on a registry: skip pulls (Portainer's re-pull
-    # option) and rebuild on every deploy so updates are picked up.
     pull_policy: build
     container_name: alacarte-wrapper
     # Wrapper binary + upstream rootfs are amd64-only. Pinning the platform makes
@@ -29,7 +27,6 @@ services:
     # the supervisor, which passes argv to the wrapper and serves the sign-in
     # control API on 40020 (internal network only).
     entrypoint: ["/app/wrapper-entrypoint.sh"]
-    command: ["-H", "0.0.0.0"]
     environment:
       - LD_PRELOAD=/app/libwrapper_login_fix.so
       - SUPERVISOR_TOKEN_FILE=/app/supervisor-secret/token
@@ -45,6 +42,7 @@ services:
     restart: on-failure
 
   web:
+    image: ghcr.io/hereisderek/alacarte-web:latest
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -56,6 +54,7 @@ services:
       - wrapper
     environment:
       - PORT=7373
+      - NODE_OPTIONS=--dns-result-order=ipv6first
       - AMDL_WRAPPER_HOST=alacarte-wrapper
       - AMDL_WRAPPER_DECRYPT_PORT=10020
       - AMDL_WRAPPER_M3U8_PORT=20020
@@ -67,6 +66,16 @@ services:
       - AMDL_SECRET_KEY=${AMDL_SECRET_KEY:-}
       - AUTH_DISABLED=${AUTH_DISABLED:-false}
       - TRUST_PROXY=${TRUST_PROXY:-loopback}
+      # Shared secret the importer service (see below) uses to call
+      # /api/internal/*. Leave unset if you're not running the importer —
+      # that surface 503s without it. Set the same value for both services.
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY:-}
+      # Minimum gap (ms) the importer's /api/internal/search calls are spaced
+      # apart at — the shared choke point protecting your Apple Music session's
+      # catalog-search quota from ANY caller, not just the importer. See
+      # backend/lib/requestSpacer.mjs. Raise this if you still see 429s at the
+      # default; lower it if you have headroom to spare.
+      - INTERNAL_SEARCH_MIN_INTERVAL_MS=${INTERNAL_SEARCH_MIN_INTERVAL_MS:-1500}
     volumes:
       - ${ALACARTE_DATA_PATH:-./data}/web:/config
       - ${ALACARTE_DATA_PATH:-./data}/supervisor:/supervisor-secret:ro
@@ -76,6 +85,56 @@ services:
     # the host machine only when fronting with a reverse proxy.
     ports:
       - "${WEB_BIND:-0.0.0.0}:${WEB_PORT:-7373}:7373"
+    networks:
+      - alacarte-net
+    restart: unless-stopped
+
+  # Optional public-facing batch import front-end (see importer/README.md).
+  # Off by default — `docker compose --profile importer up` to include it.
+  # It never talks to `web` over the published port; it calls the internal
+  # /api/internal/* surface over this same docker network instead, so `web`
+  # itself never needs to be exposed publicly for the importer to work.
+  importer:
+    image: ghcr.io/hereisderek/alacarte-importer:latest
+    build:
+      context: .
+      dockerfile: importer/Dockerfile
+      args:
+        VITE_BASE_PATH: ${IMPORTER_BASE_PATH:-./}
+    container_name: alacarte-importer
+    profiles: ["importer"]
+    depends_on:
+      - web
+    environment:
+      - PORT=8080
+      - NODE_OPTIONS=--dns-result-order=ipv6first
+      - BASE_PATH=${IMPORTER_BASE_PATH:-/}
+      - BACKEND_URL=http://alacarte-web:7373
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY:?Set INTERNAL_API_KEY in .env to enable the importer}
+      - AUTH_ENABLED=${IMPORTER_AUTH_ENABLED:-false}
+      - IMPORTER_USERNAME=${IMPORTER_USERNAME:-import}
+      - IMPORTER_PASSWORD=${IMPORTER_PASSWORD:-}
+      - IMPORTER_SESSION_SECRET=${IMPORTER_SESSION_SECRET:-}
+      - TRUST_PROXY=${TRUST_PROXY:-loopback}
+      # Extra client-side pacing/retry margin on top of the backend's own
+      # spacing above — see importer/lib/importSession.mjs and
+      # importer/lib/backendClient.mjs. Rarely need to change these.
+      - IMPORTER_SEARCH_PACING_MS=${IMPORTER_SEARCH_PACING_MS:-500}
+      - IMPORTER_MAX_429_RETRIES=${IMPORTER_MAX_429_RETRIES:-6}
+      - IMPORTER_MAX_BACKOFF_MS=${IMPORTER_MAX_BACKOFF_MS:-20000}
+      - IMPORTER_MAX_TRACKS_PER_IMPORT=${IMPORTER_MAX_TRACKS_PER_IMPORT:-}
+      # User-Agent sent to each source. IMPORTER_USER_AGENT is the generic
+      # fallback; each parser can be overridden individually (only set the
+      # ones you need — unset falls back to IMPORTER_USER_AGENT, then a
+      # built-in default). See importer/lib/userAgent.mjs.
+      - IMPORTER_USER_AGENT=${IMPORTER_USER_AGENT:-}
+      - SPOTIFY_USER_AGENT=${SPOTIFY_USER_AGENT:-}
+      - QISHUI_USER_AGENT=${QISHUI_USER_AGENT:-}
+      - KKBOX_USER_AGENT=${KKBOX_USER_AGENT:-}
+      - SILVERBOX_USER_AGENT=${SILVERBOX_USER_AGENT:-}
+      - HOLIDAY_USER_AGENT=${HOLIDAY_USER_AGENT:-}
+    ports:
+      - "${IMPORTER_BIND:-0.0.0.0}:${IMPORTER_PORT:-8090}:8080"
     networks:
       - alacarte-net
     restart: unless-stopped
