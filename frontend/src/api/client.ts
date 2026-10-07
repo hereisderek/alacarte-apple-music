@@ -161,6 +161,7 @@ export type HealthReport = {
   wrapper: {
     host: string
     up?: boolean
+    stallActive?: boolean
     stallRecent?: boolean
     lastStallAt?: number | null
     lastStallAbortedAt?: number | null
@@ -183,11 +184,7 @@ export type PublicSettings = {
   storefront: string
   language: string
   quality: QualityPreference
-  albumFolderFormat: string
-  artistFolderFormat: string
-  songFileFormat: string
   convertToFlac: boolean
-  keepAlac: boolean
   coverSize: string
   downloadLyrics: boolean
   promptForDownloadQuality: boolean

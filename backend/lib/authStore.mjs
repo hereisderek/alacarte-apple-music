@@ -135,7 +135,9 @@ async function verifyHash(plain, encoded) {
         maxmem: SCRYPT_MAXMEM,
       }),
     )
-  } catch {
+  } catch (err) {
+    // A full queue is not a wrong password; let the caller answer 503.
+    if (err?.code === 'SCRYPT_BUSY') throw err
     return false
   }
   if (derived.length !== parsed.expected.length) return false

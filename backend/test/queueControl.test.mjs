@@ -69,3 +69,16 @@ test('paused queue starts nothing and remembers the pause', async () => {
   assert.equal(getMeta('queue_paused'), '0')
   assert.equal(getQueueState().paused, false)
 })
+
+test('a download that was running when the server stopped is queued again from the start', () => {
+  reset()
+  const job = { id: 'was-running', kind: 'album', status: 'running', progress: 63, createdAt: 50 }
+  state.jobs.set(job.id, job)
+  persistJob(job, true)
+  reset()
+  restorePersistedJobs()
+  const restored = state.jobs.get('was-running')
+  assert.equal(restored.status, 'queued')
+  assert.equal(restored.progress, 0)
+  assert.ok(state.queue.includes('was-running'))
+})

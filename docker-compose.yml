@@ -13,6 +13,10 @@ services:
       # ALACARTE_DATA_PATH lets hosts like Portainer (which resolve ./ per stack)
       # keep settings and the Apple session at a fixed absolute path.
       - ${ALACARTE_DATA_PATH:-./data}/wrapper:/app/rootfs/data
+      # Token the web container must send to the supervisor's control API,
+      # created on first start. Keeps other containers on the network from
+      # driving the Apple sign-in.
+      - ${ALACARTE_DATA_PATH:-./data}/supervisor:/app/supervisor-secret
       # The chroot dev/ ships empty (.gitkeep only); the Android runtime needs
       # working device nodes.  Explicit bind-mounts work on both Docker and Podman.
       - /dev/null:/app/rootfs/dev/null
@@ -25,6 +29,7 @@ services:
     entrypoint: ["/app/wrapper-entrypoint.sh"]
     environment:
       - LD_PRELOAD=/app/libwrapper_login_fix.so
+      - SUPERVISOR_TOKEN_FILE=/app/supervisor-secret/token
     expose:
       - "10020"
       - "20020"
@@ -54,6 +59,7 @@ services:
       - AMDL_WRAPPER_M3U8_PORT=20020
       - AMDL_WRAPPER_ACCOUNT_PORT=30020
       - AMDL_WRAPPER_SUPERVISOR_PORT=40020
+      - AMDL_SUPERVISOR_TOKEN_FILE=/supervisor-secret/token
       - AMDL_MUSIC_PATH=/music
       - AMDL_CONFIG_DIR=/config
       - AMDL_SECRET_KEY=${AMDL_SECRET_KEY:-}
@@ -71,6 +77,7 @@ services:
       - INTERNAL_SEARCH_MIN_INTERVAL_MS=${INTERNAL_SEARCH_MIN_INTERVAL_MS:-1500}
     volumes:
       - ${ALACARTE_DATA_PATH:-./data}/web:/config
+      - ${ALACARTE_DATA_PATH:-./data}/supervisor:/supervisor-secret:ro
       - ${MUSIC_PATH:?Set MUSIC_PATH in .env}:/music
     # Default (WEB_BIND unset/empty) publishes on all interfaces — same as
     # docker's default. Set WEB_BIND=127.0.0.1 in .env to restrict the UI to

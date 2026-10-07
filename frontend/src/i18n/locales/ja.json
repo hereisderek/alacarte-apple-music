@@ -413,6 +413,8 @@
     "checking": "確認しています…",
     "stalledRecoveredTitle": "ダウンロードラッパーが停止しましたが、自動的に復旧しました。",
     "recovered": "復旧済み",
+    "stalled": "停止中",
+    "stalledTitle": "ダウンロードラッパーがしばらく応答していません。復旧しない場合はダウンロードを中止します。",
     "ready": "準備完了",
     "issue": "問題あり",
     "somethingNotReady": "準備ができていない項目があります",

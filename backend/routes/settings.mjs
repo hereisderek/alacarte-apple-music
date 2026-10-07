@@ -50,11 +50,7 @@ export const WRITABLE_KEYS = new Set([
   'storefront',
   'language',
   'quality',
-  'albumFolderFormat',
-  'artistFolderFormat',
-  'songFileFormat',
   'convertToFlac',
-  'keepAlac',
   'coverSize',
   'downloadLyrics',
   'promptForDownloadQuality',
@@ -227,7 +223,6 @@ settingsRouter.post('/apple-credentials/login', async (_req, res) => {
       })
     }
     const s = await readSettings()
-    const { decryptSecret } = await import('../lib/settingsStore.mjs')
     const email = decryptSecret(s.appleEmail)
     const password = decryptSecret(s.applePassword)
     if (!email || !password) {

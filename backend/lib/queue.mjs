@@ -2,8 +2,6 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import fsp from 'node:fs/promises'
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
 
 import { emitEvent } from './eventBus.mjs'
 import { readSettings, readAppleCreds } from './settingsStore.mjs'
@@ -21,7 +19,7 @@ import {
 import { getLibraryPlaylistDetail } from './appleLibraryApi.mjs'
 import { triggerNavidromeScan } from './navidromeApi.mjs'
 import { creditImportedFiles } from './artistCredits.mjs'
-import { writeAmdpConfig, spawnAmdp, stripAnsi } from './amdpRunner.mjs'
+import { probeMp4Box, writeAmdpConfig, spawnAmdp, stripAnsi } from './amdpRunner.mjs'
 import { applyVariantSuffix, groupOf } from './qualityGroups.mjs'
 import {
   convertDirToFlac,
@@ -443,11 +441,24 @@ function updateJob(id, patch) {
   Object.assign(j, patch, { updatedAt: Date.now() })
   persistJob(j, statusChanged)
   emitJobUpdate(j, visibleChange)
+  if (statusChanged && (j.status === 'done' || j.status === 'failed')) pruneFinishedJobs()
 }
 
 const PERSIST_MIN_INTERVAL_MS = 1_000
 const PERSIST_JOB_CAP = 300
 const lastPersistAt = new Map()
+
+// Finished jobs stay listed in memory like they stay in the database, up to
+// the same cap; older ones only remain in the download history.
+function pruneFinishedJobs() {
+  const finished = [...state.jobs.values()]
+    .filter((j) => j.status === 'done' || j.status === 'failed')
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+  for (const j of finished.slice(PERSIST_JOB_CAP)) {
+    state.jobs.delete(j.id)
+    lastPersistAt.delete(j.id)
+  }
+}
 
 // Persist a job snapshot to SQLite. Progress-only updates are throttled;
 // status changes (and new jobs) always write. Fail-soft: a DB problem must
@@ -488,6 +499,26 @@ function makeAbortError() {
 
 function throwIfCancelled(job) {
   if (job?.cancelled) throw makeAbortError()
+}
+
+// Aborts a running job's work outside amdp (FLAC conversion).
+const jobAborts = new Map()
+// Jobs moving files into the library. Cancelling is refused in that window,
+// so a cancelled job never leaves part of an album behind or turns up as
+// done afterwards.
+const importingJobs = new Set()
+
+function jobSignal(job) {
+  return jobAborts.get(job.id)?.signal
+}
+
+function beginLibraryImport(job) {
+  throwIfCancelled(job)
+  importingJobs.add(job.id)
+}
+
+function endLibraryImport(job) {
+  importingJobs.delete(job.id)
 }
 
 function jobPublic(j) {
@@ -648,7 +679,26 @@ function restorePersistedJobs() {
   }
 }
 
-export async function enqueueAlbum({ albumId, storefront, quality, expectedArtistId }) {
+// Enqueueing looks things up (catalog, library) before the job exists, so
+// two requests for the same thing arriving together would both pass the
+// "already queued" check. Requests with the same key share one enqueue.
+const pendingEnqueues = new Map()
+
+function coalesceEnqueue(key, create) {
+  const pending = pendingEnqueues.get(key)
+  if (pending) return pending
+  const run = create().finally(() => pendingEnqueues.delete(key))
+  pendingEnqueues.set(key, run)
+  return run
+}
+
+export async function enqueueAlbum(opts) {
+  const settings = await readSettings()
+  const group = groupOf(normalizeQuality(opts?.quality, settings.quality))
+  return coalesceEnqueue(`album:${opts?.albumId}:${group}`, () => createAlbumJob(opts))
+}
+
+async function createAlbumJob({ albumId, storefront, quality, expectedArtistId }) {
   const settings = await readSettings()
   const requestedQuality = normalizeQuality(quality, settings.quality)
   const requestedGroup = groupOf(requestedQuality)
@@ -768,13 +818,18 @@ export async function enqueueAlbum({ albumId, storefront, quality, expectedArtis
   return jobPublic(job)
 }
 
-export async function enqueuePlaylist({ playlistId, libraryId, storefront, quality }) {
+export async function enqueuePlaylist(opts) {
+  const { playlistId, libraryId } = opts || {}
   if (!playlistId && !libraryId) {
     throw new Error('playlistId or libraryId required')
   }
   if (libraryId) {
-    return enqueueLibraryPlaylist({ libraryId, storefront, quality })
+    return coalesceEnqueue(`library-playlist:${libraryId}`, () => enqueueLibraryPlaylist(opts))
   }
+  return coalesceEnqueue(`playlist:${playlistId}`, () => createPlaylistJob(opts))
+}
+
+async function createPlaylistJob({ playlistId, storefront, quality }) {
 
   for (const j of state.jobs.values()) {
     if (
@@ -978,8 +1033,12 @@ async function enqueueLibraryPlaylist({ libraryId, storefront, quality }) {
   return jobPublic(job)
 }
 
-export async function enqueueSong({ songId, albumId, storefront, quality, followedPlaylistId }) {
-  if (!songId) throw new Error('songId required')
+export async function enqueueSong(opts) {
+  if (!opts?.songId) throw new Error('songId required')
+  return coalesceEnqueue(`song:${opts.songId}`, () => createSongJob(opts))
+}
+
+async function createSongJob({ songId, albumId, storefront, quality, followedPlaylistId }) {
 
   for (const j of state.jobs.values()) {
     if (
@@ -1095,9 +1154,13 @@ export async function cancelJob(id) {
   if (j.status === 'done' || j.status === 'failed') {
     return { ok: true, noop: true }
   }
+  if (importingJobs.has(id)) {
+    return { ok: false, error: 'already moving into the library' }
+  }
   const ctl = state.running.get(id)
   const wasActive = state.active.has(id)
   if (ctl) ctl.abort()
+  jobAborts.get(id)?.abort()
   state.queue = state.queue.filter((qid) => qid !== id)
   updateJob(id, {
     status: 'failed',
@@ -1168,6 +1231,8 @@ export const __test__ = {
   state,
   wakeAndWaitForWrapper,
   tickQueue,
+  importingJobs,
+  applyQobuzFileNames,
 }
 
 // Stamp ISRC/BARCODE tags onto downloaded FLACs so presence matching has an
@@ -1232,6 +1297,62 @@ async function stampAlbumIdentityTags(
   }
 }
 
+// Converts a staging folder to FLAC, reporting per-track progress on the
+// job. Shared by album, song and catalog playlist downloads.
+async function convertStagingToFlac(job, dir, progressState) {
+  applyProgress(job, progressState, {
+    message: 'Converting to FLAC',
+    currentTrack: null,
+  })
+  const conv = await convertDirToFlac(dir, {
+    signal: jobSignal(job),
+    onProgress: ({ index, total }) => {
+      if (total > 0) {
+        progressState.convertTotal = total
+      }
+      progressState.convertDone = Math.max(
+        progressState.convertDone,
+        Math.min(progressState.convertTotal || index, index),
+      )
+      applyProgress(job, progressState, {
+        message: `Converting to FLAC (${index}/${progressState.convertTotal || total || index})`,
+      })
+    },
+  })
+  job.stats.converted = conv.converted
+  job.stats.flacFailed = conv.failed
+  if (conv.total > 0) {
+    progressState.convertTotal = conv.total
+    progressState.convertDone = Math.max(progressState.convertDone, conv.total)
+  }
+  progressState.convertDone = Math.max(
+    progressState.convertDone,
+    progressState.convertTotal,
+  )
+  applyProgress(job, progressState, {
+    message: 'Converting to FLAC',
+  })
+}
+
+// Renames the audio and lyrics files in a staging folder to the qobuz
+// naming convention before they are moved. A file whose new name is
+// already taken keeps its name.
+async function applyQobuzFileNames(dir) {
+  const files = await fsp.readdir(dir).catch(() => [])
+  for (const fn of files) {
+    if (!/\.(flac|m4a|mp3|lrc|ttml)$/i.test(fn)) continue
+    const ext = path.extname(fn)
+    const stem = path.basename(fn, ext)
+    const newStem = applyNamingConvention(stem, 'qobuz')
+    if (newStem !== stem) {
+      const dst = path.join(dir, newStem + ext)
+      if (!(await fsp.stat(dst).catch(() => null))) {
+        await fsp.rename(path.join(dir, fn), dst)
+      }
+    }
+  }
+}
+
 async function sweepStagingRoots() {
   const settings = await readSettings().catch(() => null)
   const activeStagingRoot = resolveStagingRoot(settings)
@@ -1282,6 +1403,7 @@ async function tickQueue() {
 
 async function runJob(job) {
   let jobStaging = null
+  jobAborts.set(job.id, new AbortController())
   try {
     throwIfCancelled(job)
     updateJob(job.id, { status: 'running', message: 'Preparing' })
@@ -1466,37 +1588,7 @@ async function runJob(job) {
 
     if (isPlaylist) {
       if (progressState.convertEnabled) {
-        applyProgress(job, progressState, {
-          message: 'Converting to FLAC',
-          currentTrack: null,
-        })
-        const conv = await convertDirToFlac(jobStaging, {
-          onProgress: ({ index, total }) => {
-            if (total > 0) {
-              progressState.convertTotal = total
-            }
-            progressState.convertDone = Math.max(
-              progressState.convertDone,
-              Math.min(progressState.convertTotal || index, index),
-            )
-            applyProgress(job, progressState, {
-              message: `Converting to FLAC (${index}/${progressState.convertTotal || total || index})`,
-            })
-          },
-        })
-        job.stats.converted = conv.converted
-        job.stats.flacFailed = conv.failed
-        if (conv.total > 0) {
-          progressState.convertTotal = conv.total
-          progressState.convertDone = Math.max(progressState.convertDone, conv.total)
-        }
-        progressState.convertDone = Math.max(
-          progressState.convertDone,
-          progressState.convertTotal,
-        )
-        applyProgress(job, progressState, {
-          message: 'Converting to FLAC',
-        })
+        await convertStagingToFlac(job, jobStaging, progressState)
       }
 
       progressState.finalizeProgress = Math.max(progressState.finalizeProgress, 0.55)
@@ -1505,6 +1597,7 @@ async function runJob(job) {
         currentTrack: null,
       })
 
+      beginLibraryImport(job)
       const importedTracks = await importPlaylistTracks({
         job,
         jobStaging,
@@ -1578,37 +1671,7 @@ async function runJob(job) {
     if (partial) await removeOrphanLyrics(albumPath)
 
     if (progressState.convertEnabled) {
-      applyProgress(job, progressState, {
-        message: 'Converting to FLAC',
-        currentTrack: null,
-      })
-      const conv = await convertDirToFlac(albumPath, {
-        onProgress: ({ index, total }) => {
-          if (total > 0) {
-            progressState.convertTotal = total
-          }
-          progressState.convertDone = Math.max(
-            progressState.convertDone,
-            Math.min(progressState.convertTotal || index, index),
-          )
-          applyProgress(job, progressState, {
-            message: `Converting to FLAC (${index}/${progressState.convertTotal || total || index})`,
-          })
-        },
-      })
-      job.stats.converted = conv.converted
-      job.stats.flacFailed = conv.failed
-      if (conv.total > 0) {
-        progressState.convertTotal = conv.total
-        progressState.convertDone = Math.max(progressState.convertDone, conv.total)
-      }
-      progressState.convertDone = Math.max(
-        progressState.convertDone,
-        progressState.convertTotal,
-      )
-      applyProgress(job, progressState, {
-        message: 'Converting to FLAC',
-      })
+      await convertStagingToFlac(job, albumPath, progressState)
     }
 
     if (!isSong && !isPlaylist) {
@@ -1636,6 +1699,7 @@ async function runJob(job) {
     ).length
     if (audioCount === 0) throw await explainNoAudio(job)
 
+    beginLibraryImport(job)
     const convention = settings.namingConvention || 'apple'
 
     let finalDir
@@ -1655,21 +1719,7 @@ async function runJob(job) {
       )
       await ensureDir(finalDir)
 
-      if (convention === 'qobuz') {
-        for (const fn of finalFiles) {
-          if (!/\.(flac|m4a|mp3|lrc|ttml)$/i.test(fn)) continue
-          const ext = path.extname(fn)
-          const stem = path.basename(fn, ext)
-          const newStem = applyNamingConvention(stem, 'qobuz')
-          if (newStem !== stem) {
-            const src = path.join(albumPath, fn)
-            const dst = path.join(albumPath, newStem + ext)
-            if (!(await fsp.stat(dst).catch(() => null))) {
-              await fsp.rename(src, dst)
-            }
-          }
-        }
-      }
+      if (convention === 'qobuz') await applyQobuzFileNames(albumPath)
 
       if (settings.namingLanguageMode !== 'display' && job.trackNameOverrides?.length) {
         await renameTrackFilesForLanguage(albumPath, job.trackNameOverrides)
@@ -1733,22 +1783,7 @@ async function runJob(job) {
         finalDir = applyVariantSuffix(finalDir, job.variant, job.quality)
       }
 
-      if (convention === 'qobuz') {
-        const audioFiles = await fsp.readdir(albumPath)
-        for (const fn of audioFiles) {
-          if (!/\.(flac|m4a|mp3|lrc|ttml)$/i.test(fn)) continue
-          const ext = path.extname(fn)
-          const stem = path.basename(fn, ext)
-          const newStem = applyNamingConvention(stem, 'qobuz')
-          if (newStem !== stem) {
-            const src = path.join(albumPath, fn)
-            const dst = path.join(albumPath, newStem + ext)
-            if (!await fsp.stat(dst).catch(() => null)) {
-              await fsp.rename(src, dst)
-            }
-          }
-        }
-      }
+      if (convention === 'qobuz') await applyQobuzFileNames(albumPath)
 
       if (settings.namingLanguageMode !== 'display' && job.trackNameOverrides?.length) {
         await renameTrackFilesForLanguage(albumPath, job.trackNameOverrides)
@@ -1819,6 +1854,8 @@ async function runJob(job) {
       await fsp.rm(jobStaging, { recursive: true, force: true }).catch(() => {})
     }
     state.running.delete(job.id)
+    jobAborts.delete(job.id)
+    importingJobs.delete(job.id)
   }
 }
 
@@ -2022,6 +2059,7 @@ async function runPartialAlbumFill({
     let convertedFailed = 0
     for (const albumPath of trackAlbumPaths) {
       const conv = await convertDirToFlac(albumPath, {
+        signal: jobSignal(job),
         onProgress: ({ index, total }) => {
           if (total > 0) {
             progressState.convertTotal = Math.max(progressState.convertTotal, missing.length)
@@ -2050,6 +2088,7 @@ async function runPartialAlbumFill({
     applyProgress(job, progressState, { message: 'Converting to FLAC' })
   }
 
+  beginLibraryImport(job)
   const convention = settings?.namingConvention || 'apple'
   const finalDir = await computeFinalDir(
     MUSIC_ROOT,
@@ -2058,22 +2097,7 @@ async function runPartialAlbumFill({
     job.year,
   )
   if (convention === 'qobuz') {
-    for (const albumPath of trackAlbumPaths) {
-      const audioFiles = await fsp.readdir(albumPath).catch(() => [])
-      for (const fn of audioFiles) {
-        if (!/\.(flac|m4a|mp3|lrc)$/i.test(fn)) continue
-        const ext = path.extname(fn)
-        const stem = path.basename(fn, ext)
-        const newStem = applyNamingConvention(stem, 'qobuz')
-        if (newStem !== stem) {
-          const src = path.join(albumPath, fn)
-          const dst = path.join(albumPath, newStem + ext)
-          if (!(await fsp.stat(dst).catch(() => null))) {
-            await fsp.rename(src, dst)
-          }
-        }
-      }
-    }
+    for (const albumPath of trackAlbumPaths) await applyQobuzFileNames(albumPath)
   }
   progressState.finalizeProgress = Math.max(progressState.finalizeProgress, 0.5)
   applyProgress(job, progressState, {
@@ -2211,7 +2235,7 @@ async function runLibraryPlaylistFill({
     if (progressState.convertEnabled) {
       const albumDirs = await collectAlbumStagingDirs(trackStaging)
       for (const albumPath of albumDirs) {
-        const conv = await convertDirToFlac(albumPath, {})
+        const conv = await convertDirToFlac(albumPath, { signal: jobSignal(job) })
         progressState.convertDone = Math.min(
           progressState.convertTotal,
           progressState.convertDone + (conv.converted || 0),
@@ -2220,6 +2244,7 @@ async function runLibraryPlaylistFill({
       applyProgress(job, progressState)
     }
 
+    beginLibraryImport(job)
     const importedHere = await importPlaylistTracks({
       job,
       jobStaging: trackStaging,
@@ -2230,6 +2255,7 @@ async function runLibraryPlaylistFill({
         await writeAudioIdentityTags(importedPath, { isrc: fillTrackIsrc })
       }
     }
+    endLibraryImport(job)
     for (const p of importedHere) importedPaths.push(p)
 
     progressState.downloadDone = i + 1
@@ -2244,6 +2270,7 @@ async function runLibraryPlaylistFill({
     throw new Error(job.lastTrackError || 'no tracks were imported from playlist')
   }
 
+  beginLibraryImport(job)
   progressState.finalizeProgress = Math.max(progressState.finalizeProgress, 0.93)
   applyProgress(job, progressState, {
     message: 'Writing playlist file',
@@ -2448,24 +2475,6 @@ function extractBracketTitle(line) {
   return m ? m[1].trim() : null
 }
 
-const execFileAsync = promisify(execFile)
-
-async function probeMp4Box() {
-  try {
-    const { stdout, stderr } = await execFileAsync('MP4Box', ['-version'], { timeout: 2500 })
-    if (/GPAC version/i.test(`${stdout}\n${stderr}`)) return { ok: true, error: null }
-    return { ok: false, error: 'unexpected MP4Box -version output' }
-  } catch (err) {
-    if (err.code === 'ENOENT') return { ok: false, error: 'executable not found in PATH' }
-    // MP4Box -version exits non-zero on some builds while still printing it
-    if (/GPAC version/i.test(`${err.stdout || ''}\n${err.stderr || ''}`)) return { ok: true, error: null }
-    return {
-      ok: false,
-      error: `exit ${err.code ?? 'unknown'}${err.signal ? ` (${err.signal})` : ''}`,
-    }
-  }
-}
-
 function buildAmdpArgs({ isSong, quality, url }) {
   const args = []
   if (isSong) args.push('--song')
@@ -2555,6 +2564,8 @@ async function runAmdpDownload({ job, jobStaging, url, quality, isSong, progress
       })
     } else if (idleMs < STALL_WARN_MS && warnFired) {
       warnFired = false
+      // Output resumed, so the suspected stall is over.
+      emitEvent('wrapper.stall.cleared', { jobId: job.id })
     }
   }, STALL_TICK_MS)
 
@@ -2597,6 +2608,9 @@ async function runAmdpDownload({ job, jobStaging, url, quality, isSong, progress
     }
   } finally {
     clearInterval(watchdog)
+    // A pass that ends while a stall warning stands (e.g. one track of a
+    // partial fill) ends that stall too.
+    if (warnFired && !stallReason) emitEvent('wrapper.stall.cleared', { jobId: job.id })
     if (state.running.get(job.id) === ctl) {
       state.running.delete(job.id)
     }

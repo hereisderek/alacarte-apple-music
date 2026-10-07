@@ -254,6 +254,22 @@ test('isWrapperReachable checks the supervisor health endpoint', async () => {
   assert.equal(await isWrapperReachable(), false)
 })
 
+test('isWrapperReachable is false for an unhealthy, failing or garbled supervisor', async () => {
+  for (const [status, body] of [
+    [200, JSON.stringify({ ok: false, mode: 'idle' })],
+    [500, JSON.stringify({ ok: true })],
+    [200, 'not json'],
+  ]) {
+    await withSupervisor(
+      (_req, res) => {
+        res.writeHead(status, { 'Content-Type': 'application/json' })
+        res.end(body)
+      },
+      async () => assert.equal(await isWrapperReachable(), false, `${status} ${body}`),
+    )
+  }
+})
+
 test('startWrapperLogin resolves on success and closes the login stream', async () => {
   let closed = false
   const login = openLoginStream(['[+] logging in...', '[.] account info cached successfully'], (req) => {

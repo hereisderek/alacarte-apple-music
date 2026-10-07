@@ -84,7 +84,7 @@ alacarte ships with a built-in single-password gate. The first time you visit th
 A few things to keep in mind:
 
 - **Don't expose this directly to the public internet.** Several cloud providers ship hosts with permissive default firewalls. Verify your firewall, and put a reverse proxy / VPN / mesh network in front of the UI before opening it up to anything beyond your LAN.
-- **No Docker socket is mounted.** First-time Apple login goes through a small supervisor inside the wrapper container (port 40020, internal network only), so the web container has no control over the host's container engine.
+- **No Docker socket is mounted.** First-time Apple login goes through a small supervisor inside the wrapper container (port 40020, internal network only), so the web container has no control over the host's container engine. Its sign-in endpoints need a token the supervisor creates in `data/supervisor/token` on first start, so other containers on a shared `DOCKER_NETWORK` can't drive the Apple sign-in.
 - **Tighten the bind to localhost only:** set `WEB_BIND=127.0.0.1` in `.env` if you front the app with a reverse proxy on the same machine and don't want the UI reachable on your LAN.
 - **Already running your own auth?** Set `AUTH_DISABLED=true` in `.env` to skip the built-in password gate (e.g. when fronting with Authelia, Cloudflare Access, Tailscale, etc).
 - **Rate limiting and lockouts are built in** for setup/login/password-change routes (429 + Retry-After + temporary lockouts).
@@ -120,7 +120,7 @@ Wrapper response type 4 is a generic StoreServices failure, not a credential dia
 - Jobs run **one at a time** — queuing many items won't speed things up, it just lines them up.
 - Download speed is throttled by Apple and varies by time of day.
 - After a download completes, each track is converted from ALAC to FLAC and moved into your library (although you can disable this in the settings).
-- The queue survives page refreshes but not container restarts.
+- The queue survives page refreshes and container restarts; a download that was running when the container stopped starts again from the beginning.
 - If a job fails (network hiccup, decryption glitch), you can re-queue it manually.
 
 ## Language support

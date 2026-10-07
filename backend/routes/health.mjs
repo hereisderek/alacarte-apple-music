@@ -2,8 +2,8 @@ import express from 'express'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
-import { spawn } from 'node:child_process'
 
+import { probeMp4Box } from '../lib/amdpRunner.mjs'
 import { getBearerToken } from '../lib/appleToken.mjs'
 import {
   getWrapperEventState,
@@ -22,6 +22,7 @@ const WRAPPER_PORTS = {
   account: _ports.account,
 }
 const MUSIC_PATH = process.env.AMDL_MUSIC_PATH || '/music'
+const RECOVERED_SHOW_MS = 2 * 60_000
 
 function humanize(probe) {
   if (probe.ok) return probe
@@ -59,14 +60,19 @@ healthRouter.get('/', async (_req, res) => {
   }
   const wrapperUp = decrypt.ok && m3u8.ok && account.ok
   const events = getWrapperEventState()
-  const recentStallMs = 5 * 60_000
+  // "Recovered" is shown for a short while after a stall ended, then the
+  // pill goes back to ready; a stall still going on is reported as such.
+  const stallActive = Boolean(events.stallActive)
   const stallRecent =
-    events.stallSuspectedAt && Date.now() - events.stallSuspectedAt < recentStallMs
+    !stallActive &&
+    events.stallEndedAt &&
+    Date.now() - events.stallEndedAt < RECOVERED_SHOW_MS
   res.json({
     ok: wrapperUp && tokenOk && musicOk && mp4box.ok,
     wrapper: {
       host: WRAPPER_HOST,
       up: wrapperUp,
+      stallActive,
       stallRecent: Boolean(stallRecent),
       lastStallAt: events.stallSuspectedAt || null,
       lastStallAbortedAt: events.stallAbortedAt || null,
@@ -120,53 +126,6 @@ function checkWritable(p) {
     fs.access(p, fs.constants.W_OK, (err) => {
       if (err) resolve({ ok: false, error: err.code || err.message })
       else resolve({ ok: true })
-    })
-  })
-}
-
-function probeMp4Box(timeoutMs = 2500) {
-  return new Promise((resolve) => {
-    const child = spawn('MP4Box', ['-version'], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-    })
-
-    let out = ''
-    let settled = false
-    const timer = setTimeout(() => {
-      if (settled) return
-      settled = true
-      child.kill('SIGKILL')
-      resolve({ ok: false, error: 'timeout' })
-    }, timeoutMs)
-
-    const finish = (result) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      resolve(result)
-    }
-
-    child.stdout.on('data', (d) => {
-      out += d.toString()
-    })
-    child.stderr.on('data', (d) => {
-      out += d.toString()
-    })
-
-    child.on('error', (err) => {
-      if (err?.code === 'ENOENT') {
-        finish({ ok: false, error: 'MP4Box not found in PATH' })
-      } else {
-        finish({ ok: false, error: err.message || 'spawn failed' })
-      }
-    })
-
-    child.on('close', (code) => {
-      if (code === 0 && /GPAC version/i.test(out)) {
-        finish({ ok: true })
-      } else {
-        finish({ ok: false, error: `exit ${code ?? 'unknown'}` })
-      }
     })
   })
 }

@@ -27,21 +27,61 @@ const EMPTY_STORE = {
     artists: {},
 };
 
+// Mutations do a read-modify-write of the whole store file; serialize them so
+// a follow, a recompute and the job listeners can't clobber each other with
+// stale snapshots.
+let writeChain = Promise.resolve();
+function serialize(operation) {
+    const run = writeChain.then(operation, operation);
+    writeChain = run.then(
+        () => undefined,
+        () => undefined,
+    );
+    return run;
+}
+
 export async function readFollowingStore() {
+    let raw;
     try {
-        const raw = await fsp.readFile(FOLLOWING_FILE, "utf8");
+        raw = await fsp.readFile(FOLLOWING_FILE, "utf8");
+    } catch (err) {
+        if (err?.code === "ENOENT") return normalizeStore({});
+        // Any other read error must not turn into an empty store that the
+        // next write would commit over the real one.
+        throw err;
+    }
+    try {
         return normalizeStore(JSON.parse(raw));
-    } catch {
+    } catch (err) {
+        // Keep the corrupt file around for inspection instead of letting
+        // the next write silently commit an empty store over it.
+        console.error("followed-artists.json unreadable:", err.message);
+        await fsp
+            .rename(FOLLOWING_FILE, `${FOLLOWING_FILE}.corrupt-${Date.now()}`)
+            .catch(() => null);
         return normalizeStore({});
     }
 }
 
-export async function writeFollowingStore(next) {
+async function writeFollowingStore(next) {
     const normalized = normalizeStore(next);
-    await fsp.writeFile(FOLLOWING_FILE, JSON.stringify(normalized, null, 2), {
+    const tmpFile = `${FOLLOWING_FILE}.tmp`;
+    await fsp.writeFile(tmpFile, JSON.stringify(normalized, null, 2), {
         mode: 0o600,
     });
+    await fsp.rename(tmpFile, FOLLOWING_FILE);
     return normalized;
+}
+
+// Runs fn on a fresh copy of the store and writes the result, one mutation
+// at a time. Slow work (catalog fetches, library scans) belongs outside fn.
+function mutateFollowingStore(fn) {
+    return serialize(async () => {
+        const store = await readFollowingStore();
+        const result = await fn(store);
+        await writeFollowingStore(store);
+        return result;
+    });
 }
 
 export async function listFollowedArtists() {
@@ -80,65 +120,66 @@ export async function followArtist({
         throw err;
     }
 
-    const now = Date.now();
-    const store = await readFollowingStore();
-    const previous = store.artists[artistId];
-    const scope = normalizeReleaseScope(releaseScope || previous?.releaseScope);
-    const releases = filterReleasesByScope(catalog.albums, scope);
-    const releaseIds = releases.map((album) => album.id).filter(Boolean);
-    const knownReleaseIds = Array.from(
-        new Set([...(previous?.knownReleaseIds || []), ...releaseIds]),
-    );
-    const releaseDates = releases
-        .map((album) => album.releaseDate)
-        .filter(Boolean)
-        .sort();
-    const latestReleaseDate =
-        releaseDates[releaseDates.length - 1] ||
-        previous?.latestReleaseDate ||
-        null;
-
     const libIndex = await scanLibraryOnce();
-    const missingCount = countMissingReleases(releases, libIndex);
+    const now = Date.now();
+    const { record, releases } = await mutateFollowingStore((store) => {
+        const previous = store.artists[artistId];
+        const scope = normalizeReleaseScope(releaseScope || previous?.releaseScope);
+        const releases = filterReleasesByScope(catalog.albums, scope);
+        const releaseIds = releases.map((album) => album.id).filter(Boolean);
+        const knownReleaseIds = Array.from(
+            new Set([...(previous?.knownReleaseIds || []), ...releaseIds]),
+        );
+        const releaseDates = releases
+            .map((album) => album.releaseDate)
+            .filter(Boolean)
+            .sort();
+        const latestReleaseDate =
+            releaseDates[releaseDates.length - 1] ||
+            previous?.latestReleaseDate ||
+            null;
 
-    store.artists[artistId] = normalizeArtistRecord({
-        ...previous,
-        id: artistId,
-        name: catalog.artist.name || previous?.name || "Unknown artist",
-        genreNames: catalog.artist.genreNames || previous?.genreNames || [],
-        url: catalog.artist.url || previous?.url || null,
-        artworkTemplate:
-            catalog.artist.artworkTemplate ||
-            catalog.albums.find((album) => album.artworkTemplate)
-                ?.artworkTemplate ||
-            previous?.artworkTemplate ||
-            null,
-        artworkColor:
-            catalog.artist.artworkColor ||
-            catalog.albums.find((album) => album.artworkColor)?.artworkColor ||
-            previous?.artworkColor ||
-            null,
-        storefront,
-        releaseScope: scope,
-        knownReleaseIds,
-        latestReleaseDate,
-        lastCheckedAt: previous?.lastCheckedAt || now,
-        followedAt: previous?.followedAt || now,
-        updatedAt: now,
-        totalReleaseCount: releases.length,
-        missingReleaseCount: missingCount,
+        const missingCount = countMissingReleases(releases, libIndex);
+
+        store.artists[artistId] = normalizeArtistRecord({
+            ...previous,
+            id: artistId,
+            name: catalog.artist.name || previous?.name || "Unknown artist",
+            genreNames: catalog.artist.genreNames || previous?.genreNames || [],
+            url: catalog.artist.url || previous?.url || null,
+            artworkTemplate:
+                catalog.artist.artworkTemplate ||
+                catalog.albums.find((album) => album.artworkTemplate)
+                    ?.artworkTemplate ||
+                previous?.artworkTemplate ||
+                null,
+            artworkColor:
+                catalog.artist.artworkColor ||
+                catalog.albums.find((album) => album.artworkColor)?.artworkColor ||
+                previous?.artworkColor ||
+                null,
+            storefront,
+            releaseScope: scope,
+            knownReleaseIds,
+            latestReleaseDate,
+            lastCheckedAt: previous?.lastCheckedAt || now,
+            followedAt: previous?.followedAt || now,
+            updatedAt: now,
+            totalReleaseCount: releases.length,
+            missingReleaseCount: missingCount,
+        });
+        return { record: store.artists[artistId], releases };
     });
 
-    await writeFollowingStore(store);
     emitEvent("following.updated", {
         artistId,
-        missingReleaseCount: missingCount,
+        missingReleaseCount: record.missingReleaseCount,
         totalReleaseCount: releases.length,
-        releaseScope: scope,
+        releaseScope: record.releaseScope,
         followed: true,
     });
     return {
-        artist: projectArtist(store.artists[artistId]),
+        artist: projectArtist(record),
         albums: releases,
     };
 }
@@ -164,43 +205,49 @@ export async function recomputeFollowedArtist(id, patch = {}) {
 
     const releases = filterReleasesByScope(catalog.albums, scope);
     const releaseIds = releases.map((album) => album.id).filter(Boolean);
-    const knownReleaseIds = Array.from(
-        new Set([...(current.knownReleaseIds || []), ...releaseIds]),
-    );
     const releaseDates = releases
         .map((album) => album.releaseDate)
         .filter(Boolean)
         .sort();
     const libIndex = await scanLibraryOnce();
-    const next = normalizeArtistRecord({
-        ...current,
-        ...patch,
-        name: catalog.artist.name || current.name,
-        genreNames: catalog.artist.genreNames || current.genreNames,
-        url: catalog.artist.url || current.url,
-        artworkTemplate:
-            catalog.artist.artworkTemplate ||
-            catalog.albums.find((album) => album.artworkTemplate)
-                ?.artworkTemplate ||
-            current.artworkTemplate ||
-            null,
-        artworkColor:
-            catalog.artist.artworkColor ||
-            catalog.albums.find((album) => album.artworkColor)?.artworkColor ||
-            current.artworkColor ||
-            null,
-        releaseScope: scope,
-        knownReleaseIds,
-        latestReleaseDate:
-            releaseDates[releaseDates.length - 1] ||
-            current.latestReleaseDate ||
-            null,
-        totalReleaseCount: releases.length,
-        missingReleaseCount: countMissingReleases(releases, libIndex),
-        updatedAt: Date.now(),
+    const next = await mutateFollowingStore((store) => {
+        // Re-read under the lock: the artist may have changed or been
+        // unfollowed while the catalog was fetched.
+        const fresh = store.artists[id];
+        if (!fresh) return null;
+        store.artists[id] = normalizeArtistRecord({
+            ...fresh,
+            ...patch,
+            name: catalog.artist.name || fresh.name,
+            genreNames: catalog.artist.genreNames || fresh.genreNames,
+            url: catalog.artist.url || fresh.url,
+            artworkTemplate:
+                catalog.artist.artworkTemplate ||
+                catalog.albums.find((album) => album.artworkTemplate)
+                    ?.artworkTemplate ||
+                fresh.artworkTemplate ||
+                null,
+            artworkColor:
+                catalog.artist.artworkColor ||
+                catalog.albums.find((album) => album.artworkColor)
+                    ?.artworkColor ||
+                fresh.artworkColor ||
+                null,
+            releaseScope: scope,
+            knownReleaseIds: Array.from(
+                new Set([...(fresh.knownReleaseIds || []), ...releaseIds]),
+            ),
+            latestReleaseDate:
+                releaseDates[releaseDates.length - 1] ||
+                fresh.latestReleaseDate ||
+                null,
+            totalReleaseCount: releases.length,
+            missingReleaseCount: countMissingReleases(releases, libIndex),
+            updatedAt: Date.now(),
+        });
+        return store.artists[id];
     });
-    store.artists[id] = next;
-    await writeFollowingStore(store);
+    if (!next) return null;
     emitEvent("following.updated", {
         artistId: id,
         missingReleaseCount: next.missingReleaseCount,
@@ -211,10 +258,11 @@ export async function recomputeFollowedArtist(id, patch = {}) {
 }
 
 export async function unfollowArtist(id) {
-    const store = await readFollowingStore();
-    const existed = Boolean(store.artists[id]);
-    delete store.artists[id];
-    await writeFollowingStore(store);
+    const existed = await mutateFollowingStore((store) => {
+        const had = Boolean(store.artists[id]);
+        delete store.artists[id];
+        return had;
+    });
     if (existed) {
         invalidateArtistCatalog(id);
         emitEvent("following.updated", { artistId: id, followed: false });
@@ -223,16 +271,16 @@ export async function unfollowArtist(id) {
 }
 
 export async function updateFollowedArtist(id, patch) {
-    const store = await readFollowingStore();
-    const current = store.artists[id];
-    if (!current) return null;
-    store.artists[id] = normalizeArtistRecord({
-        ...current,
-        ...patch,
-        updatedAt: Date.now(),
+    return mutateFollowingStore((store) => {
+        const current = store.artists[id];
+        if (!current) return null;
+        store.artists[id] = normalizeArtistRecord({
+            ...current,
+            ...(typeof patch === "function" ? patch(current) : patch),
+            updatedAt: Date.now(),
+        });
+        return store.artists[id];
     });
-    await writeFollowingStore(store);
-    return store.artists[id];
 }
 
 export function countMissingReleases(releases, libIndex) {
@@ -314,15 +362,17 @@ subscribeEvent(async (evt) => {
         const store = await readFollowingStore();
         const artist = store.artists[job.artistId];
         if (artist && artist.missingReleaseCount > 0) {
-            const newCount = Math.max(0, artist.missingReleaseCount - 1);
-            await updateFollowedArtist(job.artistId, {
-                missingReleaseCount: newCount,
-            });
+            // Decrement the stored count, not this snapshot's, so two jobs
+            // finishing together both count.
+            const updated = await updateFollowedArtist(job.artistId, (current) => ({
+                missingReleaseCount: Math.max(0, current.missingReleaseCount - 1),
+            }));
+            if (!updated) return;
             emitEvent("following.updated", {
                 artistId: job.artistId,
-                missingReleaseCount: newCount,
-                totalReleaseCount: artist.totalReleaseCount,
-                releaseScope: artist.releaseScope,
+                missingReleaseCount: updated.missingReleaseCount,
+                totalReleaseCount: updated.totalReleaseCount,
+                releaseScope: updated.releaseScope,
                 albumId: job.albumId,
             });
         }

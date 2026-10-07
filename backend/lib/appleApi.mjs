@@ -2,6 +2,16 @@ import { getBearerToken, invalidateBearerCache } from './appleToken.mjs'
 
 const BASE = 'https://amp-api.music.apple.com/v1/catalog'
 
+// Without a limit a stalled Apple connection hangs the request, job or
+// scheduler waiting on it.
+const APPLE_REQUEST_TIMEOUT_MS = 30_000
+
+// A fresh timeout per attempt, combined with the caller's own signal.
+export function appleRequestSignal(signal) {
+  const timeout = AbortSignal.timeout(APPLE_REQUEST_TIMEOUT_MS)
+  return signal ? AbortSignal.any([signal, timeout]) : timeout
+}
+
 async function apiGet(url, { language = '', mediaUserToken, signal } = {}) {
   let token = await getBearerToken()
   const run = async (t) => {
@@ -13,7 +23,7 @@ async function apiGet(url, { language = '', mediaUserToken, signal } = {}) {
       'Accept-Language': language || 'en-US',
     }
     if (mediaUserToken) headers['Music-User-Token'] = mediaUserToken
-    return fetch(url, { headers, signal })
+    return fetch(url, { headers, signal: appleRequestSignal(signal) })
   }
   let res = await run(token)
   if (res.status === 401 || res.status === 403) {

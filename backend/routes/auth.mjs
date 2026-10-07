@@ -31,13 +31,18 @@ import {
 import { buildLoginLimiter } from '../lib/loginLimiter.mjs'
 import { logAuth } from '../lib/authLog.mjs'
 import {
-  requiresSetupToken,
-  verifyAndConsumeSetupToken,
+  checkSetupToken,
+  consumeSetupToken,
+  ensureSetupToken,
 } from '../lib/setupToken.mjs'
 import { isAuthDisabled } from '../lib/requireAuth.mjs'
 
 export const authRouter = express.Router()
 const loginLimiter = buildLoginLimiter()
+// Every login attempt costs a full scrypt hash whatever the username, so
+// attempts are also limited per IP: rotating usernames can't buy an
+// attacker fresh attempts. Looser than the per-user limit for shared IPs.
+const ipLimiter = buildLoginLimiter({ softFailThreshold: 10, hardFailThreshold: 50 })
 
 function trimStringField(v) {
   return typeof v === 'string' ? v.trim() : null
@@ -49,6 +54,15 @@ function rawStringField(v) {
 
 function limiterKey(req, username) {
   return `${req.ip}|${username || '?'}`
+}
+
+function ipLimiterKey(req) {
+  return `${req.ip}|*`
+}
+
+function sendBusy(res) {
+  res.set('Retry-After', '2')
+  return res.status(503).json({ error: 'busy, try again shortly' })
 }
 
 function sendRateLimited(res, result) {
@@ -71,9 +85,9 @@ function sessionCookieParts(req) {
   }
 }
 
-function setupTokenRequired() {
-  return requiresSetupToken()
-}
+// Set while a setup is saving credentials, so two requests holding the
+// token can't both run setup and overwrite each other.
+let setupInFlight = false
 
 function mapValidationStatus(err) {
   if (!err?.code) return null
@@ -90,7 +104,9 @@ authRouter.get('/state', async (req, res) => {
     let authed = authDisabled
     if (passwordSet && !authDisabled) {
       const session = verifyToken(getRequestSessionToken(req))
-      authed = Boolean(session)
+      // Same check as requireAuth: a session from before a password change
+      // or "sign out everywhere" no longer counts.
+      authed = Boolean(session) && session.sv >= (await getSessionVersion())
     }
     // Only expose the username to authed requests so unauthenticated
     // probes can't enumerate it.
@@ -103,7 +119,7 @@ authRouter.get('/state', async (req, res) => {
       minPasswordLength: MIN_PASSWORD_LENGTH,
       usernameMinLength: USERNAME_MIN_LENGTH,
       usernameMaxLength: USERNAME_MAX_LENGTH,
-      requiresSetupToken: !passwordSet && !authDisabled && setupTokenRequired(),
+      requiresSetupToken: !passwordSet && !authDisabled && Boolean(ensureSetupToken()),
     })
   } catch (err) {
     res.status(500).json({ error: 'internal error' })
@@ -143,18 +159,28 @@ authRouter.post('/setup', async (req, res) => {
         .json({ error: `password must be ${MIN_PASSWORD_LENGTH}-${MAX_PASSWORD_LENGTH} characters` })
     }
 
-    if (setupTokenRequired()) {
-      const setupToken = rawStringField(req.headers['x-setup-token'])
-      if (!verifyAndConsumeSetupToken(setupToken)) {
-        const penalty = loginLimiter.recordFailure(key)
-        if (penalty.status === 429) {
-          return sendRateLimited(res, penalty)
-        }
-        return res.status(403).json({ error: 'invalid setup token' })
+    ensureSetupToken()
+    const setupToken = rawStringField(req.headers['x-setup-token'])
+    if (!checkSetupToken(setupToken)) {
+      const penalty = loginLimiter.recordFailure(key)
+      if (penalty.status === 429) {
+        return sendRateLimited(res, penalty)
       }
+      return res.status(403).json({ error: 'invalid setup token' })
+    }
+    if (setupInFlight) {
+      return res.status(409).json({ error: 'setup already in progress' })
     }
 
-    await setCredentials(username, password)
+    // The token is only used up once the credentials are saved; a failed
+    // save leaves it valid instead of leaving setup open to anyone.
+    setupInFlight = true
+    try {
+      await setCredentials(username, password)
+    } finally {
+      setupInFlight = false
+    }
+    consumeSetupToken()
     const sv = await getSessionVersion()
     const token = issueToken({ user: username, sv })
     const { cookieName, cookieOptions } = sessionCookieParts(req)
@@ -167,6 +193,7 @@ authRouter.post('/setup', async (req, res) => {
     logAuth('setup.ok', { user: username, ip: req.ip })
     res.json({ ok: true, username })
   } catch (err) {
+    if (err?.code === 'SCRYPT_BUSY') return sendBusy(res)
     const status = mapValidationStatus(err)
     if (status) {
       return res.status(400).json({ error: err.message })
@@ -183,7 +210,9 @@ authRouter.post('/login', async (req, res) => {
   const username = trimStringField(req.body?.username) || ''
   const password = rawStringField(req.body?.password) || ''
   const key = limiterKey(req, username)
-  const check = loginLimiter.check(key)
+  const ipKey = ipLimiterKey(req)
+  const ipCheck = ipLimiter.check(ipKey)
+  const check = ipCheck.allowed ? loginLimiter.check(key) : ipCheck
   if (!check.allowed) {
     logAuth('login.locked', { user: username || null, ip: req.ip, until: check.lockedUntil || null })
     return sendRateLimited(res, check)
@@ -198,7 +227,9 @@ authRouter.post('/login', async (req, res) => {
     }
     const matchedHash = await verifyCredentials(username, password)
     if (!matchedHash) {
-      const penalty = loginLimiter.recordFailure(key)
+      const ipPenalty = ipLimiter.recordFailure(ipKey)
+      const userPenalty = loginLimiter.recordFailure(key)
+      const penalty = userPenalty.status === 429 ? userPenalty : ipPenalty
       if (penalty.status === 429) {
         logAuth('login.locked', { user: username, ip: req.ip, until: penalty.lockedUntil || null })
         return sendRateLimited(res, penalty)
@@ -208,6 +239,7 @@ authRouter.post('/login', async (req, res) => {
     }
 
     loginLimiter.recordSuccess(key)
+    ipLimiter.recordSuccess(ipKey)
 
     // Transparently upgrade hash if stored with older scrypt params.
     // Fire-and-forget: non-fatal if it fails; next login retries.
@@ -224,6 +256,7 @@ authRouter.post('/login', async (req, res) => {
     logAuth('login.ok', { user: username, ip: req.ip })
     res.json({ ok: true, username })
   } catch (err) {
+    if (err?.code === 'SCRYPT_BUSY') return sendBusy(res)
     res.status(500).json({ error: 'internal error' })
   }
 })
@@ -290,6 +323,7 @@ authRouter.post('/change-password', async (req, res) => {
     logAuth('password.changed', { user: sessionPayload.user, ip: req.ip })
     res.json({ ok: true })
   } catch (err) {
+    if (err?.code === 'SCRYPT_BUSY') return sendBusy(res)
     const status = mapValidationStatus(err)
     if (status) {
       return res.status(status).json({ error: err.message })
@@ -345,6 +379,7 @@ authRouter.post('/change-username', async (req, res) => {
     logAuth('username.changed', { from: sessionPayload.user, to: newUsername, ip: req.ip })
     res.json({ ok: true, username: newUsername })
   } catch (err) {
+    if (err?.code === 'SCRYPT_BUSY') return sendBusy(res)
     const status = mapValidationStatus(err)
     if (status) {
       return res.status(400).json({ error: err.message })
@@ -391,7 +426,8 @@ authRouter.post('/revoke-all', async (req, res) => {
     res.cookie(cookieName, token, cookieOptions)
     logAuth('revoke.all', { user: sessionPayload.user, ip: req.ip })
     res.json({ ok: true })
-  } catch {
+  } catch (err) {
+    if (err?.code === 'SCRYPT_BUSY') return sendBusy(res)
     res.status(500).json({ error: 'internal error' })
   }
 })

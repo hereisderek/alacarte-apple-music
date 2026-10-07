@@ -24,6 +24,7 @@ import { requireInternalKey } from './lib/requireInternalKey.mjs'
 import { ensureConfigDir } from './lib/settingsStore.mjs'
 import { loadSecretsAtBoot } from './lib/secretKey.mjs'
 import { originGuard } from './lib/originGuard.mjs'
+import { errorHandler } from './lib/errorHandler.mjs'
 import { integrationRouter } from './routes/integration.mjs'
 import { isPasswordSet } from './lib/authStore.mjs'
 import { generateSetupToken } from './lib/setupToken.mjs'
@@ -42,13 +43,8 @@ await initQueue().catch((err) => {
   console.error('queue init failed:', err.message)
 })
 
-const setupToken =
-  !isAuthDisabled() && !(await isPasswordSet())
-    ? generateSetupToken()
-    : null
-
-if (setupToken) {
-  console.log(`[auth] one-time setup token: ${setupToken}  (use it in the X-Setup-Token header)`)
+if (!isAuthDisabled() && !(await isPasswordSet())) {
+  generateSetupToken()
 }
 
 const app = express()
@@ -146,10 +142,7 @@ if (fs.existsSync(publicDir)) {
   })
 }
 
-app.use((err, _req, res, _next) => {
-  console.error('Unhandled error:', err)
-  res.status(500).json({ error: String(err?.message || err) })
-})
+app.use(errorHandler())
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(

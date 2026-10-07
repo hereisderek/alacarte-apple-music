@@ -3,6 +3,9 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/rand"
+	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -66,6 +69,9 @@ type Supervisor struct {
 	restartReason  string
 	restartAt      time.Time
 	wake           chan struct{}
+	// Required in the X-Supervisor-Token header on the control endpoints;
+	// empty disables the check.
+	controlToken string
 }
 
 func NewSupervisor(wrapperBin, wrapperDataDir string, normalArgs []string) *Supervisor {
@@ -487,9 +493,9 @@ func (s *Supervisor) handleWake(w http.ResponseWriter, r *http.Request) {
 func (s *Supervisor) routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", s.handleHealth)
-	mux.HandleFunc("/login", s.handleLogin)
-	mux.HandleFunc("/login/2fa", s.handle2FA)
-	mux.HandleFunc("/wake", s.handleWake)
+	mux.HandleFunc("/login", s.requireControlToken(s.handleLogin))
+	mux.HandleFunc("/login/2fa", s.requireControlToken(s.handle2FA))
+	mux.HandleFunc("/wake", s.requireControlToken(s.handleWake))
 	return mux
 }
 
@@ -501,6 +507,51 @@ func (s *Supervisor) Stop() {
 	}
 	s.mu.Unlock()
 	s.stopNormal()
+}
+
+// requireControlToken keeps other containers on the Docker network from
+// signing the wrapper in to another account or submitting 2FA codes.
+// /health stays open: it only reports state.
+func (s *Supervisor) requireControlToken(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if s.controlToken != "" {
+			got := r.Header.Get("X-Supervisor-Token")
+			if subtle.ConstantTimeCompare([]byte(got), []byte(s.controlToken)) != 1 {
+				http.Error(w, "missing or invalid supervisor token", http.StatusUnauthorized)
+				return
+			}
+		}
+		next(w, r)
+	}
+}
+
+// loadControlToken reads the shared token file, creating it with a random
+// token on first start. The web container reads the same file.
+func loadControlToken(path string) (string, error) {
+	if raw, err := os.ReadFile(path); err == nil {
+		if token := strings.TrimSpace(string(raw)); token != "" {
+			return token, nil
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", err
+	}
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	token := hex.EncodeToString(buf)
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return "", err
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, []byte(token+"\n"), 0600); err != nil {
+		return "", err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return "", err
+	}
+	return token, nil
 }
 
 func envOr(key, fallback string) string {
@@ -524,6 +575,15 @@ func main() {
 		envOr("WRAPPER_DATA_DIR", "/app/rootfs/data"),
 		normalArgs,
 	)
+	if tokenFile := os.Getenv("SUPERVISOR_TOKEN_FILE"); tokenFile != "" {
+		token, err := loadControlToken(tokenFile)
+		if err != nil {
+			log.Fatalf("[supervisor] cannot load the control token from %s: %v", tokenFile, err)
+		}
+		sup.controlToken = token
+	} else {
+		log.Printf("[supervisor] SUPERVISOR_TOKEN_FILE is not set; the control API accepts any caller")
+	}
 	server := &http.Server{Addr: addr, Handler: sup.routes()}
 
 	sigCh := make(chan os.Signal, 1)

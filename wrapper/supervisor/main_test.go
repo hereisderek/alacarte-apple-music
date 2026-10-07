@@ -73,15 +73,32 @@ func waitForMode(t *testing.T, srv *httptest.Server, want Mode) {
 	t.Fatalf("mode never became %q (last %q)", want, health(t, srv).Mode)
 }
 
-// assertChildGone checks that the forked child of the given run mode was
-// killed along with its parent (a zombie counts as gone).
-func assertChildGone(t *testing.T, sup *Supervisor, mode string) {
+// childPid returns the pid of the child the fake wrapper of the given run
+// mode forked. The supervisor reports a mode as soon as it starts the
+// process, which can be before the script has recorded the pid, so wait for
+// it. Read it before the process is meant to go: a later run of the same
+// mode overwrites the file with its own, live child.
+func childPid(t *testing.T, sup *Supervisor, mode string) string {
 	t.Helper()
-	raw, err := os.ReadFile(filepath.Join(filepath.Dir(sup.wrapperBin), mode+".child"))
-	if err != nil {
-		t.Fatal(err)
+	file := filepath.Join(filepath.Dir(sup.wrapperBin), mode+".child")
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		raw, err := os.ReadFile(file)
+		if pid := strings.TrimSpace(string(raw)); err == nil && pid != "" {
+			return pid
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%s wrapper never recorded its child: %v", mode, err)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
-	stat := "/proc/" + strings.TrimSpace(string(raw)) + "/stat"
+}
+
+// assertChildGone checks that the given forked child was killed along with
+// its parent (a zombie counts as gone).
+func assertChildGone(t *testing.T, mode, pid string) {
+	t.Helper()
+	stat := "/proc/" + pid + "/stat"
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
 		b, err := os.ReadFile(stat)
@@ -166,6 +183,7 @@ func TestLoginStopsWorkerOnSuccessAndRestoresNormal(t *testing.T) {
 	sup, srv := newTestSupervisor(t, "[.] account info cached successfully")
 	sup.StartNormal()
 	waitForMode(t, srv, ModeNormal)
+	normalChild := childPid(t, sup, "normal")
 
 	start := time.Now()
 	res, err := postLogin(context.Background(), srv)
@@ -180,8 +198,8 @@ func TestLoginStopsWorkerOnSuccessAndRestoresNormal(t *testing.T) {
 	if time.Since(start) > 2*time.Second {
 		t.Fatalf("worker was not stopped promptly after success (took %s)", time.Since(start))
 	}
-	assertChildGone(t, sup, "normal")
-	assertChildGone(t, sup, "login")
+	assertChildGone(t, "normal", normalChild)
+	assertChildGone(t, "login", childPid(t, sup, "login"))
 	waitForMode(t, srv, ModeNormal)
 }
 
@@ -196,6 +214,7 @@ func TestLoginCancelledByClientDisconnect(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitForMode(t, srv, ModeLoggingIn)
+	loginChild := childPid(t, sup, "login")
 
 	if r, _ := postLogin(context.Background(), srv); r.StatusCode != http.StatusConflict {
 		t.Errorf("concurrent login status = %d, want 409", r.StatusCode)
@@ -208,7 +227,7 @@ func TestLoginCancelledByClientDisconnect(t *testing.T) {
 	cancel()
 	res.Body.Close()
 	waitForMode(t, srv, ModeNormal)
-	assertChildGone(t, sup, "login")
+	assertChildGone(t, "login", loginChild)
 	if _, err := os.Stat(sup.get2faFilePath()); !os.IsNotExist(err) {
 		t.Errorf("2fa file should be cleared after sign-in ends: %v", err)
 	}
@@ -284,5 +303,64 @@ func TestLeaseLossWaitsAndWakeRestarts(t *testing.T) {
 	}
 	if n := starts(); n != 2 {
 		t.Fatalf("wake should start the wrapper right away, starts = %d", n)
+	}
+}
+
+func TestControlEndpointsNeedTheToken(t *testing.T) {
+	sup, srv := newTestSupervisor(t, "")
+	sup.controlToken = "s3cret"
+
+	post := func(path, token string) int {
+		req, _ := http.NewRequest(http.MethodPost, srv.URL+path, strings.NewReader(`{"email":"a@b.c","password":"pw","code":"123456"}`))
+		if token != "" {
+			req.Header.Set("X-Supervisor-Token", token)
+		}
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res.Body.Close()
+		return res.StatusCode
+	}
+	for _, path := range []string{"/login", "/login/2fa", "/wake"} {
+		if got := post(path, ""); got != http.StatusUnauthorized {
+			t.Errorf("%s without token = %d", path, got)
+		}
+		if got := post(path, "wrong"); got != http.StatusUnauthorized {
+			t.Errorf("%s with wrong token = %d", path, got)
+		}
+	}
+	// The right token gets through to the handler (no sign-in running).
+	if got := post("/login/2fa", "s3cret"); got != http.StatusConflict {
+		t.Errorf("2FA with token = %d", got)
+	}
+	if got := post("/wake", "s3cret"); got != http.StatusOK {
+		t.Errorf("wake with token = %d", got)
+	}
+	// Health stays open for the backend's reachability probe.
+	if res, err := http.Get(srv.URL + "/health"); err != nil || res.StatusCode != http.StatusOK {
+		t.Errorf("health without token failed: %v", err)
+	}
+}
+
+func TestLoadControlTokenCreatesThenReuses(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "secret", "token")
+	first, err := loadControlToken(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first) != 64 {
+		t.Fatalf("token %q is not 32 random bytes", first)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0600 {
+		t.Errorf("token file mode = %v", info.Mode().Perm())
+	}
+	second, err := loadControlToken(path)
+	if err != nil || second != first {
+		t.Fatalf("token changed on reload: %q -> %q (%v)", first, second, err)
 	}
 }

@@ -413,6 +413,8 @@
     "checking": "檢查中…",
     "stalledRecoveredTitle": "下載 wrapper 曾經停滯，已自動恢復。",
     "recovered": "已恢復",
+    "stalled": "停滯中",
+    "stalledTitle": "下載 wrapper 已有一段時間沒有回應；若未恢復，下載將會停止。",
     "ready": "就緒",
     "issue": "問題",
     "somethingNotReady": "有些項目尚未就緒",

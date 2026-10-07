@@ -4,22 +4,39 @@ import fsp from 'node:fs/promises'
 import path from 'node:path'
 import { ttmlToLrc } from './ttmlLrc.mjs'
 
-function runFfmpeg(args) {
+// A single track converts in seconds; a hung ffmpeg would otherwise hold
+// the one-at-a-time queue forever.
+const FFMPEG_TIMEOUT_MS = Math.max(
+  10_000,
+  Number(process.env.AMDL_FFMPEG_TIMEOUT_MS) || 15 * 60_000,
+)
+
+function runFfmpeg(args, { signal, timeoutMs = FFMPEG_TIMEOUT_MS } = {}) {
   return new Promise((resolve, reject) => {
-    const proc = spawn('ffmpeg', args, { stdio: ['ignore', 'pipe', 'pipe'] })
+    const proc = spawn('ffmpeg', args, { stdio: ['ignore', 'pipe', 'pipe'], signal })
     let stderr = ''
+    let timedOut = false
+    const timer = setTimeout(() => {
+      timedOut = true
+      proc.kill('SIGKILL')
+    }, timeoutMs)
     proc.stderr.on('data', (d) => {
-      stderr += d.toString()
+      stderr = (stderr + d.toString()).slice(-4000)
     })
     proc.on('close', (code) => {
+      clearTimeout(timer)
       if (code === 0) resolve()
+      else if (timedOut) reject(new Error(`ffmpeg timed out after ${Math.round(timeoutMs / 1000)}s`))
       else reject(new Error(`ffmpeg exit ${code}: ${stderr.slice(-500)}`))
     })
-    proc.on('error', reject)
+    proc.on('error', (err) => {
+      clearTimeout(timer)
+      reject(err)
+    })
   })
 }
 
-export async function convertToFlac(inputPath, { deleteOriginal = true } = {}) {
+export async function convertToFlac(inputPath, { deleteOriginal = true, signal, timeoutMs } = {}) {
   const dir = path.dirname(inputPath)
   const base = path.basename(inputPath, path.extname(inputPath))
   const outPath = path.join(dir, `${base}.flac`)
@@ -45,27 +62,37 @@ export async function convertToFlac(inputPath, { deleteOriginal = true } = {}) {
       ]
     }
   } catch {}
-  await runFfmpeg([
-    '-y',
-    '-i',
-    inputPath,
-    '-map',
-    '0',
-    '-map_metadata',
-    '0',
-    ...lrcArgs,
-    '-c:a',
-    'flac',
-    '-compression_level',
-    '8',
-    '-c:v',
-    'copy',
-    '-disposition:v:0',
-    'attached_pic',
-    '-metadata',
-    'encoder=FLAC',
-    outPath,
-  ])
+  // ffmpeg writes to a hidden temp file that only becomes the .flac once it
+  // finished, so a failed or killed conversion leaves no partial track to be
+  // moved into the library next to the original.
+  const tmpPath = path.join(dir, `.${base}.converting.flac`)
+  try {
+    await runFfmpeg([
+      '-y',
+      '-i',
+      inputPath,
+      '-map',
+      '0',
+      '-map_metadata',
+      '0',
+      ...lrcArgs,
+      '-c:a',
+      'flac',
+      '-compression_level',
+      '8',
+      '-c:v',
+      'copy',
+      '-disposition:v:0',
+      'attached_pic',
+      '-metadata',
+      'encoder=FLAC',
+      tmpPath,
+    ], { signal, timeoutMs })
+    await fsp.rename(tmpPath, outPath)
+  } catch (err) {
+    await fsp.rm(tmpPath, { force: true }).catch(() => {})
+    throw err
+  }
   if (deleteOriginal) {
     try {
       await fsp.unlink(inputPath)
@@ -97,10 +124,13 @@ export async function convertDirToFlac(dir, opts = {}) {
   let failed = 0
   for (let i = 0; i < files.length; i++) {
     const p = files[i]
+    // A cancelled job stops converting instead of counting the rest as failed.
+    convertOpts.signal?.throwIfAborted()
     try {
       await convertToFlac(p, convertOpts)
       converted++
     } catch (err) {
+      convertOpts.signal?.throwIfAborted()
       console.error(`FLAC convert failed for ${p}: ${err.message}`)
       failed++
     }

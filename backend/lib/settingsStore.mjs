@@ -27,11 +27,7 @@ const DEFAULTS = {
   storefront: 'us',
   language: 'en-US',
   quality: 'flac',
-  albumFolderFormat: '{AlbumName} ({ReleaseYear})',
-  artistFolderFormat: '{ArtistName}',
-  songFileFormat: '{SongNumer}. {SongName}',
   convertToFlac: true,
-  keepAlac: false,
   coverSize: '1400x1400',
   downloadLyrics: false,
   lyricsFormat: 'lrc',
@@ -146,43 +142,86 @@ export function decryptSecret(b64) {
   }
 }
 
+// Writes do a read-modify-write of the whole file; serialize them so two
+// saves can't clobber each other with stale snapshots.
+let writeChain = Promise.resolve()
+function serialize(operation) {
+  const run = writeChain.then(operation, operation)
+  writeChain = run.then(
+    () => undefined,
+    () => undefined,
+  )
+  return run
+}
+
+// A missing file means defaults. A file that is not valid JSON is moved
+// aside so the encrypted credentials in it are kept for recovery; any
+// other read error is thrown so a write never commits defaults over a
+// file it could not read.
+async function loadSettingsFile() {
+  let raw
+  try {
+    raw = await fsp.readFile(SETTINGS_FILE, 'utf8')
+  } catch (err) {
+    if (err?.code === 'ENOENT') return {}
+    throw err
+  }
+  try {
+    return JSON.parse(raw)
+  } catch (err) {
+    console.error('settings.json unreadable:', err.message)
+    await fsp
+      .rename(SETTINGS_FILE, `${SETTINGS_FILE}.corrupt-${Date.now()}`)
+      .catch(() => null)
+    return {}
+  }
+}
+
 export async function readSettings() {
   try {
-    const raw = await fsp.readFile(SETTINGS_FILE, 'utf8')
-    const parsed = JSON.parse(raw)
-    return normalizeSettings(parsed)
-  } catch {
+    return normalizeSettings(await loadSettingsFile())
+  } catch (err) {
+    console.error('settings.json read failed:', err.message)
     return normalizeSettings({})
   }
 }
 
-export async function writeSettings(patch) {
-  const current = await readSettings()
-  const merged = { ...current, ...patch }
-  if (
-    Object.prototype.hasOwnProperty.call(patch, 'convertToFlac') &&
-    !Object.prototype.hasOwnProperty.call(patch, 'quality')
-  ) {
-    merged.quality = patch.convertToFlac === false ? 'alac' : 'flac'
-  }
-  if (
-    Object.prototype.hasOwnProperty.call(patch, 'uiLanguage') &&
-    !Object.prototype.hasOwnProperty.call(patch, 'language')
-  ) {
-    if (patch.uiLanguage && patch.uiLanguage !== 'system') {
-      merged.language = toAppleLanguage(patch.uiLanguage)
+export function writeSettings(patch) {
+  return serialize(async () => {
+    const current = normalizeSettings(await loadSettingsFile())
+    const merged = { ...current, ...patch }
+    if (
+      Object.prototype.hasOwnProperty.call(patch, 'convertToFlac') &&
+      !Object.prototype.hasOwnProperty.call(patch, 'quality')
+    ) {
+      merged.quality = patch.convertToFlac === false ? 'alac' : 'flac'
     }
-  }
-  const next = normalizeSettings(merged)
-  await fsp.writeFile(
-    SETTINGS_FILE,
-    JSON.stringify(next, null, 2),
-    { mode: 0o600 },
-  )
-  return next
+    if (
+      Object.prototype.hasOwnProperty.call(patch, 'uiLanguage') &&
+      !Object.prototype.hasOwnProperty.call(patch, 'language')
+    ) {
+      if (patch.uiLanguage && patch.uiLanguage !== 'system') {
+        merged.language = toAppleLanguage(patch.uiLanguage)
+      }
+    }
+    const next = normalizeSettings(merged)
+    // Write a temp file and rename it over the old one so a reader (or a
+    // crash) never sees a half-written file.
+    const tmpFile = `${SETTINGS_FILE}.tmp`
+    await fsp.writeFile(tmpFile, JSON.stringify(next, null, 2), { mode: 0o600 })
+    await fsp.rename(tmpFile, SETTINGS_FILE)
+    return next
+  })
 }
 
-function normalizeSettings(parsed) {
+// Settings that never had any effect (amdp's folder and file names are fixed
+// in amdpRunner, and ALAC is not kept next to the FLAC); dropped from older
+// settings files on the next save.
+const RETIRED_KEYS = ['albumFolderFormat', 'artistFolderFormat', 'songFileFormat', 'keepAlac']
+
+function normalizeSettings(input) {
+  const parsed = { ...input }
+  for (const key of RETIRED_KEYS) delete parsed[key]
   const hasQuality = QUALITY_VALUES.has(parsed?.quality)
   const legacyFlacConversion =
     parsed?.convertToFlac ?? parsed?.flac_conversion ?? DEFAULTS.convertToFlac
@@ -198,7 +237,6 @@ function normalizeSettings(parsed) {
     ...parsed,
     quality,
     convertToFlac: quality === 'flac',
-    keepAlac: toBool(parsed?.keepAlac, DEFAULTS.keepAlac),
     downloadLyrics: toBool(parsed?.downloadLyrics, DEFAULTS.downloadLyrics),
     promptForDownloadQuality: toBool(
       parsed?.promptForDownloadQuality,
@@ -254,11 +292,7 @@ export async function readPublicSettings() {
     storefront: s.storefront,
     language: s.language,
     quality: s.quality,
-    albumFolderFormat: s.albumFolderFormat,
-    artistFolderFormat: s.artistFolderFormat,
-    songFileFormat: s.songFileFormat,
     convertToFlac: s.quality === 'flac',
-    keepAlac: s.keepAlac,
     coverSize: s.coverSize,
     downloadLyrics: Boolean(s.downloadLyrics),
     lyricsFormat: s.lyricsFormat || 'lrc',
