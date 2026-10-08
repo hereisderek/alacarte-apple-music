@@ -1,8 +1,12 @@
-// Server-to-server client for the main alacarte backend's /api/internal/*
-// surface (see backend/routes/internal.mjs). Never called from the browser —
-// only from this service's own backend.
-const BACKEND_URL = (process.env.BACKEND_URL || 'http://web:7373').replace(/\/+$/, '')
-const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || ''
+import { getInternalConfig } from './configStore.mjs'
+
+function getAlacarteConfig() {
+  const cfg = getInternalConfig().alacarte
+  return {
+    backendUrl: (cfg.backendUrl || 'http://web:7373').replace(/\/+$/, ''),
+    internalApiKey: cfg.internalApiKey || '',
+  }
+}
 
 const MAX_429_RETRIES = Math.max(0, Number(process.env.IMPORTER_MAX_429_RETRIES) || 6)
 const MAX_BACKOFF_MS = Math.max(1_000, Number(process.env.IMPORTER_MAX_BACKOFF_MS) || 20_000)
@@ -17,10 +21,11 @@ function sleep(ms) {
 // existed, one even at a 300ms pace between searches). The backend doesn't
 // forward Apple's own Retry-After, so this backs off blind but generously.
 async function call(path, { method = 'GET', body } = {}, attempt = 0) {
-  const res = await fetch(`${BACKEND_URL}${path}`, {
+  const { backendUrl, internalApiKey } = getAlacarteConfig()
+  const res = await fetch(`${backendUrl}${path}`, {
     method,
     headers: {
-      'X-Internal-Key': INTERNAL_API_KEY,
+      'X-Internal-Key': internalApiKey,
       ...(body ? { 'Content-Type': 'application/json' } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,

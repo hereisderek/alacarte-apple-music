@@ -46,7 +46,7 @@ export type SongCandidate = {
   artworkTemplate?: string | null
 }
 
-export type ItemStatus = 'pending' | 'queued' | 'done' | 'failed' | 'notfound'
+export type ItemStatus = 'pending' | 'waiting' | 'downloading' | 'queued' | 'done' | 'failed' | 'notfound'
 
 export type ImportItem = {
   index: number
@@ -54,6 +54,7 @@ export type ImportItem = {
   parsedTitle: string
   parsedArtists: string[]
   status: ItemStatus
+  queuePosition?: number | null
   candidates: SongCandidate[]
   chosenSongId: string | null
   chosenName: string | null
@@ -68,6 +69,8 @@ export type ImportCounts = {
   processed?: number
   added?: number
   pending: number
+  waiting?: number
+  downloading?: number
   queued: number
   done: number
   failed: number
@@ -79,6 +82,8 @@ export type ImportSession = {
   title: string
   language?: string | null
   createdAt: number
+  queuePosition?: number
+  otherSongsAhead?: number
   counts: ImportCounts
   items: ImportItem[]
   warnings?: string[]
@@ -92,27 +97,91 @@ export type FailedPort = {
 }
 
 export type ServerStatus = {
+  mode?: 'alacarte' | 'subsonic'
   connected: boolean
   ok: boolean
   error?: string | null
-  wrapper: {
+  subsonic?: {
+    ok: boolean
+    version?: string
+    serverType?: string
+    serverVersion?: string
+    openSubsonic?: boolean
+  }
+  wrapper?: {
     ok: boolean
     host?: string
     failedPorts?: FailedPort[]
   }
-  appleToken: {
+  appleToken?: {
     ok: boolean
     error?: string | null
   }
   queue: {
     running: number
     queued: number
+    activeSong?: string | null
   }
+}
+
+export type ImporterConfig = {
+  mode: 'alacarte' | 'subsonic'
+  locked: boolean
+  searchIntervalMs?: number
+  intervalLocked?: boolean
+  alacarte: {
+    backendUrl: string
+    hasKey: boolean
+  }
+  subsonic: {
+    url: string
+    username: string
+    hasPassword: boolean
+    downloadEndpoint: string
+  }
+}
+
+export type UpdateConfigPayload = {
+  mode?: 'alacarte' | 'subsonic'
+  searchIntervalMs?: number
+  alacarte?: {
+    backendUrl?: string
+    internalApiKey?: string
+  }
+  subsonic?: {
+    url?: string
+    username?: string
+    password?: string
+    downloadEndpoint?: string
+  }
+}
+
+export type TestConfigResult = {
+  connected: boolean
+  ok: boolean
+  error?: string | null
+  version?: string
+  serverType?: string
+  serverVersion?: string
+  openSubsonic?: boolean
+  wrapper?: { ok: boolean }
+  appleToken?: { ok: boolean }
 }
 
 export const api = {
   authState: () => http<{ authEnabled: boolean }>('auth/state'),
   serverStatus: () => http<ServerStatus>('status'),
+  getConfig: () => http<ImporterConfig>('config'),
+  saveConfig: (payload: UpdateConfigPayload) =>
+    http<ImporterConfig>('config', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  testConfig: (payload: { mode: 'alacarte' | 'subsonic'; alacarte?: any; subsonic?: any }) =>
+    http<TestConfigResult>('config/test', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
   login: (username: string, password: string) =>
     http<{ ok: true }>('auth/login', {
       method: 'POST',

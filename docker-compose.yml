@@ -133,6 +133,10 @@ services:
       - KKBOX_USER_AGENT=${KKBOX_USER_AGENT:-}
       - SILVERBOX_USER_AGENT=${SILVERBOX_USER_AGENT:-}
       - HOLIDAY_USER_AGENT=${HOLIDAY_USER_AGENT:-}
+      - IMPORTER_CONFIG_FILE=/data/importer-config.json
+      - IMPORTER_CONFIG_LOCKED=${IMPORTER_CONFIG_LOCKED:-false}
+    volumes:
+      - ${ALACARTE_DATA_PATH:-./data}/importer:/data
     ports:
       - "${IMPORTER_BIND:-0.0.0.0}:${IMPORTER_PORT:-8090}:8080"
     networks:

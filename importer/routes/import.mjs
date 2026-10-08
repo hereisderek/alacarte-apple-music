@@ -9,12 +9,48 @@ import {
 } from '../lib/importSession.mjs'
 import { onEvent } from '../lib/eventBus.mjs'
 import { getBackendHealth, searchSongs } from '../lib/backendClient.mjs'
+import { pingSubsonic, searchSubsonicSongs } from '../lib/subsonicClient.mjs'
+import { getInternalConfig } from '../lib/configStore.mjs'
+import { getGlobalQueueStatus } from '../lib/importSession.mjs'
 
 export const importRouter = express.Router()
 
 importRouter.get('/status', async (_req, res) => {
+  const { mode } = getInternalConfig()
+  const queueStatus = getGlobalQueueStatus()
+
+  if (mode === 'subsonic') {
+    const ping = await pingSubsonic()
+    return res.json({
+      mode: 'subsonic',
+      connected: ping.connected,
+      ok: ping.ok,
+      error: ping.error || null,
+      subsonic: {
+        ok: ping.ok,
+        version: ping.version || '',
+        serverType: ping.serverType || '',
+        serverVersion: ping.serverVersion || '',
+        openSubsonic: ping.openSubsonic || false,
+      },
+      queue: {
+        running: queueStatus.active,
+        queued: queueStatus.waiting,
+        activeSong: queueStatus.activeSong,
+      },
+    })
+  }
+
   const health = await getBackendHealth()
-  res.json(health)
+  res.json({
+    mode: 'alacarte',
+    ...health,
+    queue: {
+      running: queueStatus.active || health.queue?.running || 0,
+      queued: queueStatus.waiting || health.queue?.queued || 0,
+      activeSong: queueStatus.activeSong,
+    },
+  })
 })
 
 importRouter.post('/', async (req, res) => {
@@ -42,7 +78,13 @@ importRouter.get('/manual-search', async (req, res) => {
     const q = String(req.query.q || '').trim()
     const language = req.query.language ? String(req.query.language) : undefined
     if (!q) return res.json({ songs: [] })
-    const songs = await searchSongs({ q, limit: 10, language })
+    const { mode } = getInternalConfig()
+    let songs = []
+    if (mode === 'subsonic') {
+      songs = await searchSubsonicSongs({ query: q, limit: 10 })
+    } else {
+      songs = await searchSongs({ q, limit: 10, language })
+    }
     res.json({ songs })
   } catch (err) {
     res.status(502).json({ error: err.message })

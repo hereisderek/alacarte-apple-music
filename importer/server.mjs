@@ -12,9 +12,13 @@ if (typeof dns.setDefaultResultOrder === 'function') {
 
 import { authRouter } from './routes/auth.mjs'
 import { importRouter } from './routes/import.mjs'
+import { configRouter } from './routes/config.mjs'
 import { requireImporterAuth, isAuthEnabled } from './lib/auth.mjs'
 import { createRateLimiter } from './lib/rateLimiter.mjs'
 import { getBackendHealth } from './lib/backendClient.mjs'
+import { pingSubsonic } from './lib/subsonicClient.mjs'
+import { getInternalConfig } from './lib/configStore.mjs'
+import { getGlobalQueueStatus } from './lib/importSession.mjs'
 
 const PORT = Number(process.env.PORT || 8080)
 
@@ -33,9 +37,15 @@ if (isAuthEnabled() && !process.env.IMPORTER_PASSWORD) {
   console.warn('[importer] AUTH_ENABLED=true but IMPORTER_PASSWORD is not set — login will always fail.')
 }
 
+function parseTrustProxy(val) {
+  if (val === 'true' || val === true) return true
+  if (val === 'false' || val === false) return false
+  return val || 'loopback'
+}
+
 const app = express()
 app.disable('x-powered-by')
-app.set('trust proxy', process.env.TRUST_PROXY || 'loopback')
+app.set('trust proxy', parseTrustProxy(process.env.TRUST_PROXY))
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -66,10 +76,50 @@ const loginLimiter = createRateLimiter({ windowMs: 60_000, max: 10 })
 const importLimiter = createRateLimiter({ windowMs: 60_000, max: 5 })
 
 const root = express.Router()
-root.get('/api/status', async (_req, res) => res.json(await getBackendHealth()))
+
+async function handleStatus(_req, res) {
+  const { mode } = getInternalConfig()
+  const queueStatus = getGlobalQueueStatus()
+
+  if (mode === 'subsonic') {
+    const ping = await pingSubsonic()
+    return res.json({
+      mode: 'subsonic',
+      connected: ping.connected,
+      ok: ping.ok,
+      error: ping.error || null,
+      subsonic: {
+        ok: ping.ok,
+        version: ping.version || '',
+        serverType: ping.serverType || '',
+        serverVersion: ping.serverVersion || '',
+        openSubsonic: ping.openSubsonic || false,
+      },
+      queue: {
+        running: queueStatus.active,
+        queued: queueStatus.waiting,
+        activeSong: queueStatus.activeSong,
+      },
+    })
+  }
+
+  const health = await getBackendHealth()
+  res.json({
+    mode: 'alacarte',
+    ...health,
+    queue: {
+      running: queueStatus.active || health.queue?.running || 0,
+      queued: queueStatus.waiting || health.queue?.queued || 0,
+      activeSong: queueStatus.activeSong,
+    },
+  })
+}
+
+root.get('/api/status', handleStatus)
 root.use('/api/auth/login', loginLimiter)
 root.use('/api/auth', authRouter)
 root.use(requireImporterAuth())
+root.use('/api/config', configRouter)
 root.use('/api/import', (req, res, next) => {
   if (req.method === 'POST' && req.path === '/') return importLimiter(req, res, next)
   next()

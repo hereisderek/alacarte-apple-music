@@ -1,10 +1,30 @@
-// Turns Apple Music catalog search candidates into an auto-pick / not-found
+// Turns Apple Music / Subsonic search candidates into an auto-pick / not-found
 // verdict for one parsed line.
-//
-// When artist info is provided (e.g. from playlist sources or "Title - Artist"
-// plain text), the top candidate is auto-picked.
-// When an arbitrary search term without singer info is given (e.g. "时光机"),
-// auto-picking is withheld so the user can preview candidates and choose.
+
+function cjkSimilarity(s1, s2) {
+  if (!s1 || !s2) return 0
+  const c1 = [...s1.toLowerCase()].filter((c) => /\p{Script=Han}/u.test(c))
+  const c2 = [...s2.toLowerCase()].filter((c) => /\p{Script=Han}/u.test(c))
+  if (c1.length === 0 || c2.length === 0) return 0
+  let shared = 0
+  const set2 = new Set(c2)
+  for (const char of c1) {
+    if (set2.has(char)) shared++
+  }
+  return shared / Math.max(c1.length, c2.length)
+}
+
+function stringMatchScore(target, candidateStr) {
+  if (!target || !candidateStr) return 0
+  const t = target.toLowerCase().trim()
+  const c = candidateStr.toLowerCase().trim()
+  if (t === c) return 10
+  if (c.includes(t) || t.includes(c)) return 8
+  const cjkSim = cjkSimilarity(t, c)
+  if (cjkSim >= 0.4) return Math.round(cjkSim * 10)
+  return 0
+}
+
 function queryMatchesCandidate(query, candidate) {
   if (!query || !candidate) return false
   const qLower = query.toLowerCase().trim()
@@ -31,27 +51,75 @@ function queryMatchesCandidate(query, candidate) {
   return false
 }
 
-export function pickBestMatch(candidates, { query, parsedArtists } = {}) {
+export function pickBestMatch(candidates, { query, title, parsedArtists = [] } = {}) {
   const list = Array.isArray(candidates) ? candidates : []
   if (list.length === 0) return { status: 'notfound', candidates: [] }
 
   const hasExplicitArtist = Array.isArray(parsedArtists) && parsedArtists.length > 0
-  if (hasExplicitArtist) {
+
+  // If no title, parsedArtists, or query was provided, default to first candidate
+  if (!query && !title && (!parsedArtists || parsedArtists.length === 0)) {
     return { status: 'matched', chosen: list[0], candidates: list.slice(0, 5) }
   }
 
-  // If no explicit artist was parsed (e.g. plain text with no dash),
-  // check if the search term contains singer/album info matching candidate[0].
-  if (query) {
-    const first = list[0]
-    const qClean = query.trim().toLowerCase()
-    const nameClean = (first.name || '').trim().toLowerCase()
+  // Score all candidates
+  let bestCandidate = list[0]
+  let bestScore = 0
+  let bestIsInverted = false
 
-    // If query is strictly the title alone with no singer info, require user preview
-    if (qClean === nameClean || !queryMatchesCandidate(query, first)) {
+  for (const cand of list) {
+    const candName = cand.name || ''
+    const candArtist = cand.artistName || ''
+
+    let tScore = title ? stringMatchScore(title, candName) : 0
+    let aScore = 0
+    for (const a of parsedArtists) {
+      aScore = Math.max(aScore, stringMatchScore(a, candArtist))
+    }
+
+    // Check inverted match (title is artistName, artist is song name)
+    let invTScore = title ? stringMatchScore(title, candArtist) : 0
+    let invAScore = 0
+    for (const a of parsedArtists) {
+      invAScore = Math.max(invAScore, stringMatchScore(a, candName))
+    }
+
+    const standardTotal = tScore + aScore
+    const invertedTotal = invTScore + invAScore
+
+    const currentScore = Math.max(standardTotal, invertedTotal)
+    const isInverted = invertedTotal > standardTotal && invertedTotal >= 8
+
+    if (currentScore > bestScore) {
+      bestScore = currentScore
+      bestCandidate = cand
+      bestIsInverted = isInverted
+    }
+  }
+
+  // If candidate has zero relevance to the requested song/artist:
+  if (hasExplicitArtist && title && bestScore === 0) {
+    if (!queryMatchesCandidate(query, list[0])) {
       return { status: 'notfound', chosen: null, candidates: list.slice(0, 5) }
     }
   }
 
-  return { status: 'matched', chosen: list[0], candidates: list.slice(0, 5) }
+  // If no explicit artist was parsed (e.g. single title with no dash):
+  if (!hasExplicitArtist) {
+    if (query) {
+      const first = list[0]
+      const qClean = query.trim().toLowerCase()
+      const nameClean = (first.name || '').trim().toLowerCase()
+      if (qClean === nameClean || !queryMatchesCandidate(query, first)) {
+        return { status: 'notfound', chosen: null, candidates: list.slice(0, 5) }
+      }
+    }
+  }
+
+  return {
+    status: 'matched',
+    chosen: bestCandidate,
+    isInverted: bestIsInverted,
+    candidates: list.slice(0, 5),
+  }
 }

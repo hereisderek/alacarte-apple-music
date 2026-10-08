@@ -50,3 +50,30 @@ test('pickBestMatch requires preview (notfound) when query has no singer info', 
   assert.equal(result.chosen, null)
   assert.equal(result.candidates.length, 2)
 })
+
+test('pickBestMatch rejects completely unrelated candidates', () => {
+  const candidates = [
+    { id: '1', name: 'We go nanana', artistName: 'WayV' },
+  ]
+  const result = pickBestMatch(candidates, {
+    query: '遇 ai.mini',
+    title: '遇',
+    parsedArtists: ['ai.mini'],
+  })
+  assert.equal(result.status, 'notfound')
+  assert.equal(result.chosen, null)
+})
+
+test('pickBestMatch detects inverted artist and title candidates', () => {
+  const candidates = [
+    { id: '1', name: 'QQ爱', artistName: '王雅洁' },
+  ]
+  const result = pickBestMatch(candidates, {
+    query: '王麟 QQ爱',
+    title: '王麟',
+    parsedArtists: ['QQ爱'],
+  })
+  assert.equal(result.status, 'matched')
+  assert.equal(result.isInverted, true)
+  assert.equal(result.chosen.id, '1')
+})
