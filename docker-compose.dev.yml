@@ -1,0 +1,29 @@
+# Local debug stack: runs the backend straight from ./backend (no image build, no CI)
+# with Apple's API replaced by dev/mock-apple.mjs.
+#   mkdir -p dev/config && node dev/make-library.mjs 252
+#   docker compose -f docker-compose.dev.yml up
+#   curl localhost:7374/api/library
+services:
+  web-dev:
+    image: node:22-bookworm-slim
+    working_dir: /app
+    command: sh -c "npm ci --omit=dev --no-audit --no-fund && node --import /dev-mock/mock-apple.mjs server.mjs"
+    environment:
+      - PORT=7373
+      - AMDL_MUSIC_PATH=/music
+      - AMDL_CONFIG_DIR=/config
+      - AMDL_SECRET_KEY=0000000000000000000000000000000000000000000000000000000000000000
+      - AUTH_DISABLED=true
+      - AMDL_FOLLOW_TICK_MS=3600000
+      - MOCK_APPLE_LIMIT_RPS=${MOCK_APPLE_LIMIT_RPS:-5}
+      - MOCK_APPLE_LATENCY_MS=${MOCK_APPLE_LATENCY_MS:-80}
+    volumes:
+      - ./backend:/app
+      - web-dev-node-modules:/app/node_modules
+      - ./dev:/dev-mock:ro
+      - ./dev/music/library/apple:/music
+      - ./dev/config:/config
+    ports:
+      - "127.0.0.1:7374:7373"
+volumes:
+  web-dev-node-modules:

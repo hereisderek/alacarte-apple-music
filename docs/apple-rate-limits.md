@@ -43,13 +43,34 @@ question: each 429 logs how many calls were made in the previous 60 seconds and 
 
 The 10-09 cause is inferred from code and timing. The logging above will confirm it.
 
+## Reproducing locally
+
+`docker-compose.dev.yml` runs the backend from `./backend` in a plain `node:22` container
+(no image build, no CI) with `dev/mock-apple.mjs` standing in for Apple, so nothing
+touches the real rate limit. `MOCK_APPLE_LIMIT_RPS` makes the mock answer 429 above that
+many requests per second.
+
+```
+mkdir -p dev/config && node dev/make-library.mjs 252
+docker compose -f docker-compose.dev.yml up -d
+curl localhost:7374/api/library
+docker compose -f docker-compose.dev.yml logs | grep -E "\[apple\]|mock-apple"
+```
+
+Measured with 252 fake artists and the mock at 80 ms latency, limit off:
+
+- the first `GET /api/library` sends 252 Apple searches in 5.3 s (about 47 req/s)
+- a second call sends 0 (memory cache), but after a container restart it sends 252 again
+- with the mock limit at 5 req/s the 6th call is rejected; with this branch's cooldown
+  the other 246 calls are blocked locally instead of being sent
+
 ## Who calls Apple
 
 Pacing exists only for the importer's search (`routes/internal.mjs`, 1.5 s FIFO spacer).
 
 | Caller | Trigger | Calls | Paced | Persisted cache |
 |---|---|---|---|---|
-| `routes/library.mjs` `resolveArtistId` | every `GET /api/library` | 1 search per library artist (252) | no, concurrency 4 | memory only, 24 h |
+| `routes/library.mjs` `resolveArtistId` | every `GET /api/library`; the UI calls it once per page load from `LibraryPresenceProvider` (`frontend/src/hooks/useLibraryPresence.tsx`, mounted in `main.tsx`) | 1 search per library artist (252) | no, concurrency 4 | memory only, 24 h |
 | `routes/search.mjs` | user search | 1 | no | no |
 | `routes/album.mjs`, `artist.mjs`, `playlist.mjs` | page views | 1 each | no | partial (`originalMetadataCache`) |
 | `routes/internal.mjs` `/search` | importer | 1 per query, up to 3 queries per track | yes, 1.5 s | no |

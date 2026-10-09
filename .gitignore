@@ -12,3 +12,5 @@ importer/public/
 .DS_Store
 docker-compose.override.yml
 data.backup-*/
+dev/music/
+dev/config/
