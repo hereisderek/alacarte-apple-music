@@ -27,6 +27,7 @@ import { integrationRouter } from './routes/integration.mjs'
 import { isPasswordSet } from './lib/authStore.mjs'
 import { generateSetupToken } from './lib/setupToken.mjs'
 import { isAuthDisabled, requireAuth } from './lib/requireAuth.mjs'
+import { logEgress } from './lib/appleApi.mjs'
 import { startAutoDownloadScheduler } from './lib/autoDownloads.mjs'
 import { startPlaylistSyncScheduler } from './lib/playlistSync.mjs'
 import { initQueue } from './lib/queue.mjs'
@@ -121,6 +122,7 @@ app.use('/api/playlist-following', playlistFollowingRouter)
 app.use('/api/cloud-library', cloudLibraryRouter)
 app.use('/api/integration/v1', integrationRouter)
 
+logEgress()
 startAutoDownloadScheduler()
 startPlaylistSyncScheduler()
 

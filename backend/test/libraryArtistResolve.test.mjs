@@ -12,6 +12,8 @@ const tmpConfig = await fsp.mkdtemp(path.join(os.tmpdir(), 'alacarte-artist-reso
 const tmpMusic = await fsp.mkdtemp(path.join(os.tmpdir(), 'alacarte-artist-resolve-music-'))
 process.env.AMDL_CONFIG_DIR = tmpConfig
 process.env.AMDL_MUSIC_PATH = tmpMusic
+// This test mocks a 429 for one artist and expects the rest to still resolve.
+process.env.APPLE_429_COOLDOWN_MS = '0'
 process.env.AMDL_SECRET_KEY = crypto.randomBytes(32).toString('hex')
 
 const ARTISTS = Array.from({ length: 20 }, (_, i) => `Artist ${i}`)

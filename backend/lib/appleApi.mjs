@@ -1,3 +1,4 @@
+import https from 'node:https'
 import { getBearerToken, invalidateBearerCache } from './appleToken.mjs'
 
 const BASE = 'https://amp-api.music.apple.com/v1/catalog'
@@ -24,15 +25,50 @@ function callerOf() {
   return (f || '').trim().replace(/^at /, '').replace(/.*\/(?:app|backend)\//, '').slice(0, 90)
 }
 
+// Public addresses this container reaches Apple from. Apple rate-limits per IP
+// (v4 and v6 separately), so a 429 is only useful if we know which one it hit.
+let egress = { ipv4: 'unknown', ipv6: 'unknown' }
+// node:https (not fetch) so the address family can be forced per lookup.
+const ipOf = (family) =>
+  new Promise((resolve) => {
+    const req = https.get(
+      { host: 'api64.ipify.org', family, timeout: 8000 },
+      (res) => {
+        let body = ''
+        res.on('data', (d) => (body += d))
+        res.on('end', () => resolve(body.trim().slice(0, 64) || 'unavailable'))
+      },
+    )
+    req.on('timeout', () => req.destroy())
+    req.on('error', () => resolve('unavailable'))
+  })
+export async function logEgress() {
+  const [ipv4, ipv6] = await Promise.all([ipOf(4), ipOf(6)])
+  egress = { ipv4, ipv6 }
+  console.log(`[apple] egress ipv4=${ipv4} ipv6=${ipv6}`)
+}
+
+// After any 429, every Apple call fails locally for this long instead of
+// going out again: retrying against a banned IP only extends the ban.
+const COOLDOWN_MS = Math.max(0, Number(process.env.APPLE_429_COOLDOWN_MS ?? 15 * 60 * 1000))
+let cooldownUntil = 0
+export function getAppleCooldownMs() {
+  return Math.max(0, cooldownUntil - Date.now())
+}
+
 function recordCall(entry) {
   const now = Date.now()
   recentCalls.push({ ...entry, at: now })
   while (recentCalls.length && now - recentCalls[0].at > RECENT_WINDOW_MS) recentCalls.shift()
   console.log(
     `[apple] ${entry.status} ${entry.path}${entry.query} ${entry.ms}ms via ${entry.caller}` +
-      (entry.retryAfter ? ` retry-after=${entry.retryAfter}` : ''),
+      (entry.retryAfter ? ` retry-after=${entry.retryAfter}` : '') +
+      ` egress=${egress.ipv4}/${egress.ipv6}`,
   )
   if (entry.status === 429) {
+    cooldownUntil = Date.now() + COOLDOWN_MS
+    logEgress()
+    console.warn(`[apple] 429 -> all Apple calls blocked for ${Math.round(COOLDOWN_MS / 1000)}s`)
     const byCaller = {}
     for (const c of recentCalls) byCaller[c.caller] = (byCaller[c.caller] || 0) + 1
     console.warn(
@@ -45,6 +81,17 @@ function recordCall(entry) {
 async function apiGet(url, { language = '', mediaUserToken, signal } = {}) {
   const caller = callerOf()
   const startedAt = Date.now()
+  const left = getAppleCooldownMs()
+  if (left > 0) {
+    console.warn(
+      `[apple] BLOCKED (429 cooldown, ${Math.ceil(left / 1000)}s left) ${new URL(url).pathname} via ${caller}`,
+    )
+    const err = new Error(
+      `Apple API 429 on ${new URL(url).pathname}: local cooldown, ${Math.ceil(left / 1000)}s left`,
+    )
+    err.retryAfterSec = Math.ceil(left / 1000)
+    throw err
+  }
   let token = await getBearerToken()
   const run = async (t) => {
     const headers = {

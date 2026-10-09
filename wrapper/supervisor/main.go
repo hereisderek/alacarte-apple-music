@@ -628,7 +628,27 @@ func envOr(key, fallback string) string {
 
 // All arguments are passed through to the wrapper; the supervisor itself is
 // configured through the environment.
+// logEgressIPs reports which public IPv4/IPv6 addresses this container's
+// outbound traffic uses, so an Apple 429 can be matched to the banned address.
+func logEgressIPs() {
+	client := &http.Client{Timeout: 8 * time.Second}
+	for _, h := range []struct{ label, url string }{
+		{"ipv4", "https://api.ipify.org"},
+		{"ipv6", "https://api6.ipify.org"},
+	} {
+		ip := "unavailable"
+		if resp, err := client.Get(h.url); err == nil {
+			if b, err := io.ReadAll(io.LimitReader(resp.Body, 128)); err == nil {
+				ip = strings.TrimSpace(string(b))
+			}
+			resp.Body.Close()
+		}
+		log.Printf("[supervisor] egress %s=%s", h.label, ip)
+	}
+}
+
 func main() {
+	go logEgressIPs()
 	addr := envOr("SUPERVISOR_HOST", "0.0.0.0") + ":" + envOr("SUPERVISOR_PORT", "40020")
 	normalArgs := os.Args[1:]
 	if len(normalArgs) == 0 {

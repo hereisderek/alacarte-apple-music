@@ -1,7 +1,7 @@
 import express from 'express'
 import path from 'node:path'
 
-import { searchCatalog } from '../lib/appleApi.mjs'
+import { getAppleCooldownMs, searchCatalog } from '../lib/appleApi.mjs'
 import { readSettings } from '../lib/settingsStore.mjs'
 import { enqueueSong, getJob, listJobs } from '../lib/queue.mjs'
 import { writePlaylistM3U } from '../lib/playlistExport.mjs'
@@ -123,6 +123,8 @@ internalRouter.get('/search', async (req, res) => {
     // tell "rate limited, retry me" apart from "something's actually broken".
     const upstreamStatus = Number(String(err.message || '').match(/Apple API (\d+)/)?.[1])
     const status = upstreamStatus === 429 ? 429 : 502
+    // Tell the importer how long to stand down (it honours Retry-After).
+    if (status === 429) res.set('Retry-After', String(Math.max(60, Math.ceil(getAppleCooldownMs() / 1000))))
     res.status(status).json({ error: err.message })
   }
 })
@@ -211,6 +213,7 @@ internalRouter.get('/health', async (_req, res) => {
         running,
         queued,
       },
+      appleCooldownSeconds: Math.ceil(getAppleCooldownMs() / 1000),
     })
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message })
