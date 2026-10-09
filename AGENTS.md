@@ -23,6 +23,8 @@ To guarantee zero 429 bans:
 - **Persistent Caching**: Never store resolved catalog IDs or metadata exclusively in memory where restarts will trigger re-query storms. Any catalog lookups must be persisted on disk or in SQLite (`library.db`).
 - **Graceful Fallbacks**: Frontend components must handle missing catalog IDs gracefully by linking to `/search?q=...` or performing on-demand resolution upon direct user interaction, rather than pre-fetching in bulk.
 
+See [docs/apple-rate-limits.md](docs/apple-rate-limits.md) for the incident history, the list of Apple callers, and the plan for a shared rate-limited gateway.
+
 ## 3. Testing & CI
 
 - Run backend tests: `npm test` inside `backend/`
