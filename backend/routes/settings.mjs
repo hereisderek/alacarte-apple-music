@@ -9,6 +9,8 @@ import {
   AUTO_DOWNLOAD_FREQUENCY_VALUES,
   NAMING_CONVENTION_VALUES,
   decryptSecret,
+  APPLE_GATEWAY_LIMITS,
+  clampSetting,
 } from '../lib/settingsStore.mjs'
 import {
   UI_LANGUAGE_VALUES,
@@ -26,6 +28,8 @@ import {
   getHardBlock,
 } from '../lib/wrapperLogin.mjs'
 import { generateIntegrationToken } from '../lib/apiToken.mjs'
+import { appleGateway, runInLane } from '../lib/appleGateway.mjs'
+import { applyAppleGatewaySettings } from '../lib/appleGatewaySettings.mjs'
 import { storefrontList } from '../lib/storefrontList.mjs'
 import {
   startTagBackfill,
@@ -72,6 +76,10 @@ export const WRITABLE_KEYS = new Set([
   'uiLanguage',
   'acceptedLanguages',
   'namingLanguageMode',
+  'appleGatewayIntervalMs',
+  'appleGatewayMinIntervalMs',
+  'appleGatewayAdaptive',
+  'appleGatewayCooldownMinutes',
   ])
 
 const EXPLICIT_FILTER_VALUES = new Set(['explicit', 'clean', 'both'])
@@ -107,6 +115,11 @@ settingsRouter.put('/', async (req, res) => {
       if (k === 'lyricsType' && !LYRICS_TYPE_VALUES.has(v)) continue
       if (k === 'quality' && !QUALITY_VALUES.has(v)) continue
       if (k === 'namingConvention' && !NAMING_CONVENTION_VALUES.has(v)) continue
+      if (k === 'appleGatewayAdaptive' && typeof v !== 'boolean') continue
+      if (k in APPLE_GATEWAY_LIMITS) {
+        patch[k] = clampSetting(v, ...APPLE_GATEWAY_LIMITS[k])
+        continue
+      }
       if (k === 'versionOptionsEnabled' && typeof v !== 'boolean') continue
       if (k === 'octoIntegrationEnabled' && typeof v !== 'boolean') continue
       if (k === 'versionOptions' && !Array.isArray(v)) continue
@@ -137,6 +150,7 @@ settingsRouter.put('/', async (req, res) => {
       patch[k] = v
     }
     const saved = await writeSettings(patch)
+    if (Object.keys(patch).some((k) => k.startsWith('appleGateway'))) await applyAppleGatewaySettings()
     if (saved.octoIntegrationEnabled && !saved.octoIntegrationToken) {
       await writeSettings({ octoIntegrationToken: encryptSecret(generateIntegrationToken()) })
     }
@@ -278,7 +292,14 @@ settingsRouter.delete('/media-user-token', async (_req, res) => {
   }
 })
 
+// State of the shared Apple request limiter (see lib/appleGateway.mjs).
 settingsRouter.get('/apple-status', (_req, res) => {
+  res.json(appleGateway.status())
+})
+
+// Forgets the pace limit learned from past 429s and the strike count.
+settingsRouter.post('/apple-status/reset', (_req, res) => {
+  appleGateway.resetLearned()
   res.json(appleGateway.status())
 })
 
@@ -288,12 +309,7 @@ settingsRouter.get('/tag-backfill', (_req, res) => {
 
 settingsRouter.post('/tag-backfill', async (req, res) => {
   try {
-    res.json(
-      await startTagBackfill({
-        dryRun: Boolean(req.body?.dryRun),
-        retryUnmatched: Boolean(req.body?.retryUnmatched),
-      }),
-    )
+    res.json(await runInLane('background', () => startTagBackfill({ dryRun: Boolean(req.body?.dryRun) })))
   } catch (err) {
     res.status(err.statusCode || 500).json({ error: err.message })
   }
@@ -309,7 +325,7 @@ settingsRouter.get('/lyrics-backfill', (_req, res) => {
 
 settingsRouter.post('/lyrics-backfill', async (_req, res) => {
   try {
-    res.json(await startLyricsBackfill())
+    res.json(await runInLane('background', () => startLyricsBackfill()))
   } catch (err) {
     res.status(err.statusCode || 500).json({ error: err.message })
   }
@@ -325,7 +341,7 @@ settingsRouter.get('/artist-backfill', (_req, res) => {
 
 settingsRouter.post('/artist-backfill', async (_req, res) => {
   try {
-    res.json(await startArtistBackfill())
+    res.json(await runInLane('background', () => startArtistBackfill()))
   } catch (err) {
     res.status(err.statusCode || 500).json({ error: err.message })
   }

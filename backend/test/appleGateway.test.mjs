@@ -142,3 +142,42 @@ test('base cooldown of 0 disables the block but still slows down', async () => {
   assert.equal(gw.status().intervalMs, 20)
   assert.equal(await gw.schedule(async () => 'still works'), 'still works')
 })
+
+test('configure applies the starting gap, minimum gap and adaptive switch; null goes back to the default', async () => {
+  const gw = createGateway({ intervalMs: 100, minIntervalMs: 50, speedUpAfter: 2, speedUpFactor: 0.5 })
+  gw.configure({ intervalMs: 400, minIntervalMs: 200, adaptive: true, cooldownMinutes: 5 })
+  let s = gw.status()
+  assert.equal(s.intervalMs, 400)
+  assert.deepEqual(s.config, { intervalMs: 400, minIntervalMs: 200, adaptive: true, cooldownMinutes: 5 })
+  gw.report(200)
+  gw.report(200)
+  assert.equal(gw.status().intervalMs, 200, 'speeds up, but not below the configured minimum')
+
+  gw.configure({ intervalMs: 400, minIntervalMs: 200, adaptive: false })
+  gw.report(200)
+  gw.report(200)
+  gw.report(200)
+  assert.equal(gw.status().intervalMs, 400, 'fixed pace when adaptive is off')
+
+  gw.configure({})
+  s = gw.status()
+  assert.equal(s.config.intervalMs, 100)
+  assert.equal(s.config.minIntervalMs, 50)
+  assert.equal(s.config.adaptive, true)
+})
+
+test('boot-time configure keeps the adapted pace; a learned floor survives settings changes and can be reset', async () => {
+  const gw = createGateway({ intervalMs: 100, minIntervalMs: 50, cooldownBaseMs: 0 })
+  gw.report(429) // gap 200, learned floor 125
+  gw.configure({ intervalMs: 100, minIntervalMs: 10 }, { resetPace: false })
+  let s = gw.status()
+  assert.equal(s.intervalMs, 200)
+  assert.equal(s.floorMs, 125, 'configured minimum 10 does not undo what the 429 taught')
+  gw.configure({ intervalMs: 100, minIntervalMs: 10 })
+  assert.equal(gw.status().intervalMs, 125, 'new starting gap, held at the learned floor')
+  gw.resetLearned()
+  s = gw.status()
+  assert.equal(s.floorMs, 10)
+  assert.equal(s.strikes, 0)
+  assert.equal(s.intervalMs, 100)
+})

@@ -40,8 +40,8 @@ const HOUR = 60 * 60 * 1000
 const STRIKE_MULTIPLIERS = [1, 2, 4]
 
 export function createGateway({
-  intervalMs = 1500,
-  minIntervalMs = 600,
+  intervalMs: defaultIntervalMs = 1500,
+  minIntervalMs: defaultMinIntervalMs = 600,
   maxIntervalMs = 8000,
   speedUpAfter = 100,
   speedUpFactor = 0.9,
@@ -49,15 +49,21 @@ export function createGateway({
   maxInFlight = 2,
   batchEvery = 4, // while interactive calls keep coming, every 4th dispatch is a batch one
   interactiveMaxWaitMs = 30_000,
-  cooldownBaseMs = 15 * 60 * 1000,
+  cooldownBaseMs: defaultCooldownBaseMs = 15 * 60 * 1000,
   strikeWindowMs = 24 * HOUR,
   stateFile = null,
   now = () => Date.now(),
 } = {}) {
   const queues = { interactive: [], batch: [], background: [] }
   const dispatched = { interactive: 0, batch: 0, background: 0 }
-  let interval = intervalMs
-  let floor = minIntervalMs
+  // Settings the user can change at runtime (configure()); null/undefined = default.
+  let startIntervalMs = defaultIntervalMs
+  let minIntervalMs = defaultMinIntervalMs
+  let cooldownBaseMs = defaultCooldownBaseMs
+  let adaptive = true
+  // Raised by every 429: never go faster than a margin above a pace that failed.
+  let learnedFloor = 0
+  let interval = startIntervalMs
   let cooldownUntil = 0
   let probing = false
   let strikes = 0
@@ -71,13 +77,15 @@ export function createGateway({
   let interactiveRun = 0
   let timer = null
 
+  const floor = () => Math.max(minIntervalMs, learnedFloor)
+
   function load() {
     if (!stateFile) return
     try {
       const s = JSON.parse(fs.readFileSync(stateFile, 'utf8'))
+      if (Number.isFinite(s.learnedFloor)) learnedFloor = Math.max(0, s.learnedFloor)
       if (Number.isFinite(s.interval)) interval = Math.min(maxIntervalMs, Math.max(0, s.interval))
-      if (Number.isFinite(s.floor)) floor = Math.max(minIntervalMs, s.floor)
-      interval = Math.max(floor, interval)
+      interval = Math.max(floor(), interval)
       cooldownUntil = Number(s.cooldownUntil) || 0
       strikes = Number(s.strikes) || 0
       lastStrikeAt = Number(s.lastStrikeAt) || 0
@@ -91,7 +99,7 @@ export function createGateway({
       fs.mkdirSync(path.dirname(stateFile), { recursive: true })
       fs.writeFileSync(
         stateFile,
-        JSON.stringify({ interval, floor, cooldownUntil, strikes, lastStrikeAt, history }),
+        JSON.stringify({ interval, learnedFloor, cooldownUntil, strikes, lastStrikeAt, history }),
       )
     } catch {}
   }
@@ -214,10 +222,10 @@ export function createGateway({
     lastStrikeAt = t
     const cooldownMs = cooldownBaseMs * STRIKE_MULTIPLIERS[Math.min(strikes - 1, STRIKE_MULTIPLIERS.length - 1)]
     // This pace was too fast: never go back below a margin above it.
-    floor = Math.min(maxIntervalMs, Math.max(floor, Math.round(interval * 1.25)))
+    learnedFloor = Math.min(maxIntervalMs, Math.max(learnedFloor, Math.round(interval * 1.25)))
     history.push({ at: t, intervalMs: interval, strikes, cooldownMs })
     history = history.slice(-20)
-    interval = Math.min(maxIntervalMs, Math.max(floor, interval * 2))
+    interval = Math.min(maxIntervalMs, Math.max(floor(), interval * 2))
     successStreak = 0
     probing = false
     cooldownUntil = cooldownMs > 0 ? t + cooldownMs : 0
@@ -231,8 +239,8 @@ export function createGateway({
     if (status >= 500) return
     probing = false
     successStreak += 1
-    if (successStreak >= speedUpAfter && interval > floor) {
-      interval = Math.max(floor, Math.round(interval * speedUpFactor))
+    if (adaptive && successStreak >= speedUpAfter && interval > floor()) {
+      interval = Math.max(floor(), Math.round(interval * speedUpFactor))
       successStreak = 0
       save()
     }
@@ -246,7 +254,14 @@ export function createGateway({
       state: cooling ? 'cooldown' : probing ? 'probing' : 'ok',
       cooldownSeconds: cooling ? Math.ceil((cooldownUntil - t) / 1000) : 0,
       intervalMs: interval,
-      floorMs: floor,
+      floorMs: floor(),
+      learnedFloorMs: learnedFloor,
+      config: {
+        intervalMs: startIntervalMs,
+        minIntervalMs,
+        adaptive,
+        cooldownMinutes: Math.round(cooldownBaseMs / 60_000),
+      },
       inFlight,
       queued: {
         interactive: queues.interactive.length,
@@ -260,7 +275,35 @@ export function createGateway({
     }
   }
 
-  return { schedule, report, status, cooldownRemainingMs }
+  // Applies user settings. A key that is null/undefined goes back to its default.
+  // resetPace: false (used at boot) keeps the pace the gateway had adapted to.
+  function configure(
+    { intervalMs, minIntervalMs: min, adaptive: auto, cooldownMinutes } = {},
+    { resetPace = true } = {},
+  ) {
+    startIntervalMs = Number.isFinite(intervalMs) ? Math.max(0, intervalMs) : defaultIntervalMs
+    minIntervalMs = Number.isFinite(min) ? Math.max(0, min) : defaultMinIntervalMs
+    adaptive = auto !== false
+    cooldownBaseMs = Number.isFinite(cooldownMinutes) ? Math.max(0, cooldownMinutes * 60_000) : defaultCooldownBaseMs
+    // The configured starting gap applies right away (never below the floor).
+    interval = Math.min(maxIntervalMs, Math.max(floor(), resetPace ? startIntervalMs : interval))
+    if (resetPace) successStreak = 0
+    save()
+    pump()
+  }
+
+  // Forgets what 429s taught it (the raised floor and the strike count); a running
+  // cooldown stays.
+  function resetLearned() {
+    learnedFloor = 0
+    strikes = 0
+    history = []
+    interval = Math.min(maxIntervalMs, Math.max(floor(), startIntervalMs))
+    successStreak = 0
+    save()
+  }
+
+  return { schedule, report, status, cooldownRemainingMs, configure, resetLearned }
 }
 
 const num = (v, d) => (v === undefined || v === '' || !Number.isFinite(Number(v)) ? d : Number(v))
