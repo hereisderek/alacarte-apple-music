@@ -26,6 +26,7 @@ import {
   convertDirToFlac,
   extractFolderArt,
 } from './flacConvert.mjs'
+import { syncDualLyricsInDir } from './ttmlLrc.mjs'
 import {
   applyNamingConvention,
   assertFreeSpace,
@@ -1298,7 +1299,7 @@ async function convertStagingToFlac(job, dir, progressState) {
 async function applyQobuzFileNames(dir) {
   const files = await fsp.readdir(dir).catch(() => [])
   for (const fn of files) {
-    if (!/\.(flac|m4a|mp3|lrc)$/i.test(fn)) continue
+    if (!/\.(flac|m4a|mp3|lrc|ttml)$/i.test(fn)) continue
     const ext = path.extname(fn)
     const stem = path.basename(fn, ext)
     const newStem = applyNamingConvention(stem, 'qobuz')
@@ -1624,6 +1625,8 @@ async function runJob(job) {
     const albumPath = path.join(artistPath, firstAlbum.name)
     if (partial) await removeOrphanLyrics(albumPath)
 
+    await syncDualLyricsInDir(jobStaging)
+
     if (progressState.convertEnabled) {
       await convertStagingToFlac(job, albumPath, progressState)
     }
@@ -1686,16 +1689,10 @@ async function runJob(job) {
         currentTrack: null,
       })
       for (const fn of audioFiles) {
-        await moveFileSafe(path.join(albumPath, fn), path.join(finalDir, fn))
-        const srcBase = path.basename(fn, path.extname(fn))
-        const srcLrcPath = path.join(albumPath, `${srcBase}.lrc`)
-        const hasLrc = await fsp
-          .stat(srcLrcPath)
-          .then((s) => s.isFile())
-          .catch(() => false)
-        if (hasLrc) {
-          await moveFileSafe(srcLrcPath, path.join(finalDir, `${srcBase}.lrc`))
-        }
+        const srcAudioPath = path.join(albumPath, fn)
+        const destAudioPath = path.join(finalDir, fn)
+        await moveFileSafe(srcAudioPath, destAudioPath)
+        await moveLyricsSidecars(srcAudioPath, destAudioPath)
       }
       await copyFolderArtIfAny(albumPath, finalDir)
       const songExtra = {}
@@ -1858,6 +1855,7 @@ async function downloadSingleTrack({ job, trackStaging, settings, creds, url, qu
   } else {
     assertAmdpResult(sub, combined)
   }
+  await syncDualLyricsInDir(trackStaging)
 }
 
 // A catalog playlist normally runs as one amdp pass, which cannot skip

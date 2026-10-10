@@ -139,7 +139,6 @@ const callApple = (fn) =>
       emit(true)
     },
   })
-
 export function wantedFormats(setting) {
   if (setting === 'both') return ['lrc', 'ttml']
   return setting === 'ttml' ? ['ttml'] : ['lrc']

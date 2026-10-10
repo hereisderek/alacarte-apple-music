@@ -357,6 +357,7 @@ export function SettingsPage() {
                   >
                     <option value="lrc" className="bg-zinc-900">{t('settings.lyricsFormatLrc')}</option>
                     <option value="ttml" className="bg-zinc-900">{t('settings.lyricsFormatTtml')}</option>
+                    <option value="both" className="bg-zinc-900">{t('settings.lyricsFormatBoth')}</option>
                   </select>
 
                 </div>

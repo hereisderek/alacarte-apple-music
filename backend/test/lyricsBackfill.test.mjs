@@ -93,7 +93,7 @@ test('backfill only fills tracks that have no lyrics sidecar', async () => {
 
 test('backfill refuses to start without a media-user-token', async () => {
   await assert.rejects(
-    startLyricsBackfill({ deps: deps({ readAppleCreds: async () => ({}) }) }),
+    startLyricsBackfill({ deps: deps({ readAppleCreds: async () => ({}) }), }),
     (err) => err.statusCode === 412,
   )
 })
