@@ -2,6 +2,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
 process.env.APPLE_429_COOLDOWN_MS = '60000'
+process.env.APPLE_GATEWAY_INTERVAL_MS = '0'
+process.env.APPLE_GATEWAY_MIN_INTERVAL_MS = '0'
 const { searchCatalog, getAppleCooldownMs } = await import('../lib/appleApi.mjs')
 
 test('after one Apple 429 every later call fails locally without hitting Apple', async () => {
@@ -20,7 +22,7 @@ test('after one Apple 429 every later call fails locally without hitting Apple',
   try {
     await assert.rejects(searchCatalog({ storefront: 'nz', term: 'a' }), /Apple API 429/)
     assert.ok(getAppleCooldownMs() > 0)
-    await assert.rejects(searchCatalog({ storefront: 'nz', term: 'b' }), /Apple API 429.*cooldown/)
+    await assert.rejects(searchCatalog({ storefront: 'nz', term: 'b' }), /Apple API 429.*rate limited by Apple/)
     assert.equal(appleCalls, 1)
   } finally {
     globalThis.fetch = realFetch

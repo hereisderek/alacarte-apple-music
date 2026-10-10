@@ -14,6 +14,8 @@ process.env.AMDL_CONFIG_DIR = tmpConfig
 process.env.AMDL_MUSIC_PATH = tmpMusic
 // This test mocks a 429 for one artist and expects the rest to still resolve.
 process.env.APPLE_429_COOLDOWN_MS = '0'
+process.env.APPLE_GATEWAY_INTERVAL_MS = '0'
+process.env.APPLE_GATEWAY_MIN_INTERVAL_MS = '0'
 process.env.AMDL_ARTIST_RESOLVE_INTERVAL_MS = '1'
 process.env.AMDL_SECRET_KEY = crypto.randomBytes(32).toString('hex')
 
