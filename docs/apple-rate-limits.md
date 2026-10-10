@@ -66,107 +66,81 @@ Measured with 252 fake artists and the mock at 80 ms latency, limit off:
 
 ## Who calls Apple
 
-Pacing exists only for the importer's search (`routes/internal.mjs`, 1.5 s FIFO spacer).
+Every call goes through `lib/appleApi.mjs` and the gateway (see below). The lane decides
+how it is treated.
 
-| Caller | Trigger | Calls | Paced | Persisted cache |
+| Caller | Trigger | Lane | Calls | Persisted cache |
 |---|---|---|---|---|
-| `routes/library.mjs` background artist resolver (was: blocking lookups inside the request) | `GET /api/library`; the UI calls it once per page load from `LibraryPresenceProvider` (`frontend/src/hooks/useLibraryPresence.tsx`, mounted in `main.tsx`) | 1 search per unresolved library artist, one every 4 s (`AMDL_ARTIST_RESOLVE_INTERVAL_MS`), stops on 429 | yes | `library.db` `artist_ids`, 90 d (7 d for no match) |
-| `routes/search.mjs` | user search | 1 | no | no |
-| `routes/album.mjs`, `artist.mjs`, `playlist.mjs` | page views | 1 each | no | partial (`originalMetadataCache`) |
-| `routes/internal.mjs` `/search` | importer | 1 per query, up to 3 queries per track | yes, 1.5 s | no |
-| `routes/integration.mjs` | external clients (Octo/Navidrome) | 1 per request | no | no |
-| `lib/queue.mjs` | each download job | `getSong` + `getAlbum`, per song | no | `originalMetadataCache` for some |
-| `lib/autoDownloads.mjs` | startup, then every 5 min | up to 6 artists per tick, paged | no | memory only |
-| `lib/playlistSync.mjs` | startup, then every 5 min | up to 6 playlists, 100 tracks per page | no | no |
-| `lib/artistCredits.mjs`, `lyricsBackfill.mjs`, `tagBackfill.mjs` | per downloaded item | ISRC/UPC lookups, lyrics, search | no | no |
-| Downloader / wrapper | per track | unknown | no | n/a |
+| `routes/search.mjs`, `album.mjs`, `artist.mjs`, `playlist.mjs`, cloud library | a person using the UI | interactive | 1 each | partial (`originalMetadataCache`) |
+| `routes/internal.mjs` `/search` | importer | batch | 1 per query, up to 3 queries per track | no |
+| `routes/integration.mjs` | external clients (octo-fiesta) | batch | 1 per request | no |
+| `lib/queue.mjs` | each download job | batch | `getSong` + `getAlbum` per song | `originalMetadataCache` for some |
+| `routes/library.mjs` artist resolver | `GET /api/library` (queues, does not wait) | background | 1 search per unresolved artist, one every 4 s, stops on 429 | `library.db` `artist_ids`, 90 d (7 d no match) |
+| `lib/autoDownloads.mjs`, `playlistSync.mjs` | startup, then every 5 min | background | up to 6 artists / playlists per tick, paged | memory only |
+| `lib/tagBackfill.mjs` | Settings, "Library tags" | background | 2 per album folder (album search + album fetch); per-file search only for files the album did not explain | no |
+| `lib/lyricsBackfill.mjs`, `artistCredits.mjs` | Settings | background | ISRC/UPC batches of 25, one lyrics call per track | no |
+| Downloader / wrapper | per track | not covered | unknown | n/a |
 
-The importer additionally retries every 429 up to 6 times (`importer/lib/backendClient.mjs`).
+The downloader (`apple-music-dl`) and the wrapper make their own requests from the same
+IP. They are not counted by the gateway; only the number of concurrent download jobs
+limits them.
 
-## Strategy
+## The gateway (`lib/appleGateway.mjs`)
 
-Goal: stay under Apple's limit without a fixed, pessimistic delay, so that throughput
-adapts to what the address will actually tolerate.
+All Apple calls are admitted by one gateway. The importer's old fixed 1.5 s spacer
+(`requestSpacer.mjs`) is gone; the gateway does that job for every caller.
 
-### 1. One gateway for all Apple calls (`lib/appleApi.mjs`)
+- **Lanes.** The lane of a call follows the async context (`AsyncLocalStorage`):
+  `server.mjs` puts every request to `/api/internal` and `/api/integration` in `batch` and
+  all other API requests in `interactive`; download jobs run in `batch`; schedulers,
+  backfills and the artist resolver explicitly run in `background`. Code that sets
+  nothing is `background`, so it cannot crowd out a person.
+- **Order.** Interactive first, but while interactive calls keep arriving every 4th
+  dispatch is a batch one. Background only runs when the other lanes are empty.
+- **Rate.** One dispatch per gap. Interactive calls may burst (4 saved up while idle);
+  batch and background are strictly spaced. At most 2 calls in flight.
+- **Adaptive gap.** Starts at `APPLE_GATEWAY_INTERVAL_MS` (1500). After 100 successes in
+  a row it shrinks 10%, down to the floor (`APPLE_GATEWAY_MIN_INTERVAL_MS`, 600). On a 429
+  it doubles (cap 8 s) and the floor rises to 125% of the pace that failed, so the gateway
+  never goes back to a rate that is known to be too fast.
+- **Cooldown.** After a 429 every call fails locally, with no request to Apple, for
+  `APPLE_429_COOLDOWN_MS` (15 min). A repeat within 24 h doubles it, then doubles again
+  (15, 30, 60 min). Queued calls are rejected at once. When the time is up one probe call
+  goes out; only a success reopens the gateway. `APPLE_429_COOLDOWN_MS=0` disables the block.
+- **Persistence.** Gap, floor, cooldown end, strike count and the last 20 rate limits are
+  kept in `/config/apple-rate.json`, so a restart neither forgets a ban nor the learned rate.
+- **Sharing.** Identical requests made at the same time (same lane, URL and language) share
+  one call.
+- **Errors.** `AppleRateLimitedError` (message `Apple API 429 on ...`, `retryAfterSec`) is
+  what callers see. Routes answer 429 with `Retry-After` and a readable message instead of
+  502; `/api/internal` sends `Retry-After` to the importer.
+- **Long jobs wait, they do not fail.** `lib/appleWait.mjs` pauses a backfill until Apple
+  should accept calls again and reports `waitingUntil`, which the Settings card shows as a
+  countdown. A rate limit is never counted as "unmatched".
 
-All callers already funnel through `apiGet`. Put the control there so no caller can
-bypass it.
+Visibility: every call logs `[apple] <status> <lane> <path> <ms> (+queued ms) via <caller>
+egress=<ipv4>/<ipv6>`, a 429 logs the previous 60 s of calls per lane and caller,
+`GET /api/settings/apple-status` (also `apple` in `/api/internal/health`) reports state,
+gap, queue depth per lane and 429 count, and Settings has an "Apple Music API" card.
 
-- **Priority lanes.** `interactive` (UI search, album/artist/playlist views) goes first.
-  `batch` (importer, download jobs) is next. `background` (schedulers, backfills,
-  artist-ID resolution) only runs when the other lanes are idle. A UI click never waits
-  behind a 252-item backlog.
-- **Adaptive rate (AIMD).** Start at one dispatch per 1000 ms. After 100 consecutive
-  successes shorten the interval by 10%, down to a configurable floor (default 500 ms).
-  On a 429, double it (cap 5 s) and remember the interval that caused it. This finds the
-  fastest rate the address tolerates instead of guessing a constant.
-- **Small interactive burst.** A token bucket of about 4 lets a user open a few pages at
-  once without waiting, while sustained load stays at the adaptive rate.
-- **Cooldown with escalation.** First 429 blocks all calls for 15 min, a repeat within
-  24 h for 30 min, then 60 min. After the cooldown send one probe call; only a success
-  reopens the gateway. (A flat 15 min cooldown is already implemented on this branch.)
-- **Persist the state** in `/config/apple-rate.json` (cooldown end, strike count,
-  learned interval), so a restart neither forgets a ban nor resets the learned rate.
-- **In-flight dedupe.** Identical concurrent requests share one Apple call.
+Verified in the local Docker stack against the mock (`docker-compose.dev.yml`), with a
+UI burst, a 12-search import and the artist resolver at the same time and a fake limit of
+5 req/s: no 429; UI calls were answered immediately, import calls were spaced 1.5 s apart,
+the resolver ran only in the gaps. With the mock banning after 5 calls, the tag backfill
+paused ("Paused: Apple is rate limiting this server..."), resumed when the block ended and
+stamped all 18 files with none counted as unmatched.
 
-### 2. Make fewer calls
+## Still open
 
-Pacing limits the damage; removing calls raises throughput.
-
-- **`/api/library` must not resolve artists on page load. (Done.)** Return the library from disk
-  only (as `AGENTS.md` already requires). Resolve artist IDs on demand when the user
-  opens an artist, or in the `background` lane a few per minute, writing results to
-  `library.db` so they survive restarts. Unresolved artists link to `/search?q=…`.
-- **Persistent response cache** in `library.db`: search results (24 h to 7 d), album,
-  artist and song metadata (30 d, these rarely change). A restart or a repeated import
-  then costs zero Apple calls.
-- **Importer matching.** Today a track costs 1–3 searches (forward, reversed, title
-  only). Skip the reversed query when the forward query returned a confident match
-  candidate list, and de-duplicate identical queries across a session. When a source
-  supplies an ISRC (Spotify does), look tracks up with `filter[isrc]` in batches
-  instead of searching one by one. Verify the maximum batch size before relying on it.
-- **Download jobs.** One `getSong` with `include=albums` instead of `getSong` plus
-  `getAlbum`, and reuse the album already cached for other songs of the same album.
-  Check whether Apple's `ids=` multi-fetch can cover a whole album's songs in one call.
-- **Importer retries.** Stop blind retries. On 429 the backend now returns
-  `Retry-After` (the cooldown); the importer pauses the session until then and resumes,
-  instead of failing items or retrying every few seconds.
-- **Schedulers.** Keep as they are for now. Their calls go through the `background`
-  lane and show in the logs, so their share of the budget is visible. Candidate later
-  change: delay the startup run by a few minutes so a restart plus page load does not
-  stack bursts.
-
-### 3. Visibility
-
-- `[apple]` log line per call: status, path, duration, caller, egress IP (done).
-- `/api/internal/health` reports `appleCooldownSeconds` (done). Extend with current
-  interval, queue depth per lane, and 429 count in the last 24 h.
-- The UI should show "Apple is rate limiting this server, retry in N min" on 429
-  instead of `Search failed` (return 429, not 502, from `routes/search.mjs`).
-
-### Considered and not planned
-
-- **Switching between IPv4 and IPv6 when one is banned.** It would double the budget,
-  but it works around the limit instead of respecting it, and a flagged server tends
-  to get both addresses flagged. Not planned.
-- **Fixed slower spacing everywhere.** Safe but wastes capacity when nothing else is
-  running; the adaptive gateway gets the same safety with better throughput.
-
-## Rollout order
-
-1. Done on `fix/apple-request-logging`: per-call logging, flat 15 min cooldown,
-   `Retry-After`, egress IP logging.
-2. Done: `/api/library` answers from disk and `library.db`; missing artist IDs are
-   resolved one at a time in the background (default every 4 s, stops on any 429) and
-   stored. Locally with 252 artists: the request takes 44 ms and makes no Apple call
-   itself; lookups never overlap; IDs survive a restart.
-3. Gateway: priority lanes, adaptive interval, escalating cooldown, persisted state,
-   in-flight dedupe, with unit tests using a fake clock and mocked `fetch`.
-4. Persistent response cache in `library.db`.
-5. Importer: no blind retry, fewer queries, ISRC batching.
-6. Download-job call reduction.
-
-After step 3 run an importer batch and read the `[apple]` logs; the learned interval
-and any 429 summaries show where the real limit is, and the defaults above get tuned
-from that.
+- Persistent response cache in `library.db` (search results, album/artist metadata).
+- Importer: fewer queries per track (the reversed and title-only queries), ISRC batches
+  with `filter[isrc]` when the source has ISRCs, pause the session visibly during a
+  cooldown (today it sleeps on `Retry-After` and retries).
+- Download jobs: one `getSong` with `include=albums` instead of `getSong` + `getAlbum`,
+  reuse of the album already fetched for other songs of the same album.
+- Calls made by the downloader and wrapper are not paced by the gateway.
+- Schedulers keep their startup run; a restart plus page load can still stack bursts
+  (now bounded by the gateway, and visible in the logs).
+- The real threshold is still unknown. After a few real imports the `[apple]` 429
+  summaries and the learned gap in `apple-rate.json` show where it is, and the defaults
+  above should be tuned from that.

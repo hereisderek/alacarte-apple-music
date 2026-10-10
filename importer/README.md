@@ -74,11 +74,11 @@ this existed). Three independent layers guard against it, all tunable:
 
 | Variable | Where | Default | Purpose |
 |---|---|---|---|
-| `INTERNAL_SEARCH_MIN_INTERVAL_MS` | main backend | `1500` | Minimum gap enforced between successive `/api/internal/search` calls — the primary defense, since it protects the shared Apple Music session quota from *any* caller, not just this service. See `backend/lib/requestSpacer.mjs`. |
+| `APPLE_GATEWAY_INTERVAL_MS` / `APPLE_GATEWAY_MIN_INTERVAL_MS` / `APPLE_429_COOLDOWN_MS` | main backend | `1500` / `600` / `900000` | Starting gap, fastest gap and block time after a 429 of the shared Apple limiter that every Apple call (including `/api/internal/search`) goes through. The gap adapts on its own. See `docs/apple-rate-limits.md`. |
 | `IMPORTER_SEARCH_PACING_MS` | importer | `500` | Extra gap the importer itself waits between processing each track in a batch. |
 | `IMPORTER_MAX_429_RETRIES` / `IMPORTER_MAX_BACKOFF_MS` | importer | `6` / `20000` | How hard the importer retries a single search that still gets rate-limited despite the pacing above, before giving up on that track. |
 
-Raise `INTERNAL_SEARCH_MIN_INTERVAL_MS` first if you're still seeing 429s in
+Raise `APPLE_GATEWAY_MIN_INTERVAL_MS` first if you're still seeing 429s in
 practice; the importer-side knobs are secondary margin.
 
 ### User-Agent overrides

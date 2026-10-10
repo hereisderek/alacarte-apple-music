@@ -113,7 +113,10 @@ internalRouter.get('/search', async (req, res) => {
     const upstreamStatus = Number(String(err.message || '').match(/Apple API (\d+)/)?.[1])
     const status = upstreamStatus === 429 ? 429 : 502
     // Tell the importer how long to stand down (it honours Retry-After).
-    if (status === 429) res.set('Retry-After', String(Math.max(60, Math.ceil(getAppleCooldownMs() / 1000))))
+    if (status === 429) {
+      const wait = Math.ceil(getAppleCooldownMs() / 1000) || Number(err.retryAfterSec) || 60
+      res.set('Retry-After', String(Math.max(1, wait)))
+    }
     res.status(status).json({ error: err.message })
   }
 })

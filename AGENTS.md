@@ -9,7 +9,6 @@ Operational and development guidelines for this repository.
   - Integration with the main application is restricted to a minimal, isolated internal API router:
     - `backend/routes/internal.mjs` (mounted under `/api/internal`)
     - `backend/lib/requireInternalKey.mjs` (API key authentication)
-    - `backend/lib/requestSpacer.mjs` (request pacer)
   - `backend/server.mjs` only adds the mount for `/api/internal`. Do not modify other core backend routes or the main React frontend for importer features.
 
 ## 2. Apple Music API & Rate-Limiting Constraints (429 Prevention)
@@ -19,7 +18,7 @@ Apple's Fastly edge CDN (`daiquiri/5`) rate-limits per individual IP address (in
 To guarantee zero 429 bans:
 - **Minimize API Requests to the Absolute Minimum**: Never make unnecessary, speculative, or redundant calls to Apple Music's catalog API (`amp-api.music.apple.com`).
 - **No Upfront Batch Lookups**: Never resolve catalog artist or album IDs synchronously across an entire library during page loads or snapshots (e.g. `GET /api/library`). Local library scanning must remain purely local (reading disk/SQLite in under 50ms).
-- **Mandatory Pacing**: Any batch, automated, or importer search queries against Apple's catalog API must be serialized through a pacer (e.g. `requestSpacer.mjs`) with a minimum interval of at least **1500ms** between dispatch times.
+- **Mandatory Pacing**: Every Apple catalog call goes through the shared gateway (`backend/lib/appleGateway.mjs`, used by `appleApi.mjs`), which spaces calls, prioritises them by lane (interactive > batch > background), backs off and blocks calls after a 429. New code must call Apple only through `appleApi.mjs`/`appleFetch`, and long-running loops must run in a lane (`runInLane('background', ...)`) and wait out `AppleRateLimitedError` (`lib/appleWait.mjs`) instead of failing items.
 - **Persistent Caching**: Never store resolved catalog IDs or metadata exclusively in memory where restarts will trigger re-query storms. Any catalog lookups must be persisted on disk or in SQLite (`library.db`).
 - **Graceful Fallbacks**: Frontend components must handle missing catalog IDs gracefully by linking to `/search?q=...` or performing on-demand resolution upon direct user interaction, rather than pre-fetching in bulk.
 

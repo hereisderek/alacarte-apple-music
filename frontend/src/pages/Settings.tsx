@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next'
 
 import {
   api,
+  type AppleStatus,
   type ArtistBackfillStatus,
   type EffectiveCheckInterval,
   type LyricsBackfillStatus,
@@ -544,6 +545,12 @@ export function SettingsPage() {
                 </div>
               </label>
             </div>
+          </SettingsCard>
+        </StaggeredItem>
+
+        <StaggeredItem>
+          <SettingsCard icon={<Plug className="h-4 w-4" />} title={t('settings.cardAppleApi')}>
+            <AppleStatusCard />
           </SettingsCard>
         </StaggeredItem>
 
@@ -1599,11 +1606,32 @@ function HintSlot({ hint }: { hint: { tone: HintTone; text: string } | null }) {
 
 type BackfillStatusBase = {
   running: boolean
+  phase?: 'idle' | 'scanning' | 'matching' | 'waiting' | 'done'
   scanned: number
   total: number
+  albumsDone?: number
+  albumsTotal?: number
+  appleCalls?: number
+  waitingUntil?: number | null
   current: string | null
   finishedAt: number | null
   stopRequested: boolean
+}
+
+// "12 min" / "40 s" for a wait that ends at `until` (epoch ms).
+function useWaitLabel(until: number | null | undefined) {
+  const { t } = useTranslation()
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!until) return
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [until])
+  if (!until) return null
+  const seconds = Math.max(0, Math.round((until - now) / 1000))
+  return seconds >= 90
+    ? t('settings.timeMinutes', { count: Math.round(seconds / 60) })
+    : t('settings.timeSeconds', { count: seconds })
 }
 
 function BackfillCard<S extends BackfillStatusBase>({
@@ -1676,6 +1704,7 @@ function BackfillCard<S extends BackfillStatusBase>({
   }
 
   const running = Boolean(status?.running)
+  const waitLabel = useWaitLabel(running ? status?.waitingUntil : null)
   const pct =
     status && status.total > 0
       ? Math.min(100, Math.round((status.scanned / status.total) * 100))
@@ -1695,9 +1724,27 @@ function BackfillCard<S extends BackfillStatusBase>({
         {running && (
           <div className="space-y-2">
             <ProgressBar
-              value={pct}
-              label={t('settings.backfillProgress', { pct, scanned: status!.scanned, total: status!.total })}
+              value={status!.phase === 'scanning' ? 0 : pct}
+              label={
+                status!.phase === 'scanning'
+                  ? t('settings.backfillScanning', { count: status!.total })
+                  : t('settings.backfillProgress', { pct, scanned: status!.scanned, total: status!.total })
+              }
             />
+            {status!.waitingUntil && (
+              <div className="text-xs text-amber-200/80">
+                {t('settings.backfillWaitingApple', { time: waitLabel })}
+              </div>
+            )}
+            {!!status!.albumsTotal && (
+              <div className="text-xs text-white/45">
+                {t('settings.backfillAlbums', {
+                  done: status!.albumsDone ?? 0,
+                  total: status!.albumsTotal,
+                  calls: status!.appleCalls ?? 0,
+                })}
+              </div>
+            )}
             <div className="flex flex-wrap gap-1.5">{badges(status!, false)}</div>
             {status!.current && (
               <div
@@ -1776,6 +1823,56 @@ function BackfillCard<S extends BackfillStatusBase>({
         </div>
       </Modal>
     </section>
+  )
+}
+
+function AppleStatusCard() {
+  const { t } = useTranslation()
+  const [status, setStatus] = useState<AppleStatus | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    const load = () =>
+      api
+        .appleStatus()
+        .then((s) => alive && setStatus(s))
+        .catch(() => {})
+    load()
+    const timer = setInterval(load, 5000)
+    return () => {
+      alive = false
+      clearInterval(timer)
+    }
+  }, [])
+
+  const until = status && status.cooldownSeconds > 0 ? Date.now() + status.cooldownSeconds * 1000 : null
+  const wait = useWaitLabel(until)
+  if (!status) return null
+
+  return (
+    <div className="space-y-2.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant={status.state === 'ok' ? 'ok' : status.state === 'cooldown' ? 'bad' : 'warn'}>
+          {status.state === 'cooldown'
+            ? t('settings.appleStatusCooldown', { time: wait })
+            : status.state === 'probing'
+              ? t('settings.appleStatusProbing')
+              : t('settings.appleStatusOk')}
+        </Badge>
+      </div>
+      <div className="text-[13px] text-white/50">
+        {t('settings.applePace', { seconds: (status.intervalMs / 1000).toFixed(1) })}
+      </div>
+      <div className="text-[13px] text-white/50">
+        {t('settings.appleQueued', status.queued)}
+      </div>
+      {status.rateLimited24h > 0 && (
+        <div className="text-[13px] text-amber-200/80">
+          {t('settings.appleRateLimited24h', { count: status.rateLimited24h })}
+        </div>
+      )}
+      <div className="text-xs text-white/40">{t('settings.appleStatusHelp')}</div>
+    </div>
   )
 }
 

@@ -80,8 +80,7 @@ function recordCall(entry) {
 
 // One request to Apple, admitted by the gateway (lane taken from the calling context).
 // Rejects with AppleRateLimitedError, without a network call, while Apple is blocking us.
-export async function appleFetch(url, init = {}) {
-  const caller = callerOf()
+export async function appleFetch(url, init = {}, { caller = callerOf() } = {}) {
   const lane = currentLane()
   const u = new URL(url)
   const queuedAt = Date.now()
@@ -117,17 +116,19 @@ const inFlightGets = new Map()
 
 // Identical requests made at the same time share one call to Apple.
 async function apiGet(url, opts = {}) {
-  if (opts.signal) return apiGetOnce(url, opts)
+  // Taken here, while the caller is still on the stack; it is lost across the awaits below.
+  const caller = callerOf()
+  if (opts.signal) return apiGetOnce(url, opts, caller)
   const key = `${currentLane()}|${url}|${opts.language || ''}|${opts.mediaUserToken ? 1 : 0}`
   let pending = inFlightGets.get(key)
   if (!pending) {
-    pending = apiGetOnce(url, opts).finally(() => inFlightGets.delete(key))
+    pending = apiGetOnce(url, opts, caller).finally(() => inFlightGets.delete(key))
     inFlightGets.set(key, pending)
   }
   return structuredClone(await pending)
 }
 
-async function apiGetOnce(url, { language = '', mediaUserToken, signal } = {}) {
+async function apiGetOnce(url, { language = '', mediaUserToken, signal } = {}, caller) {
   let token = await getBearerToken()
   const run = async (t) => {
     const headers = {
@@ -138,7 +139,7 @@ async function apiGetOnce(url, { language = '', mediaUserToken, signal } = {}) {
       'Accept-Language': language || 'en-US',
     }
     if (mediaUserToken) headers['Music-User-Token'] = mediaUserToken
-    return appleFetch(url, { headers, signal })
+    return appleFetch(url, { headers, signal }, { caller })
   }
   let res = await run(token)
   if (res.status === 401 || res.status === 403) {

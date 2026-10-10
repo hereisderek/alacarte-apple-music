@@ -70,12 +70,13 @@ services:
       # /api/internal/*. Leave unset if you're not running the importer —
       # that surface 503s without it. Set the same value for both services.
       - INTERNAL_API_KEY=${INTERNAL_API_KEY:-}
-      # Minimum gap (ms) the importer's /api/internal/search calls are spaced
-      # apart at — the shared choke point protecting your Apple Music session's
-      # catalog-search quota from ANY caller, not just the importer. See
-      # backend/lib/requestSpacer.mjs. Raise this if you still see 429s at the
-      # default; lower it if you have headroom to spare.
-      - INTERNAL_SEARCH_MIN_INTERVAL_MS=${INTERNAL_SEARCH_MIN_INTERVAL_MS:-1500}
+      # Apple rate limiting (see docs/apple-rate-limits.md): all Apple catalog calls
+      # share one adaptive limiter. It starts at one call per APPLE_GATEWAY_INTERVAL_MS,
+      # speeds up towards APPLE_GATEWAY_MIN_INTERVAL_MS while Apple keeps answering, and
+      # after a 429 blocks every call for APPLE_429_COOLDOWN_MS (x2, x4 on repeats).
+      - APPLE_GATEWAY_INTERVAL_MS=${APPLE_GATEWAY_INTERVAL_MS:-1500}
+      - APPLE_GATEWAY_MIN_INTERVAL_MS=${APPLE_GATEWAY_MIN_INTERVAL_MS:-600}
+      - APPLE_429_COOLDOWN_MS=${APPLE_429_COOLDOWN_MS:-900000}
     volumes:
       - ${ALACARTE_DATA_PATH:-./data}/web:/config
       - ${ALACARTE_DATA_PATH:-./data}/supervisor:/supervisor-secret:ro

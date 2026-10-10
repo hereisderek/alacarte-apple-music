@@ -5,7 +5,7 @@
 #   curl localhost:7374/api/library
 services:
   web-dev:
-    image: node:22-bookworm-slim
+    build: ./dev
     working_dir: /app
     command: sh -c "npm ci --omit=dev --no-audit --no-fund && node --import /dev-mock/mock-apple.mjs server.mjs"
     environment:
@@ -14,10 +14,16 @@ services:
       - AMDL_CONFIG_DIR=/config
       - AMDL_SECRET_KEY=0000000000000000000000000000000000000000000000000000000000000000
       - AUTH_DISABLED=true
+      - INTERNAL_API_KEY=dev-key
       - AMDL_FOLLOW_TICK_MS=3600000
       - MOCK_APPLE_LIMIT_RPS=${MOCK_APPLE_LIMIT_RPS:-5}
       - MOCK_APPLE_LATENCY_MS=${MOCK_APPLE_LATENCY_MS:-80}
+      - MOCK_APPLE_BAN_AFTER=${MOCK_APPLE_BAN_AFTER:-0}
+      - MOCK_APPLE_BAN_MS=${MOCK_APPLE_BAN_MS:-60000}
       - AMDL_ARTIST_RESOLVE_INTERVAL_MS=${AMDL_ARTIST_RESOLVE_INTERVAL_MS:-4000}
+      - APPLE_GATEWAY_INTERVAL_MS=${APPLE_GATEWAY_INTERVAL_MS:-1500}
+      - APPLE_GATEWAY_MIN_INTERVAL_MS=${APPLE_GATEWAY_MIN_INTERVAL_MS:-600}
+      - APPLE_429_COOLDOWN_MS=${APPLE_429_COOLDOWN_MS:-900000}
     volumes:
       - ./backend:/app
       - web-dev-node-modules:/app/node_modules

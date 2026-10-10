@@ -391,6 +391,11 @@ export type CloudDownloadAllProgress = {
 
 export type TagBackfillStatus = {
   running: boolean
+  phase?: 'idle' | 'scanning' | 'matching' | 'waiting' | 'done'
+  albumsDone?: number
+  albumsTotal?: number
+  appleCalls?: number
+  waitingUntil?: number | null
   dryRun: boolean
   scanned: number
   total: number
@@ -407,6 +412,7 @@ export type TagBackfillStatus = {
 
 export type LyricsBackfillStatus = {
   running: boolean
+  waitingUntil?: number | null
   scanned: number
   total: number
   added: number
@@ -423,6 +429,7 @@ export type LyricsBackfillStatus = {
 
 export type ArtistBackfillStatus = {
   running: boolean
+  waitingUntil?: number | null
   scanned: number
   total: number
   updated: number
@@ -434,6 +441,18 @@ export type ArtistBackfillStatus = {
   finishedAt: number | null
   stopRequested: boolean
   error: string | null
+}
+
+export type AppleStatus = {
+  state: 'ok' | 'cooldown' | 'probing'
+  cooldownSeconds: number
+  intervalMs: number
+  floorMs: number
+  inFlight: number
+  queued: { interactive: number; batch: number; background: number }
+  strikes: number
+  rateLimited24h: number
+  lastRateLimitedAt: number | null
 }
 
 type UnauthorizedHandler = (info: { needsSetup: boolean }) => void
@@ -857,6 +876,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ kind, quality }),
     }),
+  appleStatus: () => http<AppleStatus>('/api/settings/apple-status'),
   tagBackfillStatus: () => http<TagBackfillStatus>('/api/settings/tag-backfill'),
   startTagBackfill: (dryRun = false) =>
     http<TagBackfillStatus>('/api/settings/tag-backfill', {
