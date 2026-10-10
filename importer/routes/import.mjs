@@ -64,6 +64,7 @@ importRouter.post('/', async (req, res) => {
       title: title || parsed.title || 'Imported playlist',
       tracks: parsed.tracks,
       warnings: parsed.warnings,
+      sources: parsed.sources,
       language: language ? String(language) : undefined,
     })
     res.status(202).json({ session: publicSession(session) })
@@ -117,12 +118,14 @@ importRouter.get('/:id/events', (req, res) => {
 
 importRouter.post('/:id/select', async (req, res) => {
   try {
-    const { itemIndex, songId, albumId, name, artistName } = req.body || {}
+    const { itemIndex, songId, albumId, name, artistName, details } = req.body || {}
     if (typeof itemIndex !== 'number') {
       return res.status(400).json({ error: 'itemIndex required' })
     }
     if (!songId) return res.status(400).json({ error: 'songId required' })
     const session = await selectCandidate(req.params.id, itemIndex, {
+      // the candidate's other details (album, duration, bit rate, ...) are optional
+      ...(details && typeof details === 'object' ? details : {}),
       id: songId,
       albumId: albumId || null,
       name,

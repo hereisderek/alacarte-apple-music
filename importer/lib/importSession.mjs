@@ -19,8 +19,8 @@ import { cleanTitleRemarks } from '../parsers/plaintext.mjs'
 // In-memory only: sessions live for the process's uptime, not across a
 // restart.
 const sessions = new Map()
-const POLL_INTERVAL_MS = 2000
 const exportInFlight = new Set()
+const DOWNLOAD_GAP_MS = Math.max(0, Number(process.env.IMPORTER_DOWNLOAD_GAP_MS ?? 1000))
 
 // Only one import's *matching* phase runs at a time to prevent search quota spikes.
 const matchQueue = []
@@ -43,6 +43,20 @@ const ISRC_BATCH = 25
 function normalizeIsrc(value) {
   const v = String(value || '').trim().toUpperCase()
   return ISRC_RE.test(v) ? v : null
+}
+
+// The details of a candidate worth showing; whatever else a backend sends is dropped.
+// All of it comes from the search results the importer already gets.
+const CANDIDATE_FIELDS = [
+  'id', 'name', 'artistName', 'albumName', 'albumId', 'artistId', 'durationMs', 'isrc',
+  'artworkTemplate', 'bitRate', 'suffix', 'contentType', 'sizeBytes', 'year', 'genre',
+  'trackNumber', 'discNumber', 'samplingRate', 'bitDepth', 'channelCount',
+]
+function candidateInfo(c) {
+  const out = {}
+  for (const key of CANDIDATE_FIELDS) if (c && c[key] !== undefined && c[key] !== null) out[key] = c[key]
+  if (out.id === undefined && c?.songId) out.id = c.songId
+  return out
 }
 
 function shortId() {
@@ -68,6 +82,7 @@ function publicSession(session) {
     id: session.id,
     title: session.title,
     language: session.language || null,
+    sources: session.sources || [],
     createdAt: session.createdAt,
     queuePosition: matchIdx === -1 ? undefined : matchIdx,
     otherSongsAhead,
@@ -130,7 +145,7 @@ export function getGlobalQueueStatus() {
   }
 }
 
-export async function createImportSession({ title, tracks = [], warnings = [], language }) {
+export async function createImportSession({ title, tracks = [], warnings = [], language, sources = [] }) {
   let id = shortId()
   while (sessions.has(id)) id = shortId()
 
@@ -148,6 +163,7 @@ export async function createImportSession({ title, tracks = [], warnings = [], l
     id,
     title: title || 'Imported playlist',
     language: language || null,
+    sources,
     createdAt: Date.now(),
     updatedAt: Date.now(),
     warnings: finalWarnings,
@@ -159,6 +175,15 @@ export async function createImportSession({ title, tracks = [], warnings = [], l
       partA: t.partA || t.title,
       partB: t.partB !== undefined ? t.partB : ((t.artists && t.artists[0]) || null),
       isrc: normalizeIsrc(t.isrc),
+      source: t.source || null,
+      matchedBy: null,
+      matchedQuery: null,
+      candidateCount: 0,
+      chosen: null,
+      inLibrary: false,
+      job: null,
+      matchedAt: null,
+      finishedAt: null,
       status: 'pending',
       queuePosition: null,
       candidates: [],
@@ -278,7 +303,8 @@ async function matchByIsrc(session) {
       const song = byIsrc.get(item.isrc)
       if (!song) continue
       item.candidates = [song]
-      enqueueItemForDownload(session, item, song)
+      item.candidateCount = 1
+      enqueueItemForDownload(session, item, song, { matchedBy: 'isrc', query: item.isrc })
     }
   }
 }
@@ -296,12 +322,14 @@ async function runMatching(session) {
 
       let candidates = []
       let matchResult = null
+      let how = { matchedBy: 'search', query: null }
 
       if (partA && partB) {
         // Query 1: "<A> <B>". Apple's search ignores word order, so the same results
         // are tried with the roles swapped (B as the title) before spending a second
         // request.
         const q1 = `${partA} ${partB}`.trim()
+        how = { matchedBy: 'search', query: q1 }
         candidates = await doSearch(q1, mode, session.language, ctx)
         matchResult = pickBestMatch(candidates, {
           query: q1,
@@ -314,7 +342,10 @@ async function runMatching(session) {
             title: partB,
             parsedArtists: [partA],
           })
-          if (swapped.status === 'matched') matchResult = swapped
+          if (swapped.status === 'matched') {
+            matchResult = swapped
+            how = { matchedBy: 'search-swapped', query: q1 }
+          }
         }
 
         // Query 2 (only if still not found): the title on its own.
@@ -331,6 +362,7 @@ async function runMatching(session) {
               if (fallbackResult.status === 'matched') {
                 candidates = fallbackCandidates
                 matchResult = fallbackResult
+                how = { matchedBy: 'title-only', query: titleToTry }
               } else if (candidates.length === 0) {
                 candidates = fallbackCandidates
               }
@@ -340,6 +372,7 @@ async function runMatching(session) {
       } else {
         // Single search term with no delimiters
         const q = cleanTitleRemarks(item.parsedTitle || item.raw)
+        how = { matchedBy: 'search', query: q }
         candidates = await doSearch(q, mode, session.language, ctx)
         matchResult = pickBestMatch(candidates, {
           query: q,
@@ -349,9 +382,10 @@ async function runMatching(session) {
       }
 
       item.candidates = candidates || []
+      item.candidateCount = item.candidates.length
 
       if (matchResult && matchResult.status === 'matched' && matchResult.chosen) {
-        enqueueItemForDownload(session, item, matchResult.chosen)
+        enqueueItemForDownload(session, item, matchResult.chosen, how)
       } else {
         item.status = 'notfound'
         touch(session)
@@ -398,7 +432,7 @@ function broadcastQueuePositions() {
   }
 }
 
-function enqueueItemForDownload(session, item, chosen) {
+function enqueueItemForDownload(session, item, chosen, how = {}) {
   const mode = getInternalConfig().mode
   const songId = chosen.id || chosen.songId
   item.status = 'waiting'
@@ -406,6 +440,10 @@ function enqueueItemForDownload(session, item, chosen) {
   item.chosenAlbumId = chosen.albumId || null
   item.chosenName = chosen.name
   item.chosenArtist = chosen.artistName
+  item.chosen = candidateInfo(chosen)
+  item.matchedBy = how.matchedBy || null
+  item.matchedQuery = how.query || null
+  item.matchedAt = Date.now()
   if (chosen.name) item.parsedTitle = chosen.name
   if (chosen.artistName) item.parsedArtists = [chosen.artistName]
 
@@ -453,6 +491,7 @@ async function drainGlobalDownloadQueue() {
         if (activeDownload.mode === 'subsonic') {
           await downloadSubsonicSongStream(activeDownload.chosenSongId)
           item.status = 'done'
+          item.finishedAt = Date.now()
           item.message = 'Downloaded via Subsonic'
           touch(session)
           maybeExportPlaylist(session)
@@ -465,15 +504,27 @@ async function drainGlobalDownloadQueue() {
             })
             item.downloadJobId = job?.id || null
             if (item.downloadJobId) {
-              await waitForAlacarteJob(session, item)
+              // The backend runs the download; the importer moves on to the next track
+              // and follows the job in the background (see trackJob).
+              item.status = 'queued'
+              item.queuePosition = null
+              item.message = 'Queued in backend'
+              item.job = jobInfo(job)
+              touch(session)
+              trackJob(session, item, item.downloadJobId)
             } else {
               item.status = 'done'
+              item.finishedAt = Date.now()
               item.message = 'Queued in backend'
               touch(session)
             }
           } catch (err) {
-            if (err.status === 409) {
+            // The backend answers "Already in library" (as a 409, or a plain error with
+            // that text) when the track is on disk already.
+            if (err.status === 409 || /already in library/i.test(err.message || '')) {
               item.status = 'done'
+              item.inLibrary = true
+              item.finishedAt = Date.now()
               item.message = 'Already in library'
               touch(session)
               maybeExportPlaylist(session)
@@ -484,6 +535,7 @@ async function drainGlobalDownloadQueue() {
         }
       } catch (err) {
         item.status = 'failed'
+        item.finishedAt = Date.now()
         item.error = err.message
         touch(session)
       } finally {
@@ -491,8 +543,8 @@ async function drainGlobalDownloadQueue() {
         broadcastQueuePositions()
       }
 
-      // 1-second pace gap between downloads
-      await sleep(1000)
+      // pace gap between downloads (1 s unless IMPORTER_DOWNLOAD_GAP_MS says otherwise)
+      await sleep(DOWNLOAD_GAP_MS)
     }
   } finally {
     drainingDownloadQueue = false
@@ -501,33 +553,112 @@ async function drainGlobalDownloadQueue() {
   }
 }
 
-async function waitForAlacarteJob(session, item) {
-  const start = Date.now()
-  const TIMEOUT_MS = 300_000 // 5 minutes max
-  while (Date.now() - start < TIMEOUT_MS) {
-    await sleep(POLL_INTERVAL_MS)
-    let job
-    try {
-      job = await getDownloadJob(item.downloadJobId)
-    } catch {
-      continue
+// What the backend's download job says about itself (requested quality, progress, where it
+// went); shown next to the track while it runs and after.
+function jobInfo(job) {
+  return {
+    status: job.status || null,
+    progress: typeof job.progress === 'number' ? job.progress : null,
+    quality: job.quality || null,
+    variant: job.variant || null,
+    currentTrack: job.currentTrack || null,
+    message: job.message || null,
+    finalDir: job.finalDir || null,
+    unavailable: Boolean(job.unavailable),
+  }
+}
+
+// ---- following backend download jobs ----
+// Each enqueued track has a job in the backend. One timer polls them all (a few at a time)
+// and moves the item through queued -> downloading -> done/failed, with the job's progress
+// and quality on the item. Jobs the backend stops knowing about, or that take longer than
+// JOB_GIVE_UP_MS, are dropped from tracking.
+const JOB_POLL_MS = Math.max(200, Number(process.env.IMPORTER_JOB_POLL_MS) || 3000)
+const JOB_GIVE_UP_MS = 6 * 60 * 60 * 1000
+const JOB_POLL_PARALLEL = 5
+const trackedJobs = new Map() // jobId -> { sessionId, itemIndex, since, misses }
+let jobTimer = null
+let pollingJobs = false
+
+function trackJob(session, item, jobId) {
+  trackedJobs.set(jobId, { sessionId: session.id, itemIndex: item.index, since: Date.now(), misses: 0 })
+  if (!jobTimer) {
+    jobTimer = setInterval(pollTrackedJobs, JOB_POLL_MS)
+    jobTimer.unref?.()
+  }
+}
+
+async function pollTrackedJobs() {
+  if (pollingJobs) return
+  pollingJobs = true
+  try {
+    const entries = [...trackedJobs.entries()]
+    for (let i = 0; i < entries.length; i += JOB_POLL_PARALLEL) {
+      await Promise.all(entries.slice(i, i + JOB_POLL_PARALLEL).map(([id, t]) => pollJob(id, t)))
     }
-    if (!job) continue
-    if (job.status === 'done') {
-      item.status = 'done'
-      item.message = null
-      touch(session)
-      maybeExportPlaylist(session)
-      return
-    }
-    if (job.status === 'failed') {
-      item.status = 'failed'
-      item.error = job.error || 'download failed'
-      touch(session)
-      return
+  } finally {
+    pollingJobs = false
+    if (trackedJobs.size === 0 && jobTimer) {
+      clearInterval(jobTimer)
+      jobTimer = null
     }
   }
-  item.message = 'Still processing in backend'
+}
+
+async function pollJob(jobId, tracked) {
+  const session = sessions.get(tracked.sessionId)
+  const item = session?.items[tracked.itemIndex]
+  if (!item) {
+    trackedJobs.delete(jobId)
+    return
+  }
+  let job
+  try {
+    job = await getDownloadJob(jobId)
+  } catch {
+    return // backend unreachable for now; try again next round
+  }
+  if (!job) {
+    tracked.misses += 1
+    if (tracked.misses >= 5) {
+      trackedJobs.delete(jobId)
+      item.status = 'done'
+      item.finishedAt = Date.now()
+      item.message = 'Queued in backend (no further status available)'
+      touch(session)
+    }
+    return
+  }
+  tracked.misses = 0
+  item.job = jobInfo(job)
+  if (job.status === 'done') {
+    trackedJobs.delete(jobId)
+    item.status = 'done'
+    item.finishedAt = Date.now()
+    item.message = null
+    touch(session)
+    maybeExportPlaylist(session)
+    return
+  }
+  if (job.status === 'failed' || job.cancelled) {
+    trackedJobs.delete(jobId)
+    item.status = 'failed'
+    item.finishedAt = Date.now()
+    item.error = job.error || (job.cancelled ? 'download cancelled' : 'download failed')
+    touch(session)
+    return
+  }
+  if (job.status === 'running') {
+    item.status = 'downloading'
+    item.message = null
+  } else {
+    item.status = 'queued'
+    item.message = 'Queued in backend'
+  }
+  if (Date.now() - tracked.since > JOB_GIVE_UP_MS) {
+    trackedJobs.delete(jobId)
+    item.message = 'Still processing in backend'
+  }
   touch(session)
 }
 
@@ -551,6 +682,6 @@ export async function selectCandidate(sessionId, itemIndex, chosen) {
   const item = session.items[itemIndex]
   if (!item) throw Object.assign(new Error('item not found'), { status: 404 })
 
-  enqueueItemForDownload(session, item, chosen)
+  enqueueItemForDownload(session, item, chosen, { matchedBy: 'manual' })
   return session
 }

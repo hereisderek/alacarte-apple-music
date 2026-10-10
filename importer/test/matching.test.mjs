@@ -2,18 +2,25 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
 process.env.IMPORTER_SEARCH_PACING_MS = '100'
+process.env.IMPORTER_JOB_POLL_MS = '200'
+process.env.IMPORTER_DOWNLOAD_GAP_MS = '0'
 process.env.BACKEND_URL = 'http://backend.test:7373'
 process.env.INTERNAL_API_KEY = 'k'
 
-const { createImportSession } = await import('../lib/importSession.mjs')
+const { createImportSession, selectCandidate } = await import('../lib/importSession.mjs')
 const { parsePlainText } = await import('../parsers/plaintext.mjs')
 
 const realFetch = globalThis.fetch
 const calls = []
+const downloads = []
+const jobPolls = {}
 // songs the fake backend knows, by search text
 const catalog = {
   'song one artist one': [{ id: '1', name: 'Song One', artistName: 'Artist One', albumId: '10', isrc: 'USAAA0000001' }],
   'song two': [{ id: '2', name: 'Song Two', artistName: 'Artist Two', albumId: '20', isrc: 'USAAA0000002' }],
+  'job song job artist': [{ id: 'job-1', name: 'Job Song', artistName: 'Job Artist', albumId: '30', albumName: 'Job Album', durationMs: 215000, isrc: 'USAAA0000003', bitRate: 1411, suffix: 'flac', extra: 'dropped' }],
+  'job two job artist': [{ id: 'job-2', name: 'Job Two', artistName: 'Job Artist', albumId: '31' }],
+  'known song known artist': [{ id: 'in-library', name: 'Known Song', artistName: 'Known Artist', albumId: '40' }],
 }
 globalThis.fetch = async (url, init) => {
   const u = new URL(String(url))
@@ -28,7 +35,23 @@ globalThis.fetch = async (url, init) => {
     }))
     return Response.json({ songs })
   }
-  // downloads are not what is tested here
+  if (u.pathname === '/api/internal/download/song') {
+    const { songId } = JSON.parse(init.body)
+    downloads.push(songId)
+    if (songId === 'in-library') return Response.json({ error: 'Already in library' }, { status: 500 })
+    if (songId.startsWith('job-')) {
+      return Response.json({ ok: true, jobId: { id: songId, status: 'queued', quality: 'flac', progress: 0 } })
+    }
+    return Response.json({ error: 'not under test' }, { status: 500 })
+  }
+  const jobMatch = u.pathname.match(/^\/api\/internal\/download\/(job-.+)$/)
+  if (jobMatch) {
+    const polls = (jobPolls[jobMatch[1]] = (jobPolls[jobMatch[1]] || 0) + 1)
+    const job = polls === 1
+      ? { id: jobMatch[1], status: 'running', progress: 40, quality: 'flac', currentTrack: 'Track', finalDir: null }
+      : { id: jobMatch[1], status: 'done', progress: 100, quality: 'flac', finalDir: '/music/Artist/Album' }
+    return Response.json({ job })
+  }
   return Response.json({ error: 'not under test' }, { status: 500 })
 }
 test.after(() => {
@@ -98,4 +121,70 @@ test('a track costs at most two searches (no reversed-order query) and repeated 
     'no reversed-order query; each distinct query once',
   )
   assert.equal(session.items[2].status, 'notfound')
+})
+
+async function until(cond, ms = 6000) {
+  for (let t = 0; t < ms && !cond(); t += 50) await new Promise((r) => setTimeout(r, 50))
+}
+
+test('each item records how it was matched and what is known about the chosen track', async () => {
+  const session = await createImportSession({
+    title: 'details',
+    tracks: [
+      { title: 'Job Song', artists: ['Job Artist'], source: { kind: 'spotify', label: 'Spotify', url: 'https://open.spotify.com/playlist/x' } },
+      { title: 'T', artists: ['A'], isrc: 'USAAA0000099' },
+    ],
+    sources: [{ kind: 'spotify', label: 'Spotify', url: 'https://open.spotify.com/playlist/x', count: 1 }],
+  })
+  await settled(session)
+  const [text, byIsrc] = session.items
+  assert.equal(text.matchedBy, 'search')
+  assert.equal(text.matchedQuery, 'Job Song Job Artist')
+  assert.equal(text.candidateCount, 1)
+  assert.equal(text.source.label, 'Spotify')
+  assert.deepEqual(
+    { ...text.chosen },
+    {
+      id: 'job-1', name: 'Job Song', artistName: 'Job Artist', albumId: '30', albumName: 'Job Album',
+      durationMs: 215000, isrc: 'USAAA0000003', bitRate: 1411, suffix: 'flac',
+    },
+    'only the known detail fields are kept',
+  )
+  assert.ok(text.matchedAt > 0)
+  assert.equal(byIsrc.matchedBy, 'isrc')
+  assert.equal(session.sources[0].count, 1)
+})
+
+test('the importer follows the backend job: queued, downloading with progress, done', async () => {
+  const session = await createImportSession({ title: 'jobs', tracks: [{ title: 'Job Two', artists: ['Job Artist'] }] })
+  const [item] = session.items
+  await until(() => item.status === 'downloading' && item.job?.progress === 40)
+  assert.equal(item.job.progress, 40)
+  assert.equal(item.job.quality, 'flac')
+  assert.equal(item.downloadJobId, 'job-2')
+  await until(() => item.status === 'done')
+  assert.equal(item.status, 'done')
+  assert.equal(item.job.status, 'done')
+  assert.equal(item.job.finalDir, '/music/Artist/Album')
+  assert.ok(item.finishedAt >= item.matchedAt)
+})
+
+test("'Already in library' from the backend marks the item as already in the library", async () => {
+  const session = await createImportSession({ title: 'lib', tracks: [{ title: 'Known Song', artists: ['Known Artist'] }] })
+  const [item] = session.items
+  await until(() => item.status === 'done')
+  assert.equal(item.status, 'done')
+  assert.equal(item.inLibrary, true)
+  assert.equal(item.message, 'Already in library')
+})
+
+test('a manual pick keeps the details of the chosen candidate', async () => {
+  const session = await createImportSession({ title: 'manual', tracks: [{ title: 'Nothing', artists: ['Nobody'] }] })
+  await settled(session)
+  await selectCandidate(session.id, 0, {
+    id: 'job-manual', albumId: '9', name: 'Picked', artistName: 'Someone', durationMs: 1000, bitRate: 256, bogus: 'x',
+  })
+  const [item] = session.items
+  assert.equal(item.matchedBy, 'manual')
+  assert.deepEqual({ ...item.chosen }, { id: 'job-manual', name: 'Picked', artistName: 'Someone', albumId: '9', durationMs: 1000, bitRate: 256 })
 })

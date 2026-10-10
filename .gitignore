@@ -14,3 +14,4 @@ docker-compose.override.yml
 data.backup-*/
 dev/music/
 dev/config/
+importer/frontend/tsconfig.tsbuildinfo

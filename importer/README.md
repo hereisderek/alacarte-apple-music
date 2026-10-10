@@ -81,6 +81,26 @@ this existed). Three independent layers guard against it, all tunable:
 Raise `APPLE_GATEWAY_MIN_INTERVAL_MS` first if you're still seeing 429s in
 practice; the importer-side knobs are secondary margin.
 
+### What each track shows
+
+Everything below comes from data the importer already receives; nothing needed a change in the
+backend or the web app.
+
+| Shown | Where it comes from |
+|---|---|
+| Artwork, album, length, ISRC | the backend's search result (ALACarte mode), or the Subsonic server's |
+| Format, bit rate, sample rate, bit depth, channels, file size, year, genre | the Subsonic server's search result (Subsonic mode only; sample rate, bit depth and channels need an OpenSubsonic server) |
+| Source (platform and link, or "Pasted text") | the parser that read the link |
+| How it was matched (ISRC, search, artist/title swapped, title only, picked by hand) and the query used | the importer's matching |
+| Download progress, requested quality, variant, "unavailable" | the backend's download job, followed in the background |
+| "Already in library" | the backend refusing the download because the track is on disk |
+| Time from match to finished | the importer |
+
+In ALACarte mode the importer does not wait for each download: it enqueues a track, moves on,
+and follows the backend job in the background (every `IMPORTER_JOB_POLL_MS`, 3000 by default,
+a few jobs at a time), so a track shows queued, then downloading with a progress bar, then done
+or failed. `IMPORTER_DOWNLOAD_GAP_MS` (default 1000) is the pause between enqueues.
+
 ### How many Apple searches a track costs
 
 At most two: `<title> <artist>`, and if that does not match, the title on its own. The

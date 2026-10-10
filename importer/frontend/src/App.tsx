@@ -6,11 +6,13 @@ import {
   HttpError,
   type ImportItem,
   type ImportSession,
+  type ItemJob,
   type ServerStatus,
   type SongCandidate,
   type ImporterConfig,
 } from './api'
 import { SettingsModal } from './SettingsModal'
+import { MATCHED_BY_LABEL, artworkUrl, formatDuration, trackDetails } from './format'
 
 const STATUS_LABEL: Record<ImportItem['status'], string> = {
   pending: 'Searching…',
@@ -719,6 +721,8 @@ function SessionView({
         <Summary counts={session.counts} />
       </div>
 
+      <SessionInfo session={session} />
+
       {session.warnings && session.warnings.length > 0 && (
         <div className="space-y-2">
           {session.warnings.map((w, idx) => (
@@ -768,6 +772,30 @@ function SessionView({
         ))}
       </ul>
     </section>
+  )
+}
+
+// Where the tracks came from, and totals for what has been matched so far.
+function SessionInfo({ session }: { session: ImportSession }) {
+  const matched = session.items.filter((i) => i.chosen)
+  const totalMs = matched.reduce((sum, i) => sum + (i.chosen?.durationMs || 0), 0)
+  const inLibrary = session.items.filter((i) => i.inLibrary).length
+  const bits = [
+    matched.length > 0 ? `${matched.length} matched` : null,
+    totalMs > 0 ? `${formatDuration(totalMs)} of music` : null,
+    inLibrary > 0 ? `${inLibrary} already in library` : null,
+  ].filter(Boolean)
+  const sources = session.sources || []
+  if (sources.length === 0 && bits.length === 0) return null
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 text-xs text-neutral-400">
+      {sources.map((src, i) => (
+        <span key={i} className={CHIP} title={src.url || src.label}>
+          {src.label} · {src.count}
+        </span>
+      ))}
+      {bits.length > 0 && <span>{bits.join(' · ')}</span>}
+    </div>
   )
 }
 
@@ -823,14 +851,33 @@ function ItemRow({
     badgeText = 'Downloading…'
   }
 
+  const shown = item.chosen ?? null
+  const details = trackDetails(shown)
+  const art = artworkUrl(shown?.artworkTemplate)
+
   return (
     <li className="p-3">
       <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate font-medium">{item.chosenName || item.parsedTitle || item.raw}</p>
-          <p className="truncate text-sm text-neutral-400">
-            {item.chosenArtist || item.parsedArtists.join(', ') || '—'}
-          </p>
+        <div className="flex min-w-0 items-center gap-3">
+          {art && (
+            <img
+              src={art}
+              alt=""
+              loading="lazy"
+              className="h-10 w-10 shrink-0 rounded bg-neutral-800 object-cover"
+            />
+          )}
+          <div className="min-w-0">
+            <p className="truncate font-medium">{item.chosenName || item.parsedTitle || item.raw}</p>
+            <p className="truncate text-sm text-neutral-400">
+              {item.chosenArtist || item.parsedArtists.join(', ') || '—'}
+            </p>
+            {details.length > 0 && (
+              <p className="truncate text-xs text-neutral-500" title={details.join(' · ')}>
+                {details.join(' · ')}
+              </p>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${STATUS_CLASS[item.status]}`}>
@@ -846,6 +893,7 @@ function ItemRow({
           )}
         </div>
       </div>
+      <ItemBadges item={item} />
       {item.error && <p className="mt-1 text-xs text-red-400">{item.error}</p>}
       {open && needsReview && (
         <ReviewPicker
@@ -857,6 +905,98 @@ function ItemRow({
         />
       )}
     </li>
+  )
+}
+
+const CHIP = 'rounded border border-neutral-700 bg-neutral-800/70 px-1.5 py-0.5 text-[11px] text-neutral-300'
+
+function ItemBadges({ item }: { item: ImportItem }) {
+  const chips: React.ReactNode[] = []
+  if (item.source) {
+    chips.push(
+      <span key="source" className={CHIP} title={item.source.url || item.source.label}>
+        {item.source.label}
+      </span>,
+    )
+  }
+  if (item.matchedBy) {
+    chips.push(
+      <span
+        key="matched"
+        className={item.matchedBy === 'title-only' ? CHIP.replace('text-neutral-300', 'text-amber-300') : CHIP}
+        title={item.matchedQuery ? `Searched for: ${item.matchedQuery}` : undefined}
+      >
+        {MATCHED_BY_LABEL[item.matchedBy]}
+      </span>,
+    )
+  }
+  if (item.chosen?.isrc) {
+    chips.push(
+      <span key="isrc" className={`${CHIP} font-mono`}>
+        ISRC {item.chosen.isrc}
+      </span>,
+    )
+  }
+  if (item.inLibrary) {
+    chips.push(
+      <span key="lib" className="rounded border border-green-800 bg-green-950/60 px-1.5 py-0.5 text-[11px] text-green-300">
+        Already in library
+      </span>,
+    )
+  }
+  const job = item.job
+  if (job?.quality) {
+    chips.push(
+      <span key="quality" className={CHIP} title="Quality requested from the backend">
+        {job.quality.toUpperCase()}
+        {job.variant ? ` · ${job.variant}` : ''}
+      </span>,
+    )
+  }
+  if (job?.unavailable) {
+    chips.push(
+      <span key="unavail" className="rounded border border-red-900 bg-red-950/60 px-1.5 py-0.5 text-[11px] text-red-300">
+        Unavailable
+      </span>,
+    )
+  }
+  const elapsed =
+    item.matchedAt && item.finishedAt ? formatDuration(item.finishedAt - item.matchedAt) : null
+  if (elapsed && item.status === 'done') {
+    chips.push(
+      <span key="elapsed" className={CHIP} title="Time from match to finished">
+        {elapsed}
+      </span>,
+    )
+  }
+  const showJob = item.status === 'downloading' && job
+
+  if (chips.length === 0 && !showJob && !item.message) return null
+  return (
+    <div className="mt-1.5 space-y-1">
+      {chips.length > 0 && <div className="flex flex-wrap gap-1.5">{chips}</div>}
+      {showJob && <JobLine job={job} />}
+      {item.message && item.status !== 'downloading' && (
+        <p className="text-xs text-neutral-500">{item.message}</p>
+      )}
+    </div>
+  )
+}
+
+function JobLine({ job }: { job: ItemJob }) {
+  const pct = job.progress != null ? Math.max(0, Math.min(100, Math.round(job.progress))) : null
+  return (
+    <div className="space-y-1">
+      {pct != null && (
+        <div className="h-1 overflow-hidden rounded bg-neutral-800">
+          <div className="h-full bg-blue-500 transition-all" style={{ width: `${pct}%` }} />
+        </div>
+      )}
+      <p className="truncate text-xs text-neutral-400">
+        {pct != null ? `${pct}% · ` : ''}
+        {job.currentTrack || job.message || 'Downloading…'}
+      </p>
+    </div>
   )
 }
 
@@ -902,6 +1042,7 @@ function ReviewPicker({
         albumId: candidate.albumId,
         name: candidate.name,
         artistName: candidate.artistName,
+        details: candidate,
       })
       onResolved(session)
       onClose()
@@ -932,9 +1073,22 @@ function ReviewPicker({
       <ul className="space-y-1">
         {results.map((c) => (
           <li key={c.id} className="flex items-center justify-between gap-2 rounded bg-neutral-800 px-2 py-1">
-            <div className="min-w-0">
-              <p className="truncate text-sm">{c.name}</p>
-              <p className="truncate text-xs text-neutral-400">{c.artistName}</p>
+            <div className="flex min-w-0 items-center gap-2">
+              {artworkUrl(c.artworkTemplate, 64) && (
+                <img
+                  src={artworkUrl(c.artworkTemplate, 64)!}
+                  alt=""
+                  loading="lazy"
+                  className="h-8 w-8 shrink-0 rounded bg-neutral-700 object-cover"
+                />
+              )}
+              <div className="min-w-0">
+                <p className="truncate text-sm">{c.name}</p>
+                <p className="truncate text-xs text-neutral-400">{c.artistName}</p>
+                {trackDetails(c).length > 0 && (
+                  <p className="truncate text-[11px] text-neutral-500">{trackDetails(c).join(' · ')}</p>
+                )}
+              </div>
             </div>
             <button
               disabled={picking === c.id}

@@ -72,7 +72,9 @@ export async function enqueueSongDownload({ songId, albumId, storefront, quality
     method: 'POST',
     body: { songId, albumId, storefront, quality },
   })
-  return data?.job || null
+  // The backend names the job object `jobId`; accept `job` or a bare id string as well.
+  const job = data?.job ?? data?.jobId ?? null
+  return typeof job === 'string' ? { id: job } : job
 }
 
 export async function getDownloadJob(id) {

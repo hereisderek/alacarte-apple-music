@@ -158,3 +158,46 @@ test('pingSubsonic fails early if username or password is missing', async () => 
   assert.ok(res.error.includes('required'))
 })
 
+
+test('searchSubsonicSongs keeps the file details the server reports (bit rate, format, size, ...)', async () => {
+  const originalFetch = globalThis.fetch
+  try {
+    globalThis.fetch = async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        'subsonic-response': {
+          status: 'ok',
+          searchResult3: {
+            song: [
+              {
+                id: 's1', title: 'A', artist: 'B', duration: 200,
+                bitRate: 320, suffix: 'mp3', contentType: 'audio/mpeg', size: 8_000_000,
+                year: 2019, genre: 'Pop', track: 3, discNumber: 1,
+                samplingRate: 44100, bitDepth: 16, channelCount: 2, isrc: ['USAAA0000001'],
+              },
+              { id: 's2', title: 'Plain', artist: 'X' }, // an old server that says little
+            ],
+          },
+        },
+      }),
+    })
+    const [full, plain] = await searchSubsonicSongs({ query: 'x', url: 'http://t:1', username: 'u', password: 'p' })
+    assert.equal(full.bitRate, 320)
+    assert.equal(full.suffix, 'mp3')
+    assert.equal(full.contentType, 'audio/mpeg')
+    assert.equal(full.sizeBytes, 8_000_000)
+    assert.equal(full.year, 2019)
+    assert.equal(full.genre, 'Pop')
+    assert.equal(full.trackNumber, 3)
+    assert.equal(full.samplingRate, 44100)
+    assert.equal(full.bitDepth, 16)
+    assert.equal(full.channelCount, 2)
+    assert.equal(full.isrc, 'USAAA0000001')
+    assert.equal(plain.bitRate, null)
+    assert.equal(plain.suffix, null)
+    assert.equal(plain.isrc, null)
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})

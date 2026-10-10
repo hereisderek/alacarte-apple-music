@@ -37,13 +37,47 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
   return data as T
 }
 
+// A search result. Which of the optional fields are set depends on the source: the ALACarte
+// backend gives duration, ISRC and artwork; a Subsonic server also reports the file's
+// format, bit rate, size and so on.
 export type SongCandidate = {
   id: string
   name: string
   artistName: string
   albumId: string | null
   albumName?: string | null
+  artistId?: string | null
   artworkTemplate?: string | null
+  durationMs?: number | null
+  isrc?: string | null
+  bitRate?: number | null
+  suffix?: string | null
+  contentType?: string | null
+  sizeBytes?: number | null
+  year?: number | null
+  genre?: string | null
+  trackNumber?: number | null
+  discNumber?: number | null
+  samplingRate?: number | null
+  bitDepth?: number | null
+  channelCount?: number | null
+}
+
+// Where a track came from: a link's platform (and the link), or pasted text.
+export type ItemSource = { kind: string; label: string; url?: string }
+
+export type ImportSource = ItemSource & { count: number }
+
+// What the backend's download job reports (ALACarte mode).
+export type ItemJob = {
+  status: string | null
+  progress: number | null
+  quality: string | null
+  variant: string | null
+  currentTrack: string | null
+  message: string | null
+  finalDir: string | null
+  unavailable: boolean
 }
 
 export type ItemStatus = 'pending' | 'waiting' | 'downloading' | 'queued' | 'done' | 'failed' | 'notfound'
@@ -62,6 +96,16 @@ export type ImportItem = {
   downloadJobId: string | null
   message: string | null
   error: string | null
+  isrc?: string | null
+  source?: ItemSource | null
+  matchedBy?: 'isrc' | 'search' | 'search-swapped' | 'title-only' | 'manual' | null
+  matchedQuery?: string | null
+  candidateCount?: number
+  chosen?: SongCandidate | null
+  inLibrary?: boolean
+  job?: ItemJob | null
+  matchedAt?: number | null
+  finishedAt?: number | null
 }
 
 export type ImportCounts = {
@@ -86,6 +130,7 @@ export type ImportSession = {
   otherSongsAhead?: number
   counts: ImportCounts
   items: ImportItem[]
+  sources?: ImportSource[]
   warnings?: string[]
 }
 
@@ -199,7 +244,13 @@ export const api = {
   selectCandidate: (
     sessionId: string,
     itemIndex: number,
-    chosen: { songId: string; albumId?: string | null; name: string; artistName: string },
+    chosen: {
+      songId: string
+      albumId?: string | null
+      name: string
+      artistName: string
+      details?: SongCandidate
+    },
   ) =>
     http<{ session: ImportSession }>(`import/${sessionId}/select`, {
       method: 'POST',

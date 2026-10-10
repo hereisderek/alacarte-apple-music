@@ -97,6 +97,8 @@ export async function pingSubsonic(override = {}) {
   }
 }
 
+const numberOrNull = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null)
+
 export async function searchSubsonicSongs({ query, limit = 5, ...override } = {}) {
   if (!query || !query.trim()) return []
   const creds = getCredentials(override)
@@ -124,6 +126,20 @@ export async function searchSubsonicSongs({ query, limit = 5, ...override } = {}
     albumId: s.albumId || null,
     albumName: s.album || null,
     durationMs: typeof s.duration === 'number' ? s.duration * 1000 : null,
+    // What the server knows about the file: bit rate (kbps), format, size, year, ...
+    // (samplingRate/bitDepth/channelCount only come from OpenSubsonic servers).
+    bitRate: numberOrNull(s.bitRate),
+    suffix: s.suffix || null,
+    contentType: s.contentType || null,
+    sizeBytes: numberOrNull(s.size),
+    year: numberOrNull(s.year),
+    genre: s.genre || null,
+    trackNumber: numberOrNull(s.track),
+    discNumber: numberOrNull(s.discNumber),
+    samplingRate: numberOrNull(s.samplingRate),
+    bitDepth: numberOrNull(s.bitDepth),
+    channelCount: numberOrNull(s.channelCount),
+    isrc: (Array.isArray(s.isrc) ? s.isrc[0] : s.isrc) || null,
     artworkTemplate: s.coverArt
       ? `${creds.url}/rest/getCoverArt.view?id=${encodeURIComponent(s.coverArt)}`
       : null,
