@@ -54,7 +54,8 @@ services:
       - wrapper
     environment:
       - PORT=7373
-      - NODE_OPTIONS=--dns-result-order=ipv6first
+      - PREFER_IPV6=${PREFER_IPV6:-false}
+      - NODE_OPTIONS=${NODE_OPTIONS:-}
       - AMDL_WRAPPER_HOST=alacarte-wrapper
       - AMDL_WRAPPER_DECRYPT_PORT=10020
       - AMDL_WRAPPER_M3U8_PORT=20020
@@ -108,7 +109,8 @@ services:
       - web
     environment:
       - PORT=8080
-      - NODE_OPTIONS=--dns-result-order=ipv6first
+      - PREFER_IPV6=${PREFER_IPV6:-false}
+      - NODE_OPTIONS=${NODE_OPTIONS:-}
       - BASE_PATH=${IMPORTER_BASE_PATH:-/}
       - BACKEND_URL=http://alacarte-web:7373
       - INTERNAL_API_KEY=${INTERNAL_API_KEY:?Set INTERNAL_API_KEY in .env to enable the importer}

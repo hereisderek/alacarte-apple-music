@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs'
 
-if (typeof dns.setDefaultResultOrder === 'function') {
+if ((process.env.PREFER_IPV6 === 'true' || process.env.PREFER_IPV6 === '1') && typeof dns.setDefaultResultOrder === 'function') {
   dns.setDefaultResultOrder('ipv6first')
 }
 

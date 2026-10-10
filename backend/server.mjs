@@ -1,9 +1,14 @@
+import dns from 'node:dns'
 import express from 'express'
 import cookieParser from 'cookie-parser'
 import helmet from 'helmet'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs'
+
+if ((process.env.PREFER_IPV6 === 'true' || process.env.PREFER_IPV6 === '1') && typeof dns.setDefaultResultOrder === 'function') {
+  dns.setDefaultResultOrder('ipv6first')
+}
 
 import { healthRouter } from './routes/health.mjs'
 import { settingsRouter } from './routes/settings.mjs'
