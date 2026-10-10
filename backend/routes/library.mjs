@@ -3,7 +3,6 @@ import fsp from 'node:fs/promises'
 import path from 'node:path'
 
 import { getAppleCooldownMs, searchCatalog } from '../lib/appleApi.mjs'
-import { detectScript } from '../lib/metadataLanguage.mjs'
 import {
   normalizeArtistName,
   readStoredArtistIds,
@@ -295,36 +294,23 @@ function queueArtistResolution(storefront, language, unresolved) {
 const pause = () =>
   new Promise((resolve) => setTimeout(resolve, ARTIST_RESOLVE_INTERVAL_MS).unref())
 
-// Apple returns an artist's name in the request language, so a Japanese, Korean or
-// Chinese folder name only matches when searched in a language of its own script.
-const NATIVE_LOCALES = { ja: ['ja-JP'], ko: ['ko-KR'], zh: ['zh-Hans-CN', 'zh-Hant-TW'] }
-
-// Tries the configured language first, then (non-Latin names only) the native
-// locales, one paced search each, until a candidate matches.
+// One paced search. Whatever name(s) Apple returns for the matched artist, in whatever
+// language, are kept as extra keys for the same ID; no extra request is made for them.
 async function lookupArtist(item) {
-  const locales = [item.language, ...(NATIVE_LOCALES[detectScript(item.name)] || [])]
-  const seen = []
-  for (let i = 0; i < locales.length; i++) {
-    if (i > 0) await pause()
-    const raw = await searchCatalog({
-      storefront: item.storefront,
-      term: item.name,
-      types: 'artists',
-      limit: 10,
-      offset: 0,
-      language: locales[i],
-    })
-    const candidates = raw?.results?.artists?.data || []
-    seen.push(...candidates)
-    const artistId = pickBestArtistId(item.name, candidates)
-    if (artistId) {
-      const names = seen
-        .filter((c) => String(c?.id) === artistId)
-        .map((c) => c?.attributes?.name)
-      return { artistId, names }
-    }
-  }
-  return { artistId: null, names: [] }
+  const raw = await searchCatalog({
+    storefront: item.storefront,
+    term: item.name,
+    types: 'artists',
+    limit: 10,
+    offset: 0,
+    language: item.language,
+  })
+  const candidates = raw?.results?.artists?.data || []
+  const artistId = pickBestArtistId(item.name, candidates)
+  const names = candidates
+    .filter((c) => artistId && String(c?.id) === artistId)
+    .map((c) => c?.attributes?.name)
+  return { artistId, names }
 }
 
 // One lookup per ARTIST_RESOLVE_INTERVAL_MS. Any Apple 429 (or an active

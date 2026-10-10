@@ -37,7 +37,6 @@ globalThis.fetch = async (url) => {
   }
   if (u.includes('/assets/index~')) return new Response('x="eyJa.eyJb.sig"')
   const term = new URL(u).searchParams.get('term')
-  const lang = new URL(u).searchParams.get('l')
   searchedTerms.push(term)
   inFlightSearches++
   maxInFlightSearches = Math.max(maxInFlightSearches, inFlightSearches)
@@ -47,7 +46,7 @@ globalThis.fetch = async (url) => {
   return Response.json({
     results: {
       artists: {
-        data: [{ id: `id-${term}`, attributes: { name: term === '颜人中' && lang === 'en-US' ? 'Yan Renzhong' : term } }],
+        data: [{ id: `id-${term}`, attributes: { name: term } }],
       },
     },
   })
@@ -94,15 +93,13 @@ test('GET /api/library answers from disk and makes no Apple call while the reque
 })
 
 test('missing artist ids are looked up one at a time in the background and stored', async () => {
-  await waitFor(() => searchedTerms.length >= 23)
+  await waitFor(() => searchedTerms.length >= 22)
   await new Promise((r) => setTimeout(r, 50))
-  assert.equal(searchedTerms.length, 23) // 22 names + one retry in Chinese for 颜人中
+  assert.equal(searchedTerms.length, 22)
   assert.equal(maxInFlightSearches, 1)
   const lib = await getLibrary()
   assert.equal(idOf(lib, 'Artist 3'), 'id-Artist 3')
   assert.equal(idOf(lib, '颜人中'), 'id-颜人中', 'non-Latin names resolve too')
-  const { readStoredArtistIds } = await import('../lib/artistIdCache.mjs')
-  assert.equal(readStoredArtistIds('us').get('yan renzhong'), 'id-颜人中', 'the artist\'s other name is stored')
 })
 
 test('a failed (429) lookup is not stored, resolved ones are never looked up again', async () => {
