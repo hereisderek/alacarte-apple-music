@@ -3,6 +3,7 @@ import fsp from 'node:fs/promises'
 import path from 'node:path'
 
 import { getAppleCooldownMs, searchCatalog } from '../lib/appleApi.mjs'
+import { runInLane } from '../lib/appleGateway.mjs'
 import {
   normalizeArtistName,
   readStoredArtistIds,
@@ -288,7 +289,7 @@ function queueArtistResolution(storefront, language, unresolved) {
   for (const [key, name] of unresolved) {
     resolveQueue.set(`${storefront}::${key}`, { storefront, language, key, name })
   }
-  if (!resolverRunning && resolveQueue.size > 0) void runArtistResolver()
+  if (!resolverRunning && resolveQueue.size > 0) void runInLane('background', runArtistResolver)
 }
 
 const pause = () =>

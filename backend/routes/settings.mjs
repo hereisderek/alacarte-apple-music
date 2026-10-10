@@ -43,6 +43,8 @@ import {
   stopArtistBackfill,
 } from '../lib/artistCredits.mjs'
 
+import { appleGateway } from '../lib/appleGateway.mjs'
+
 export const settingsRouter = express.Router()
 
 export const WRITABLE_KEYS = new Set([
@@ -274,6 +276,10 @@ settingsRouter.delete('/media-user-token', async (_req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
+})
+
+settingsRouter.get('/apple-status', (_req, res) => {
+  res.json(appleGateway.status())
 })
 
 settingsRouter.get('/tag-backfill', (_req, res) => {

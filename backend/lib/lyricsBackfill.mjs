@@ -6,6 +6,8 @@ import { readAudioIdentityTags } from './audioTags.mjs'
 import { readAppleCreds, readSettings } from './settingsStore.mjs'
 import { getSongLyricsTtml, getSongsByIsrc } from './appleApi.mjs'
 import { triggerNavidromeScan } from './navidromeApi.mjs'
+import { runInLane } from './appleGateway.mjs'
+import { withAppleRetry } from './appleWait.mjs'
 
 const MUSIC_ROOT = process.env.AMDL_MUSIC_PATH || '/music'
 const ISRC_BATCH = 25
@@ -17,6 +19,7 @@ const PROGRESS_MIN_INTERVAL_MS = 400
 // shape as the tag backfill.
 const state = {
   running: false,
+  waitingUntil: null, // set while paused for an Apple rate limit
   scanned: 0,
   total: 0,
   added: 0,
@@ -44,8 +47,8 @@ const defaultDeps = {
 let lastEmitAt = 0
 
 function status() {
-  const { running, scanned, total, added, skipped, noLyrics, noMatch, failed, current, startedAt, finishedAt, stopRequested, error } = state
-  return { running, scanned, total, added, skipped, noLyrics, noMatch, failed, current, startedAt, finishedAt, stopRequested, error }
+  const { running, scanned, total, added, skipped, noLyrics, noMatch, failed, current, startedAt, finishedAt, stopRequested, error, waitingUntil } = state
+  return { running, scanned, total, added, skipped, noLyrics, noMatch, failed, current, startedAt, finishedAt, stopRequested, error, waitingUntil }
 }
 
 export function getLyricsBackfillStatus() {
@@ -120,6 +123,16 @@ async function collectAudio(dir, out) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
+// Apple call that waits out a rate limit (status shows waitingUntil) instead of failing.
+const callApple = (fn) =>
+  withAppleRetry(fn, {
+    shouldStop: () => state.stopRequested,
+    onWait: (until) => {
+      state.waitingUntil = until
+      emit(true)
+    },
+  })
+
 async function runBackfill(deps) {
   try {
     const settings = await deps.readSettings()
@@ -155,11 +168,13 @@ async function runBackfill(deps) {
       const batch = pending.slice(i, i + ISRC_BATCH)
       const songsByIsrc = new Map()
       try {
-        const json = await deps.getSongsByIsrc({
-          storefront,
-          isrcs: [...new Set(batch.map((b) => b.isrc))],
-          language,
-        })
+        const json = await callApple(() =>
+          deps.getSongsByIsrc({
+            storefront,
+            isrcs: [...new Set(batch.map((b) => b.isrc))],
+            language,
+          }),
+        )
         for (const song of json?.data || []) {
           const isrc = song.attributes?.isrc?.toUpperCase()
           if (!isrc) continue
@@ -193,7 +208,9 @@ async function runBackfill(deps) {
           continue
         }
         try {
-          const ttml = await deps.getSongLyricsTtml({ storefront, id: song.id, language, mediaUserToken })
+          const ttml = await callApple(() =>
+            deps.getSongLyricsTtml({ storefront, id: song.id, language, mediaUserToken }),
+          )
           const body = ttml && (asTtml ? ttml : ttmlToLrc(ttml))
           if (!body) {
             state.noLyrics += 1
@@ -213,6 +230,7 @@ async function runBackfill(deps) {
     state.error = err.message || 'lyrics backfill failed'
   } finally {
     state.running = false
+    state.waitingUntil = null
     state.current = null
     state.finishedAt = deps.now()
     if (state.added > 0) deps.triggerNavidromeScan().catch(() => {})
@@ -246,8 +264,9 @@ export async function startLyricsBackfill({ deps = defaultDeps } = {}) {
     finishedAt: null,
     stopRequested: false,
     error: null,
+    waitingUntil: null,
   })
   emit(true)
-  runBackfill(deps)
+  runInLane('background', () => runBackfill(deps))
   return status()
 }

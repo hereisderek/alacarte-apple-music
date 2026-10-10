@@ -2,12 +2,12 @@ import express from 'express'
 import path from 'node:path'
 
 import { getAppleCooldownMs, searchCatalog } from '../lib/appleApi.mjs'
+import { appleGateway } from '../lib/appleGateway.mjs'
 import { readSettings } from '../lib/settingsStore.mjs'
 import { enqueueSong, getJob, listJobs } from '../lib/queue.mjs'
 import { writePlaylistM3U } from '../lib/playlistExport.mjs'
 import { getMusicRoot, makeSongKey, scanLibraryOnce } from '../lib/libraryIndex.mjs'
 import { normalizeForMatchKey } from '../lib/libraryMatchKey.mjs'
-import { createSpacer } from '../lib/requestSpacer.mjs'
 import { probeWrapperPorts } from '../lib/wrapperHealth.mjs'
 import { getBearerToken } from '../lib/appleToken.mjs'
 
@@ -20,15 +20,6 @@ function toAppleLanguage(code) {
 // server-to-server. Guarded by requireInternalKey(), not the owner session —
 // see requireInternalKey.mjs and its mount point in server.mjs.
 export const internalRouter = express.Router()
-
-// Deliberately conservative — see requestSpacer.mjs for why. Override with
-// INTERNAL_SEARCH_MIN_INTERVAL_MS if this turns out to still be too fast (or
-// needlessly slow) for your account/storefront.
-const SEARCH_MIN_INTERVAL_MS = Math.max(
-  0,
-  Number(process.env.INTERNAL_SEARCH_MIN_INTERVAL_MS) || 1500,
-)
-const spacedSearch = createSpacer(SEARCH_MIN_INTERVAL_MS)
 
 function mapSong(x) {
   const songUrl = x.attributes?.url || ''
@@ -103,18 +94,16 @@ internalRouter.get('/search', async (req, res) => {
     const reqLang = req.query.language || req.query.l
     const language = reqLang ? toAppleLanguage(reqLang) : (settings.language || 'en-US')
 
-    // Single paced search query directly to Apple. Avoid extra per-result queries
-    // to keep API usage to the absolute minimum and protect against rate-limits.
-    const data = await spacedSearch(() =>
-      searchCatalog({
-        storefront,
-        term,
-        types: 'songs',
-        limit,
-        offset: 0,
-        language,
-      }),
-    )
+    // Single search query to Apple, paced by the gateway (batch lane). Avoid extra
+    // per-result queries to keep API usage to the absolute minimum.
+    const data = await searchCatalog({
+      storefront,
+      term,
+      types: 'songs',
+      limit,
+      offset: 0,
+      language,
+    })
     const songs = (data?.results?.songs?.data || []).map(mapSong)
     res.json({ songs, storefront })
   } catch (err) {
@@ -214,6 +203,7 @@ internalRouter.get('/health', async (_req, res) => {
         queued,
       },
       appleCooldownSeconds: Math.ceil(getAppleCooldownMs() / 1000),
+      apple: appleGateway.status(),
     })
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message })
