@@ -1927,6 +1927,7 @@ function LyricsBackfillCard({ flash }: { flash: (msg: string) => void }) {
               ? t('settings.lastRunLyricsAdded', { count: s.added })
               : t('settings.lyricsAddedCount', { count: s.added })}
           </Badge>
+          {!!s.converted && <Badge variant="ok">{t('settings.lyricsConvertedCount', { count: s.converted })}</Badge>}
           <Badge>{t('settings.alreadyHaveLyricsCount', { count: s.skipped })}</Badge>
           <Badge>{t('settings.noAppleLyricsCount', { count: s.noLyrics })}</Badge>
           <Badge variant="warn">{t('settings.unmatchedCount', { count: s.noMatch })}</Badge>

@@ -6,7 +6,6 @@ import { normalizeIsrc, normalizeUpc, readFlacComments, writeFlacComments } from
 import { readSettings } from './settingsStore.mjs'
 import { getAlbumsByUpc, getSongsByIsrc } from './appleApi.mjs'
 import { triggerNavidromeScan } from './navidromeApi.mjs'
-import { runInLane } from './appleGateway.mjs'
 import { withAppleRetry } from './appleWait.mjs'
 
 const MUSIC_ROOT = process.env.AMDL_MUSIC_PATH || '/music'

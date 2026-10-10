@@ -10,8 +10,8 @@ import {
 } from './audioTags.mjs'
 import { readSettings } from './settingsStore.mjs'
 import { getAlbum, searchCatalog } from './appleApi.mjs'
-import { runInLane } from './appleGateway.mjs'
 import { isAppleRateLimited, withAppleRetry } from './appleWait.mjs'
+import { getDb } from './db.mjs'
 import { invalidateLibraryCache } from './libraryIndex.mjs'
 import { normalizeForMatchKey } from './libraryMatchKey.mjs'
 
@@ -25,8 +25,15 @@ const PROGRESS_MIN_INTERVAL_MS = 400
 //
 // Apple is asked per album folder (one search plus one album fetch carry the ISRC
 // of every track and the album's UPC); a per-file song search is only the fallback
-// for files the album did not explain. All calls go through the Apple gateway in
-// the background lane, and a rate limit pauses the run instead of failing files.
+// for files the album did not explain. A rate limit pauses the run instead of failing
+// files.
+//
+// What has been done is recorded by the files themselves: a FLAC that already has
+// both ISRC and UPC tags is skipped without any Apple call. Files Apple could not
+// help with (no match, or nothing new to write) are remembered in library.db
+// (tag_backfill_misses, by path + mtime + size) and not asked about again for
+// MISS_TTL_MS, unless the file changes or the run is started with retryUnmatched.
+const MISS_TTL_MS = 30 * 24 * 60 * 60 * 1000
 const state = {
     running: false,
     phase: 'idle', // idle | scanning | matching | waiting | done
@@ -36,6 +43,8 @@ const state = {
     albumsDone: 0,
     albumsTotal: 0,
     appleCalls: 0,
+    cachedMisses: 0,
+    retryUnmatched: false,
     waitingUntil: null,
     stamped: 0,
     skipped: 0,
@@ -67,6 +76,7 @@ function status() {
         albumsDone: state.albumsDone,
         albumsTotal: state.albumsTotal,
         appleCalls: state.appleCalls,
+        cachedMisses: state.cachedMisses,
         waitingUntil: state.waitingUntil,
         stamped: state.stamped,
         skipped: state.skipped,
@@ -135,6 +145,43 @@ async function collectFlacs(dir, out, onFound = () => {}) {
             if (out.length % 100 === 0) onFound(out.length)
         }
     }
+}
+
+// ---- remembered misses (best effort: without the database every run asks again) ----
+
+async function fileSignature(file) {
+    const st = await fsp.stat(file).catch(() => null)
+    return st ? { mtime: Math.round(st.mtimeMs), size: st.size } : null
+}
+
+function loadMisses(files) {
+    try {
+        const db = getDb()
+        const fresh = Date.now() - MISS_TTL_MS
+        const rows = db.prepare('SELECT path, mtime, size FROM tag_backfill_misses WHERE checked_at > ?').all(fresh)
+        const wanted = new Set(files)
+        return new Map(rows.filter((r) => wanted.has(r.path)).map((r) => [r.path, r]))
+    } catch {
+        return new Map()
+    }
+}
+
+function recordMiss(file, sig) {
+    if (!sig) return
+    try {
+        getDb()
+            .prepare(
+                `INSERT INTO tag_backfill_misses (path, mtime, size, checked_at) VALUES (?, ?, ?, ?)
+                 ON CONFLICT(path) DO UPDATE SET mtime = excluded.mtime, size = excluded.size, checked_at = excluded.checked_at`,
+            )
+            .run(file, sig.mtime, sig.size, Date.now())
+    } catch {}
+}
+
+function forgetMiss(file) {
+    try {
+        getDb().prepare('DELETE FROM tag_backfill_misses WHERE path = ?').run(file)
+    } catch {}
 }
 
 const mostCommon = (values) => {
@@ -251,15 +298,17 @@ async function resolveFile(meta, { deps, settings }) {
     return { isrc: bestSong.attributes.isrc, upc }
 }
 
-async function stampFile({ file, existing }, match) {
+async function stampFile({ file, existing, sig }, match) {
     if (!match) {
         state.noMatch += 1
+        recordMiss(file, sig)
         return
     }
     const needsIsrc = !existing.isrc && match.isrc
     const needsUpc = !existing.upc && match.upc
     if (!needsIsrc && !needsUpc) {
         state.skipped += 1
+        recordMiss(file, sig)
         return
     }
     if (!state.dryRun) {
@@ -272,11 +321,12 @@ async function stampFile({ file, existing }, match) {
             return
         }
         await fsp.utimes(path.dirname(file), new Date(), new Date()).catch(() => null)
+        forgetMiss(file)
     }
     state.stamped += 1
 }
 
-async function processFolder(dirFiles, ctx) {
+async function processFolder(dirFiles, ctx, misses) {
     const need = []
     for (const file of dirFiles) {
         if (state.stopRequested) return
@@ -288,7 +338,17 @@ async function processFolder(dirFiles, ctx) {
             emit()
             continue
         }
-        need.push({ file, existing })
+        const sig = await fileSignature(file)
+        const miss = misses.get(file)
+        if (miss && sig && miss.mtime === sig.mtime && miss.size === sig.size) {
+            // Apple had nothing for this file recently and it has not changed since.
+            state.scanned += 1
+            state.noMatch += 1
+            state.cachedMisses += 1
+            emit()
+            continue
+        }
+        need.push({ file, existing, sig })
     }
     if (need.length === 0) return
 
@@ -338,10 +398,11 @@ async function runBackfill(deps) {
         state.albumsTotal = folders.size
         state.phase = 'matching'
         emit(true)
+        const misses = state.retryUnmatched ? new Map() : loadMisses(files)
 
         for (const dirFiles of folders.values()) {
             if (state.stopRequested) break
-            await processFolder(dirFiles, { deps, settings })
+            await processFolder(dirFiles, { deps, settings }, misses)
             state.albumsDone += 1
             emit()
         }
@@ -360,7 +421,7 @@ async function runBackfill(deps) {
     }
 }
 
-export async function startTagBackfill({ dryRun = false, deps = defaultDeps } = {}) {
+export async function startTagBackfill({ dryRun = false, retryUnmatched = false, deps = defaultDeps } = {}) {
     if (state.running) {
         const err = new Error('a tag backfill is already running')
         err.statusCode = 409
@@ -374,6 +435,8 @@ export async function startTagBackfill({ dryRun = false, deps = defaultDeps } = 
     state.albumsDone = 0
     state.albumsTotal = 0
     state.appleCalls = 0
+    state.cachedMisses = 0
+    state.retryUnmatched = Boolean(retryUnmatched)
     state.waitingUntil = null
     state.stamped = 0
     state.skipped = 0

@@ -395,6 +395,7 @@ export type TagBackfillStatus = {
   albumsDone?: number
   albumsTotal?: number
   appleCalls?: number
+  cachedMisses?: number
   waitingUntil?: number | null
   dryRun: boolean
   scanned: number
@@ -413,6 +414,7 @@ export type TagBackfillStatus = {
 export type LyricsBackfillStatus = {
   running: boolean
   waitingUntil?: number | null
+  converted?: number
   scanned: number
   total: number
   added: number
