@@ -26,6 +26,30 @@ function callerOf() {
   return (f || '').trim().replace(/^at /, '').replace(/.*\/(?:app|backend)\//, '').slice(0, 90)
 }
 
+// Public addresses this container reaches Apple from. Apple rate-limits per IP
+// (v4 and v6 separately), so a 429 is only useful if we know which one it hit.
+// (Fork only: the lookup goes to api64.ipify.org.)
+let egress = { ipv4: 'unknown', ipv6: 'unknown' }
+// node:https (not fetch) so the address family can be forced per lookup.
+const ipOf = (family) =>
+  new Promise((resolve) => {
+    const req = https.get(
+      { host: 'api64.ipify.org', family, timeout: 8000 },
+      (res) => {
+        let body = ''
+        res.on('data', (d) => (body += d))
+        res.on('end', () => resolve(body.trim().slice(0, 64) || 'unavailable'))
+      },
+    )
+    req.on('timeout', () => req.destroy())
+    req.on('error', () => resolve('unavailable'))
+  })
+export async function logEgress() {
+  const [ipv4, ipv6] = await Promise.all([ipOf(4), ipOf(6)])
+  egress = { ipv4, ipv6 }
+  console.log(`[apple] egress ipv4=${ipv4} ipv6=${ipv6}`)
+}
+
 // Milliseconds of local block left after a 429 (0 = Apple calls are being sent).
 export function getAppleCooldownMs() {
   return appleGateway.cooldownRemainingMs()
@@ -37,9 +61,11 @@ function recordCall(entry) {
   while (recentCalls.length && now - recentCalls[0].at > RECENT_WINDOW_MS) recentCalls.shift()
   console.log(
     `[apple] ${entry.status} ${entry.lane} ${entry.path}${entry.query} ${entry.ms}ms (+${entry.waitedMs}ms queued) via ${entry.caller}` +
-      (entry.retryAfter ? ` retry-after=${entry.retryAfter}` : ''),
+      (entry.retryAfter ? ` retry-after=${entry.retryAfter}` : '') +
+      ` egress=${egress.ipv4}/${egress.ipv6}`,
   )
   if (entry.status === 429) {
+    logEgress()
     const st = appleGateway.status()
     console.warn(
       `[apple] 429 -> ${st.state}, calls blocked for ${st.cooldownSeconds}s, gap now ${st.intervalMs}ms (floor ${st.floorMs}ms)`,

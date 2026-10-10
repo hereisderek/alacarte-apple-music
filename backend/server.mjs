@@ -27,6 +27,7 @@ import { integrationRouter } from './routes/integration.mjs'
 import { isPasswordSet } from './lib/authStore.mjs'
 import { generateSetupToken } from './lib/setupToken.mjs'
 import { isAuthDisabled, requireAuth } from './lib/requireAuth.mjs'
+import { logEgress } from './lib/appleApi.mjs'
 import { runInLane } from './lib/appleGateway.mjs'
 import { applyAppleGatewaySettings } from './lib/appleGatewaySettings.mjs'
 import { startAutoDownloadScheduler } from './lib/autoDownloads.mjs'
@@ -102,7 +103,7 @@ app.use((req, _res, next) => {
 // lane of that request: the octo-fiesta integration is batch work, everything else is a
 // person waiting on the UI. (Schedulers, backfills and download jobs set their own lane.)
 app.use('/api', (req, _res, next) => {
-  runInLane(/^\/integration\b/.test(req.path) ? 'batch' : 'interactive', next)
+  runInLane(/^\/(internal|integration)\b/.test(req.path) ? 'batch' : 'interactive', next)
 })
 
 // Auth router is mounted before the guard so /state, /setup, and /login
@@ -130,6 +131,7 @@ app.use('/api/playlist-following', playlistFollowingRouter)
 app.use('/api/cloud-library', cloudLibraryRouter)
 app.use('/api/integration/v1', integrationRouter)
 
+logEgress()
 applyAppleGatewaySettings({ resetPace: false }).catch(() => {})
 startAutoDownloadScheduler()
 startPlaylistSyncScheduler()

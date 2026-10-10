@@ -228,7 +228,7 @@ export async function startArtistBackfill({ deps = defaultDeps } = {}) {
   })
   emit(true)
   const counters = { updated: 'updated', unchanged: 'skipped', noMatch: 'noMatch', failed: 'failed' }
-  runInLane('background', async () => {
+  ;(async () => {
     try {
       const all = []
       await collectFlacs(MUSIC_ROOT, all)
@@ -260,6 +260,6 @@ export async function startArtistBackfill({ deps = defaultDeps } = {}) {
       if (state.updated > 0) deps.triggerNavidromeScan({ fullScan: true }).catch(() => {})
       emit(true)
     }
-  })
+  })()
   return status()
 }

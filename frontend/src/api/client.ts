@@ -889,7 +889,6 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ kind, quality }),
     }),
-  appleStatus: () => http<AppleStatus>('/api/settings/apple-status'),
   tagBackfillStatus: () => http<TagBackfillStatus>('/api/settings/tag-backfill'),
   startTagBackfill: (dryRun = false) =>
     http<TagBackfillStatus>('/api/settings/tag-backfill', {

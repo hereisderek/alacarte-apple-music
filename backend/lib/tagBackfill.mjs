@@ -449,7 +449,7 @@ export async function startTagBackfill({ dryRun = false, retryUnmatched = false,
     state.error = null
     emit(true)
 
-    runInLane('background', () => runBackfill(deps)).catch(() => {
+    runBackfill(deps).catch(() => {
         state.running = false
         state.finishedAt = deps.now()
         emit(true)

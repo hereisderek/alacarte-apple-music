@@ -306,6 +306,6 @@ export async function startLyricsBackfill({ deps = defaultDeps } = {}) {
     waitingUntil: null,
   })
   emit(true)
-  runInLane('background', () => runBackfill(deps))
+  runBackfill(deps)
   return status()
 }

@@ -244,7 +244,11 @@
     "appleSettingsHelp": "A shorter gap is faster but makes it more likely that Apple rate limits this server for 15 to 60 minutes. Every rate limit doubles the pause.",
     "saveAppleSettings": "Save",
     "timeMinutes": "{{count}} min",
-    "timeSeconds": "{{count}} s"
+    "timeSeconds": "{{count}} s",
+    "backfillScanning": "Scanning library… {{count}} files found",
+    "backfillAlbums": "Album {{done}} of {{total}} · {{calls}} Apple requests",
+    "backfillWaitingApple": "Paused: Apple is rate limiting this server. Resumes automatically in about {{time}}.",
+    "lyricsConvertedCount": "{{count}} converted from TTML"
   },
   "album": {
     "loadError": "Failed to load",
