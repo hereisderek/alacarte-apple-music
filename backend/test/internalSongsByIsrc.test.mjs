@@ -23,7 +23,12 @@ globalThis.fetch = async (url, init) => {
     return Response.json({
       data: [{
         id: '900',
-        attributes: { name: 'Song', artistName: 'Artist', isrc: 'USAAA0000001', url: 'https://music.apple.com/us/album/x/555?i=900' },
+        attributes: {
+          name: 'Song', artistName: 'Artist', isrc: 'USAAA0000001', url: 'https://music.apple.com/us/album/x/555?i=900',
+          audioTraits: ['lossless', 'hi-res-lossless', 'lossy-stereo'], contentRating: 'explicit',
+          releaseDate: '2019-05-17', genreNames: ['Pop', 'Music'], trackNumber: 3, discNumber: 1,
+          hasLyrics: true, isAppleDigitalMaster: true,
+        },
         relationships: { artists: { data: [{ id: '77' }] } },
       }],
     })
@@ -54,9 +59,12 @@ test('songs-by-isrc looks up many ISRCs with one Apple call and maps the songs',
   assert.equal(url.pathname, '/v1/catalog/nz/songs')
   assert.equal(url.searchParams.get('filter[isrc]'), 'USAAA0000001,USAAA0000002', 'upper-cased and de-duplicated')
   assert.deepEqual(res.json.songs, [{
-    id: '900', name: 'Song', artistName: 'Artist', artistId: '77', albumId: '555',
-    albumName: undefined, durationMs: undefined, artworkTemplate: null, isrc: 'USAAA0000001',
-  }].map((s) => JSON.parse(JSON.stringify(s))))
+    id: '900', name: 'Song', artistName: 'Artist', artistId: '77', albumId: '555', isrc: 'USAAA0000001',
+    artworkTemplate: null,
+    audioTraits: ['lossless', 'hi-res-lossless', 'lossy-stereo'], explicit: true,
+    releaseDate: '2019-05-17', genreNames: ['Pop', 'Music'], trackNumber: 3, discNumber: 1,
+    hasLyrics: true, isAppleDigitalMaster: true,
+  }])
 })
 
 test('songs-by-isrc rejects missing, malformed or too many ISRCs without calling Apple', async () => {
@@ -66,4 +74,24 @@ test('songs-by-isrc rejects missing, malformed or too many ISRCs without calling
   const many = Array.from({ length: 26 }, (_, i) => `USAAA00000${String(i).padStart(2, '0')}`).join(',')
   assert.equal((await get(`isrcs=${many}`)).status, 400)
   assert.equal(appleUrls.length, 0)
+})
+
+test('a song with few attributes still maps to the same shape', async () => {
+  const saved = globalThis.fetch
+  globalThis.fetch = async (url, init) => {
+    if (String(url).includes('amp-api.music.apple.com')) {
+      return Response.json({ data: [{ id: '1', attributes: { name: 'Bare' } }] })
+    }
+    return saved(url, init)
+  }
+  try {
+    const res = await get('isrcs=USAAA0000009')
+    const song = res.json.songs[0]
+    assert.deepEqual(
+      [song.audioTraits, song.explicit, song.genreNames, song.releaseDate, song.trackNumber, song.hasLyrics],
+      [[], false, [], null, null, false],
+    )
+  } finally {
+    globalThis.fetch = saved
+  }
 })

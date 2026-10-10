@@ -51,10 +51,16 @@ const CANDIDATE_FIELDS = [
   'id', 'name', 'artistName', 'albumName', 'albumId', 'artistId', 'durationMs', 'isrc',
   'artworkTemplate', 'bitRate', 'suffix', 'contentType', 'sizeBytes', 'year', 'genre',
   'trackNumber', 'discNumber', 'samplingRate', 'bitDepth', 'channelCount',
+  // Apple catalog: which quality tiers exist (no bit rate), explicit, release date, ...
+  'audioTraits', 'explicit', 'releaseDate', 'genreNames', 'hasLyrics', 'isAppleDigitalMaster',
 ]
 function candidateInfo(c) {
   const out = {}
-  for (const key of CANDIDATE_FIELDS) if (c && c[key] !== undefined && c[key] !== null) out[key] = c[key]
+  for (const key of CANDIDATE_FIELDS) {
+    const v = c?.[key]
+    if (v === undefined || v === null || v === false || (Array.isArray(v) && v.length === 0)) continue
+    out[key] = v
+  }
   if (out.id === undefined && c?.songId) out.id = c.songId
   return out
 }

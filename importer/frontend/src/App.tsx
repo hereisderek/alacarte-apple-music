@@ -12,7 +12,7 @@ import {
   type ImporterConfig,
 } from './api'
 import { SettingsModal } from './SettingsModal'
-import { MATCHED_BY_LABEL, artworkUrl, formatDuration, trackDetails } from './format'
+import { MATCHED_BY_LABEL, appleQualityTiers, artworkUrl, formatDuration, trackDetails } from './format'
 
 const STATUS_LABEL: Record<ImportItem['status'], string> = {
   pending: 'Searching…',
@@ -930,6 +930,27 @@ function ItemBadges({ item }: { item: ImportItem }) {
       </span>,
     )
   }
+  for (const tier of appleQualityTiers(item.chosen?.audioTraits)) {
+    chips.push(
+      <span key={`tier-${tier.label}`} className={CHIP} title={tier.title}>
+        {tier.label}
+      </span>,
+    )
+  }
+  if (item.chosen?.explicit) {
+    chips.push(
+      <span key="explicit" className={CHIP} title="Marked explicit by Apple">
+        Explicit
+      </span>,
+    )
+  }
+  if (item.chosen?.isAppleDigitalMaster) {
+    chips.push(
+      <span key="adm" className={CHIP} title="Apple Digital Master">
+        Digital Master
+      </span>,
+    )
+  }
   if (item.chosen?.isrc) {
     chips.push(
       <span key="isrc" className={`${CHIP} font-mono`}>
@@ -960,8 +981,9 @@ function ItemBadges({ item }: { item: ImportItem }) {
       </span>,
     )
   }
-  const elapsed =
-    item.matchedAt && item.finishedAt ? formatDuration(item.finishedAt - item.matchedAt) : null
+  // How long the download took; not interesting for an instant "already in library".
+  const took = item.matchedAt && item.finishedAt ? item.finishedAt - item.matchedAt : 0
+  const elapsed = took >= 2000 && !item.inLibrary ? formatDuration(took) : null
   if (elapsed && item.status === 'done') {
     chips.push(
       <span key="elapsed" className={CHIP} title="Time from match to finished">
@@ -1085,8 +1107,16 @@ function ReviewPicker({
               <div className="min-w-0">
                 <p className="truncate text-sm">{c.name}</p>
                 <p className="truncate text-xs text-neutral-400">{c.artistName}</p>
-                {trackDetails(c).length > 0 && (
-                  <p className="truncate text-[11px] text-neutral-500">{trackDetails(c).join(' · ')}</p>
+                {(trackDetails(c).length > 0 || appleQualityTiers(c.audioTraits).length > 0 || c.explicit) && (
+                  <p className="truncate text-[11px] text-neutral-500">
+                    {[
+                      ...trackDetails(c),
+                      ...appleQualityTiers(c.audioTraits).map((t) => t.label),
+                      c.explicit ? 'Explicit' : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </p>
                 )}
               </div>
             </div>

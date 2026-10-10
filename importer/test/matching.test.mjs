@@ -18,7 +18,8 @@ const jobPolls = {}
 const catalog = {
   'song one artist one': [{ id: '1', name: 'Song One', artistName: 'Artist One', albumId: '10', isrc: 'USAAA0000001' }],
   'song two': [{ id: '2', name: 'Song Two', artistName: 'Artist Two', albumId: '20', isrc: 'USAAA0000002' }],
-  'job song job artist': [{ id: 'job-1', name: 'Job Song', artistName: 'Job Artist', albumId: '30', albumName: 'Job Album', durationMs: 215000, isrc: 'USAAA0000003', bitRate: 1411, suffix: 'flac', extra: 'dropped' }],
+  'job song job artist': [{ id: 'job-1', name: 'Job Song', artistName: 'Job Artist', albumId: '30', albumName: 'Job Album', durationMs: 215000, isrc: 'USAAA0000003', bitRate: 1411, suffix: 'flac', extra: 'dropped',
+    audioTraits: ['lossless', 'atmos'], explicit: true, releaseDate: '2003-03-25', genreNames: ['Rock'], hasLyrics: false, isAppleDigitalMaster: false }],
   'job two job artist': [{ id: 'job-2', name: 'Job Two', artistName: 'Job Artist', albumId: '31' }],
   'known song known artist': [{ id: 'in-library', name: 'Known Song', artistName: 'Known Artist', albumId: '40' }],
 }
@@ -147,8 +148,9 @@ test('each item records how it was matched and what is known about the chosen tr
     {
       id: 'job-1', name: 'Job Song', artistName: 'Job Artist', albumId: '30', albumName: 'Job Album',
       durationMs: 215000, isrc: 'USAAA0000003', bitRate: 1411, suffix: 'flac',
+      audioTraits: ['lossless', 'atmos'], explicit: true, releaseDate: '2003-03-25', genreNames: ['Rock'],
     },
-    'only the known detail fields are kept',
+    'only the known detail fields are kept; empty or false ones are left out',
   )
   assert.ok(text.matchedAt > 0)
   assert.equal(byIsrc.matchedBy, 'isrc')

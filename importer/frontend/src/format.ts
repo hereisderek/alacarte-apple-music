@@ -28,6 +28,32 @@ export function formatAudio(c?: Partial<SongCandidate> | null): string | null {
   return parts.length ? parts.join(' · ') : null
 }
 
+// Apple's catalog has no bit rate, only which quality tiers exist for a track. What each
+// tier means is Apple's published spec ("up to"), not a measurement of the downloaded file.
+export type QualityTier = { label: string; title: string }
+
+export function appleQualityTiers(traits?: string[] | null): QualityTier[] {
+  if (!traits || traits.length === 0) return []
+  const tiers: QualityTier[] = []
+  if (traits.includes('hi-res-lossless')) {
+    tiers.push({ label: 'Hi-Res Lossless', title: 'ALAC, up to 24-bit / 192 kHz' })
+  } else if (traits.includes('lossless')) {
+    tiers.push({ label: 'Lossless', title: 'ALAC, 16-bit / 44.1 kHz up to 24-bit / 48 kHz' })
+  } else {
+    tiers.push({ label: 'AAC 256 kbps', title: 'Lossy AAC, the only stereo tier for this track' })
+  }
+  if (traits.includes('atmos') || traits.includes('spatial')) {
+    tiers.push({ label: 'Dolby Atmos', title: 'Spatial audio (Dolby Atmos)' })
+  }
+  return tiers
+}
+
+export function releaseYear(c?: Partial<SongCandidate> | null): string | null {
+  if (c?.year) return String(c.year)
+  const m = /^(\d{4})/.exec(c?.releaseDate || '')
+  return m ? m[1] : null
+}
+
 // Everything known about a track other than its title and artist, in reading order.
 export function trackDetails(c?: Partial<SongCandidate> | null): string[] {
   if (!c) return []
@@ -36,8 +62,8 @@ export function trackDetails(c?: Partial<SongCandidate> | null): string[] {
     formatDuration(c.durationMs),
     formatAudio(c),
     formatSize(c.sizeBytes),
-    c.year ? String(c.year) : null,
-    c.genre || null,
+    releaseYear(c),
+    c.genre || c.genreNames?.[0] || null,
   ].filter((v): v is string => Boolean(v))
 }
 

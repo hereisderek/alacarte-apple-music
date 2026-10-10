@@ -34,6 +34,16 @@ function mapSong(x) {
     durationMs: x.attributes?.durationInMillis,
     artworkTemplate: x.attributes?.artwork?.url || null,
     isrc: x.attributes?.isrc || null,
+    // What Apple's catalog says about the track (it has no bit rate; the audio traits
+    // tell which quality tiers exist: lossless, hi-res-lossless, atmos, lossy-stereo).
+    audioTraits: Array.isArray(x.attributes?.audioTraits) ? x.attributes.audioTraits : [],
+    explicit: x.attributes?.contentRating === 'explicit',
+    releaseDate: x.attributes?.releaseDate || null,
+    genreNames: Array.isArray(x.attributes?.genreNames) ? x.attributes.genreNames : [],
+    trackNumber: x.attributes?.trackNumber ?? null,
+    discNumber: x.attributes?.discNumber ?? null,
+    hasLyrics: Boolean(x.attributes?.hasLyrics),
+    isAppleDigitalMaster: Boolean(x.attributes?.isAppleDigitalMaster),
   }
 }
 

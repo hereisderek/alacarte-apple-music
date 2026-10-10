@@ -83,12 +83,13 @@ practice; the importer-side knobs are secondary margin.
 
 ### What each track shows
 
-Everything below comes from data the importer already receives; nothing needed a change in the
-backend or the web app.
+Everything below comes from data the importer receives from the backend's search results,
+the Subsonic server, the parsers and the download job.
 
 | Shown | Where it comes from |
 |---|---|
-| Artwork, album, length, ISRC | the backend's search result (ALACarte mode), or the Subsonic server's |
+| Artwork, album, length, ISRC, release year, genre, explicit, Apple Digital Master | the backend's search result (ALACarte mode), or the Subsonic server's |
+| Quality tiers: Hi-Res Lossless / Lossless / AAC 256 kbps, Dolby Atmos | Apple's `audioTraits` for the track, passed on by the backend's search routes. Apple's catalog has no bit rate; the tiers are Apple's published maximums ("up to 24-bit / 192 kHz"), not a measurement of the downloaded file |
 | Format, bit rate, sample rate, bit depth, channels, file size, year, genre | the Subsonic server's search result (Subsonic mode only; sample rate, bit depth and channels need an OpenSubsonic server) |
 | Source (platform and link, or "Pasted text") | the parser that read the link |
 | How it was matched (ISRC, search, artist/title swapped, title only, picked by hand) and the query used | the importer's matching |

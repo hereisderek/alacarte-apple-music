@@ -61,6 +61,13 @@ export type SongCandidate = {
   samplingRate?: number | null
   bitDepth?: number | null
   channelCount?: number | null
+  // ALACarte backend (Apple catalog): quality tiers that exist for the track, not a bit rate
+  audioTraits?: string[]
+  explicit?: boolean
+  releaseDate?: string | null
+  genreNames?: string[]
+  hasLyrics?: boolean
+  isAppleDigitalMaster?: boolean
 }
 
 // Where a track came from: a link's platform (and the link), or pasted text.
