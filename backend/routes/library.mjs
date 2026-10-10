@@ -3,7 +3,12 @@ import fsp from 'node:fs/promises'
 import path from 'node:path'
 
 import { getAppleCooldownMs, searchCatalog } from '../lib/appleApi.mjs'
-import { getDb } from '../lib/db.mjs'
+import { detectScript } from '../lib/metadataLanguage.mjs'
+import {
+  normalizeArtistName,
+  readStoredArtistIds,
+  storeArtistId,
+} from '../lib/artistIdCache.mjs'
 import { normalizeIsrc, normalizeUpc } from '../lib/audioTags.mjs'
 import { emitEvent } from '../lib/eventBus.mjs'
 import {
@@ -25,8 +30,6 @@ const AUDIO_RE = /\.(flac|m4a|mp3)$/i
 // Artist IDs only feed deep links, so they are never fetched while a request
 // waits. Missing ones are looked up in the background, one at a time, and kept in
 // library.db so a restart or a page load costs no Apple calls.
-const ARTIST_FOUND_TTL_MS = 90 * 24 * 60 * 60 * 1000
-const ARTIST_MISS_TTL_MS = 7 * 24 * 60 * 60 * 1000
 const ARTIST_RESOLVE_INTERVAL_MS = Math.max(0, Number(process.env.AMDL_ARTIST_RESOLVE_INTERVAL_MS ?? 4000))
 
 libraryRouter.get('/', async (_req, res) => {
@@ -279,36 +282,6 @@ function resolveUnderMusicRoot(relPath) {
   return abs
 }
 
-// Fresh stored lookups for a storefront as normalized name -> id (null = no match),
-// or null when the database is unavailable.
-function readStoredArtistIds(storefront) {
-  try {
-    const now = Date.now()
-    const out = new Map()
-    const rows = getDb()
-      .prepare('SELECT name_key, artist_id, resolved_at FROM artist_ids WHERE storefront = ?')
-      .all(storefront)
-    for (const row of rows) {
-      const ttl = row.artist_id ? ARTIST_FOUND_TTL_MS : ARTIST_MISS_TTL_MS
-      if (now - row.resolved_at < ttl) out.set(row.name_key, row.artist_id)
-    }
-    return out
-  } catch (err) {
-    console.error('artist id cache unavailable:', err.message)
-    return null
-  }
-}
-
-function storeArtistId(storefront, key, artistId) {
-  getDb()
-    .prepare(
-      `INSERT INTO artist_ids (storefront, name_key, artist_id, resolved_at) VALUES (?, ?, ?, ?)
-       ON CONFLICT(storefront, name_key) DO UPDATE SET
-         artist_id = excluded.artist_id, resolved_at = excluded.resolved_at`,
-    )
-    .run(storefront, key, artistId, Date.now())
-}
-
 const resolveQueue = new Map()
 let resolverRunning = false
 
@@ -317,6 +290,41 @@ function queueArtistResolution(storefront, language, unresolved) {
     resolveQueue.set(`${storefront}::${key}`, { storefront, language, key, name })
   }
   if (!resolverRunning && resolveQueue.size > 0) void runArtistResolver()
+}
+
+const pause = () =>
+  new Promise((resolve) => setTimeout(resolve, ARTIST_RESOLVE_INTERVAL_MS).unref())
+
+// Apple returns an artist's name in the request language, so a Japanese, Korean or
+// Chinese folder name only matches when searched in a language of its own script.
+const NATIVE_LOCALES = { ja: ['ja-JP'], ko: ['ko-KR'], zh: ['zh-Hans-CN', 'zh-Hant-TW'] }
+
+// Tries the configured language first, then (non-Latin names only) the native
+// locales, one paced search each, until a candidate matches.
+async function lookupArtist(item) {
+  const locales = [item.language, ...(NATIVE_LOCALES[detectScript(item.name)] || [])]
+  const seen = []
+  for (let i = 0; i < locales.length; i++) {
+    if (i > 0) await pause()
+    const raw = await searchCatalog({
+      storefront: item.storefront,
+      term: item.name,
+      types: 'artists',
+      limit: 10,
+      offset: 0,
+      language: locales[i],
+    })
+    const candidates = raw?.results?.artists?.data || []
+    seen.push(...candidates)
+    const artistId = pickBestArtistId(item.name, candidates)
+    if (artistId) {
+      const names = seen
+        .filter((c) => String(c?.id) === artistId)
+        .map((c) => c?.attributes?.name)
+      return { artistId, names }
+    }
+  }
+  return { artistId: null, names: [] }
 }
 
 // One lookup per ARTIST_RESOLVE_INTERVAL_MS. Any Apple 429 (or an active
@@ -330,21 +338,18 @@ async function runArtistResolver() {
       const [queueKey, item] = resolveQueue.entries().next().value
       resolveQueue.delete(queueKey)
       try {
-        const raw = await searchCatalog({
-          storefront: item.storefront,
-          term: item.name,
-          types: 'artists',
-          limit: 10,
-          offset: 0,
-          language: item.language,
-        })
-        const candidates = raw?.results?.artists?.data || []
-        storeArtistId(item.storefront, item.key, pickBestArtistId(item.name, candidates))
+        const { artistId, names } = await lookupArtist(item)
+        storeArtistId(item.storefront, item.key, artistId)
+        // Every name Apple gave this artist (one per language tried) is a key too.
+        for (const name of names) {
+          const alias = normalizeArtistName(name)
+          if (alias && alias !== item.key) storeArtistId(item.storefront, alias, artistId)
+        }
       } catch (err) {
         console.warn(`[library] artist lookup for "${item.name}" failed: ${err.message}`)
         if (/Apple API 429/.test(err.message)) break
       }
-      await new Promise((resolve) => setTimeout(resolve, ARTIST_RESOLVE_INTERVAL_MS).unref())
+      await pause()
     }
   } finally {
     resolveQueue.clear()
@@ -390,15 +395,6 @@ function pickBestArtistId(targetName, candidates) {
   if (best.score < 80) return null
   if (second && best.score - second.score < 10) return null
   return best.id
-}
-
-function normalizeArtistName(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim()
 }
 
 function tokenizeArtistName(value) {

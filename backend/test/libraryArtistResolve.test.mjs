@@ -18,7 +18,7 @@ process.env.AMDL_ARTIST_RESOLVE_INTERVAL_MS = '1'
 process.env.AMDL_SECRET_KEY = crypto.randomBytes(32).toString('hex')
 
 const ARTISTS = Array.from({ length: 20 }, (_, i) => `Artist ${i}`)
-for (const name of [...ARTISTS, 'Broken']) {
+for (const name of [...ARTISTS, '龘Broken', '颜人中']) {
   fs.mkdirSync(path.join(tmpMusic, name, 'Album'), { recursive: true })
   fs.writeFileSync(path.join(tmpMusic, name, 'Album', '01. Song.flac'), 'x')
 }
@@ -37,14 +37,19 @@ globalThis.fetch = async (url) => {
   }
   if (u.includes('/assets/index~')) return new Response('x="eyJa.eyJb.sig"')
   const term = new URL(u).searchParams.get('term')
+  const lang = new URL(u).searchParams.get('l')
   searchedTerms.push(term)
   inFlightSearches++
   maxInFlightSearches = Math.max(maxInFlightSearches, inFlightSearches)
   await new Promise((r) => setTimeout(r, 20))
   inFlightSearches--
-  if (term === 'Broken') return new Response('slow down', { status: 429 })
+  if (term === '龘Broken') return new Response('slow down', { status: 429 })
   return Response.json({
-    results: { artists: { data: [{ id: `id-${term}`, attributes: { name: term } }] } },
+    results: {
+      artists: {
+        data: [{ id: `id-${term}`, attributes: { name: term === '颜人中' && lang === 'en-US' ? 'Yan Renzhong' : term } }],
+      },
+    },
   })
 }
 
@@ -83,30 +88,33 @@ const idOf = (lib, artist) => lib.albums.find((a) => a.artistName === artist).ar
 
 test('GET /api/library answers from disk and makes no Apple call while the request waits', async () => {
   const lib = await getLibrary()
-  assert.equal(lib.albums.length, 21)
+  assert.equal(lib.albums.length, 22)
   assert.equal(idOf(lib, 'Artist 3'), null)
   assert.equal(searchedTerms.length, 0, 'no lookup happens inside the request')
 })
 
 test('missing artist ids are looked up one at a time in the background and stored', async () => {
-  await waitFor(() => searchedTerms.length >= 21)
+  await waitFor(() => searchedTerms.length >= 23)
   await new Promise((r) => setTimeout(r, 50))
-  assert.equal(searchedTerms.length, 21)
+  assert.equal(searchedTerms.length, 23) // 22 names + one retry in Chinese for 颜人中
   assert.equal(maxInFlightSearches, 1)
   const lib = await getLibrary()
   assert.equal(idOf(lib, 'Artist 3'), 'id-Artist 3')
+  assert.equal(idOf(lib, '颜人中'), 'id-颜人中', 'non-Latin names resolve too')
+  const { readStoredArtistIds } = await import('../lib/artistIdCache.mjs')
+  assert.equal(readStoredArtistIds('us').get('yan renzhong'), 'id-颜人中', 'the artist\'s other name is stored')
 })
 
 test('a failed (429) lookup is not stored, resolved ones are never looked up again', async () => {
   const before = searchedTerms.length
   const lib = await getLibrary()
-  assert.equal(idOf(lib, 'Broken'), null)
+  assert.equal(idOf(lib, '龘Broken'), null)
   await new Promise((r) => setTimeout(r, 50))
   // only the unresolved artist is retried, once, and the run stops on the 429
-  assert.deepEqual(searchedTerms.slice(before), ['Broken'])
+  assert.deepEqual(searchedTerms.slice(before), ['龘Broken'])
   offset = 6 * 24 * 60 * 60 * 1000
   const lib2 = await getLibrary()
   assert.equal(idOf(lib2, 'Artist 3'), 'id-Artist 3')
   await waitFor(() => searchedTerms.length - before >= 2)
-  assert.deepEqual(searchedTerms.slice(before), ['Broken', 'Broken'])
+  assert.deepEqual(searchedTerms.slice(before), ['龘Broken', '龘Broken'])
 })
