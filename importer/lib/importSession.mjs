@@ -7,6 +7,7 @@ import {
   exportPlaylistM3u,
   getDownloadJob,
   searchSongs,
+  searchSongsByIsrc,
 } from './backendClient.mjs'
 import {
   downloadSubsonicSongStream,
@@ -33,6 +34,15 @@ let drainingDownloadQueue = false
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+// A source (parser) that knows a track's ISRC can set `isrc` on it; such tracks are
+// looked up 25 at a time instead of with a text search each.
+const ISRC_RE = /^[A-Z]{2}[A-Z0-9]{3}\d{7}$/
+const ISRC_BATCH = 25
+function normalizeIsrc(value) {
+  const v = String(value || '').trim().toUpperCase()
+  return ISRC_RE.test(v) ? v : null
 }
 
 function shortId() {
@@ -148,6 +158,7 @@ export async function createImportSession({ title, tracks = [], warnings = [], l
       parsedArtists: t.artists || [],
       partA: t.partA || t.title,
       partB: t.partB !== undefined ? t.partB : ((t.artists && t.artists[0]) || null),
+      isrc: normalizeIsrc(t.isrc),
       status: 'pending',
       queuePosition: null,
       candidates: [],
@@ -205,20 +216,81 @@ async function paceNextSearch() {
   lastSearchDispatchTime = Date.now()
 }
 
-async function doSearch(query, mode, language) {
-  if (!query || !query.trim()) return []
-  await paceNextSearch()
-  if (mode === 'subsonic') {
-    return await searchSubsonicSongs({ query: query.trim(), limit: 5 })
+// Search results by query, so the same query (a title repeated in a list, or the same
+// playlist imported again) is not sent twice. Short lived: results change.
+const QUERY_CACHE_TTL_MS = 30 * 60 * 1000
+const QUERY_CACHE_MAX = 500
+const queryCache = new Map()
+
+// While the backend waits out an Apple rate limit, say so on the item instead of looking stuck.
+function waitNotifier(session, item) {
+  return (delayMs) => {
+    if (!item) return
+    const minutes = Math.max(1, Math.round(delayMs / 60_000))
+    item.message = `Apple is rate limiting this server, retrying in about ${minutes} min…`
+    touch(session)
   }
-  return await searchSongs({ q: query.trim(), limit: 5, language })
+}
+
+async function doSearch(query, mode, language, ctx = {}) {
+  if (!query || !query.trim()) return []
+  const q = query.trim()
+  const key = `${mode}|${language || ''}|${q.toLowerCase()}`
+  const hit = queryCache.get(key)
+  if (hit && Date.now() - hit.at < QUERY_CACHE_TTL_MS) return hit.candidates
+  await paceNextSearch()
+  let candidates
+  if (mode === 'subsonic') {
+    candidates = await searchSubsonicSongs({ query: q, limit: 5 })
+  } else {
+    candidates = await searchSongs({ q, limit: 5, language, onWait: waitNotifier(ctx.session, ctx.item) })
+  }
+  if (ctx.item?.message?.startsWith('Apple is rate limiting')) ctx.item.message = null
+  queryCache.delete(key)
+  queryCache.set(key, { at: Date.now(), candidates })
+  while (queryCache.size > QUERY_CACHE_MAX) queryCache.delete(queryCache.keys().next().value)
+  return candidates
+}
+
+// Tracks with a known ISRC: 25 per request. Whatever Apple does not return (or any
+// failure) is left pending and goes through the normal text search.
+async function matchByIsrc(session) {
+  const todo = session.items.filter((i) => i.isrc && i.status === 'pending')
+  for (let i = 0; i < todo.length; i += ISRC_BATCH) {
+    const chunk = todo.slice(i, i + ISRC_BATCH)
+    let songs
+    try {
+      await paceNextSearch()
+      songs = await searchSongsByIsrc({
+        isrcs: [...new Set(chunk.map((c) => c.isrc))],
+        language: session.language,
+        onWait: waitNotifier(session, chunk[0]),
+      })
+    } catch (err) {
+      console.error('[import] ISRC lookup failed, falling back to text search:', err.message)
+      continue
+    } finally {
+      for (const c of chunk) if (c.message?.startsWith('Apple is rate limiting')) c.message = null
+    }
+    const byIsrc = new Map()
+    for (const song of songs) if (song?.isrc && !byIsrc.has(song.isrc)) byIsrc.set(song.isrc, song)
+    for (const item of chunk) {
+      const song = byIsrc.get(item.isrc)
+      if (!song) continue
+      item.candidates = [song]
+      enqueueItemForDownload(session, item, song)
+    }
+  }
 }
 
 async function runMatching(session) {
-  for (const item of session.items) {
-    try {
-      const mode = getInternalConfig().mode
+  const mode = getInternalConfig().mode
+  if (mode !== 'subsonic') await matchByIsrc(session)
 
+  for (const item of session.items) {
+    if (item.status !== 'pending') continue
+    try {
+      const ctx = { session, item }
       const partA = cleanTitleRemarks(item.partA || item.parsedTitle)
       const partB = cleanTitleRemarks(item.partB || (item.parsedArtists && item.parsedArtists[0]))
 
@@ -226,39 +298,30 @@ async function runMatching(session) {
       let matchResult = null
 
       if (partA && partB) {
-        // Query 1: Forward (partA as song title, partB as artist/album)
+        // Query 1: "<A> <B>". Apple's search ignores word order, so the same results
+        // are tried with the roles swapped (B as the title) before spending a second
+        // request.
         const q1 = `${partA} ${partB}`.trim()
-        candidates = await doSearch(q1, mode, session.language)
+        candidates = await doSearch(q1, mode, session.language, ctx)
         matchResult = pickBestMatch(candidates, {
           query: q1,
           title: partA,
           parsedArtists: [partB],
         })
-
-        // Query 2: Reverse (if not found, reverse it and search again after paced delay)
-        if (matchResult.status !== 'matched') {
-          const q2 = `${partB} ${partA}`.trim()
-          const candidates2 = await doSearch(q2, mode, session.language)
-          if (candidates2.length > 0) {
-            const matchResult2 = pickBestMatch(candidates2, {
-              query: q2,
-              title: partB,
-              parsedArtists: [partA],
-            })
-            if (matchResult2.status === 'matched') {
-              candidates = candidates2
-              matchResult = matchResult2
-            } else if (candidates.length === 0) {
-              candidates = candidates2
-            }
-          }
+        if (matchResult.status !== 'matched' && candidates.length > 0) {
+          const swapped = pickBestMatch(candidates, {
+            query: q1,
+            title: partB,
+            parsedArtists: [partA],
+          })
+          if (swapped.status === 'matched') matchResult = swapped
         }
 
-        // Query 3: Fallback (if still not found, search title candidate alone)
+        // Query 2 (only if still not found): the title on its own.
         if (matchResult.status !== 'matched') {
           const titleToTry = cleanTitleRemarks(item.parsedTitle) || partB || partA
-          if (titleToTry) {
-            const fallbackCandidates = await doSearch(titleToTry, mode, session.language)
+          if (titleToTry && titleToTry.toLowerCase() !== q1.toLowerCase()) {
+            const fallbackCandidates = await doSearch(titleToTry, mode, session.language, ctx)
             if (fallbackCandidates.length > 0) {
               const fallbackResult = pickBestMatch(fallbackCandidates, {
                 query: titleToTry,
@@ -277,7 +340,7 @@ async function runMatching(session) {
       } else {
         // Single search term with no delimiters
         const q = cleanTitleRemarks(item.parsedTitle || item.raw)
-        candidates = await doSearch(q, mode, session.language)
+        candidates = await doSearch(q, mode, session.language, ctx)
         matchResult = pickBestMatch(candidates, {
           query: q,
           title: q,

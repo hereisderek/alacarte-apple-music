@@ -81,6 +81,15 @@ this existed). Three independent layers guard against it, all tunable:
 Raise `APPLE_GATEWAY_MIN_INTERVAL_MS` first if you're still seeing 429s in
 practice; the importer-side knobs are secondary margin.
 
+### How many Apple searches a track costs
+
+At most two: `<title> <artist>`, and if that does not match, the title on its own. The
+reversed-order query is no longer sent (Apple's search ignores word order and the matcher
+already copes with swapped title/artist on the same results). Identical queries are answered
+from a 30-minute in-memory cache, so repeated titles and re-imports cost nothing. A track
+that carries an ISRC (see `SUPPORTED_LINKS.md`) is looked up with up to 24 others in one
+request and only falls back to the text search if Apple does not return it.
+
 ### User-Agent overrides
 
 Each source is fetched with a default browser-like User-Agent. Override it

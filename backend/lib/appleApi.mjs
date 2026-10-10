@@ -232,7 +232,17 @@ export async function getAlbumsByUpc({ storefront, upcs, language = 'en-US', inc
   return apiGet(`${BASE}/${encodeURIComponent(storefront)}/albums?${qs.toString()}`, { language })
 }
 
-export async function getAlbum({ storefront, id, language = 'en-US' }) {
+// A download job, its enqueue step and every other song of the same album ask for the
+// same album: keep the answer for a few minutes instead of asking Apple each time.
+// `fresh: true` skips it (e.g. to find out whether a pre-release album is out now).
+const ALBUM_CACHE_TTL_MS = 10 * 60 * 1000
+const ALBUM_CACHE_MAX = 200
+const albumCache = new Map()
+
+export async function getAlbum({ storefront, id, language = 'en-US', fresh = false }) {
+  const key = `${storefront}|${id}|${language}`
+  const hit = albumCache.get(key)
+  if (!fresh && hit && Date.now() - hit.at < ALBUM_CACHE_TTL_MS) return structuredClone(hit.data)
   const qs = new URLSearchParams({
     'omit[resource]': 'autos',
     include: 'tracks,artists,record-labels',
@@ -241,7 +251,11 @@ export async function getAlbum({ storefront, id, language = 'en-US' }) {
     l: language,
   })
   const url = `${BASE}/${encodeURIComponent(storefront)}/albums/${encodeURIComponent(id)}?${qs.toString()}`
-  return apiGet(url, { language })
+  const data = await apiGet(url, { language })
+  albumCache.delete(key)
+  albumCache.set(key, { at: Date.now(), data })
+  while (albumCache.size > ALBUM_CACHE_MAX) albumCache.delete(albumCache.keys().next().value)
+  return structuredClone(data)
 }
 
 export async function getSong({ storefront, id, language = 'en-US' }) {

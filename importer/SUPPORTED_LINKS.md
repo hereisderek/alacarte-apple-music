@@ -9,7 +9,7 @@ else needs to change.
 
 | Input | Parser | Status | Notes |
 |---|---|---|---|
-| Plain text list (`Title - Artist`, one per line) | [`parsers/plaintext.mjs`](parsers/plaintext.mjs) | Supported | Multiple artists separated by `,`/`，`/`、`. No inherent title — the form's "Playlist title" field is used. |
+| Plain text list (`Title - Artist`, one per line) | [`parsers/plaintext.mjs`](parsers/plaintext.mjs) | Supported | Multiple artists separated by `,`/`，`/`、`. No inherent title — the form's "Playlist title" field is used. A line may contain an ISRC (`Title - Artist [USAAA0000001]`, `ISRC: USAAA0000001` or bare), which is removed from the title and used for a direct lookup. |
 | Spotify playlist (`open.spotify.com/playlist/<id>`) | [`parsers/spotify/`](parsers/spotify/) | Supported | Reads the no-auth embed page (`open.spotify.com/embed/playlist/<id>`) — no Spotify API credentials needed. Only the first batch of tracks the embed page ships (~50-100) is read; very long playlists are truncated. |
 | Qishui / 汽水音乐 playlist (`qishui.com/share/playlist?playlist_id=`) | [`parsers/qishui/`](parsers/qishui/) | Supported | Reads the share page's server-rendered `_ROUTER_DATA` blob. Same truncation caveat as Spotify (~150-200 tracks of a longer playlist). |
 | KKBOX playlist (`kkbox.com/.../playlist/<id>`) | [`parsers/kkbox/`](parsers/kkbox/) | Best-effort | KKBOX fronts playlist pages with an AWS WAF bot challenge that a plain server-side request usually can't pass. Works when the challenge isn't triggered; fails with a clear message ("paste as plain text instead") otherwise. |
@@ -22,7 +22,9 @@ else needs to change.
 ## Adding a platform
 
 1. Create `parsers/<platform>/index.mjs` exporting `matches<Platform>(url)` and
-   `parse<Platform>Playlist(url)` returning `{ title, tracks: [{ raw, title, artists }] }`.
+   `parse<Platform>Playlist(url)` returning `{ title, tracks: [{ raw, title, artists, isrc? }] }`.
+   Set `isrc` when the source knows it: those tracks are looked up 25 at a time instead of
+   with one text search each.
 2. Register it in `parsers/index.mjs`'s `URL_PARSERS` list.
 3. Add a row to the table above.
 4. If the platform needs a fetch-time trick (embedded JSON blob, an

@@ -118,6 +118,13 @@ All Apple calls are admitted by one gateway. The importer's old fixed 1.5 s spac
   should accept calls again and reports `waitingUntil`, which the Settings card shows as a
   countdown. A rate limit is never counted as "unmatched".
 
+Pacing can be changed in Settings → "Apple Music API" (starting gap, fastest gap, adaptive
+on/off, pause after a rate limit; stored in `settings.json` as `appleGatewayIntervalMs`,
+`appleGatewayMinIntervalMs`, `appleGatewayAdaptive`, `appleGatewayCooldownMinutes`, empty =
+default; the env variables are the defaults). "Forget this limit" clears the floor learned from
+past 429s. The floor learned from 429s is kept apart from the configured minimum: lowering the
+minimum does not undo what a 429 taught.
+
 Visibility: every call logs `[apple] <status> <lane> <path> <ms> (+queued ms) via <caller>
 egress=<ipv4>/<ipv6>`, a 429 logs the previous 60 s of calls per lane and caller,
 `GET /api/settings/apple-status` (also `apple` in `/api/internal/health`) reports state,
@@ -130,17 +137,50 @@ the resolver ran only in the gaps. With the mock banning after 5 calls, the tag 
 paused ("Paused: Apple is rate limiting this server..."), resumed when the block ended and
 stamped all 18 files with none counted as unmatched.
 
+## Fewer calls
+
+- **Importer** (`importer/lib/importSession.mjs`): a track costs at most two searches
+  instead of three. The reversed-order query is gone (Apple's search ignores word order and
+  the matcher already handles swapped title/artist on the same results); the title-only
+  fallback is skipped when it equals the first query; identical queries are answered from a
+  30-minute in-memory cache, so repeated titles and re-imports cost nothing.
+- **ISRC batches**: a track that carries an `isrc` (a parser can set it; plain-text lines may
+  contain one, e.g. `Song - Artist [USAAA0000001]`) is looked up with
+  `GET /api/internal/songs-by-isrc` (up to 25 ISRCs, one Apple `filter[isrc]` call). Whatever
+  Apple does not return falls back to the text search. No current URL parser supplies ISRCs.
+- **Download jobs**: `getAlbum` keeps its answer for 10 minutes (`fresh: true` skips it), so
+  enqueueing a song and every other song of the same album share one lookup. Songs that come
+  with their album id (importer, search results) need no `getSong` call at all.
+- **Rate limit visibility in the importer**: while the backend waits out a 429 the affected
+  item shows "Apple is rate limiting this server, retrying in about N min…".
+
+## Downloader and wrapper
+
+Checked against the upstream `zhaarey/apple-music-downloader` source (`main`; the image is
+pinned to an older commit, so this is not a guarantee about that exact build):
+
+- The downloader has no pacing, retry or 429 handling at all (the only timer is a download
+  idle timeout). Per run it scrapes `music.apple.com` for a token, calls the amp-api for the
+  album (and the song manifest for the folder-format quality), and per track asks the wrapper
+  for the best m3u8, the decryption keys and the lyrics (`lite-server`). It is only limited by
+  how many download jobs alacarte runs at once.
+- The wrapper is not only login. Its ports are 10020 decrypt (FairPlay key requests per
+  track), 20020 M3U8 and 30020 account/storefront; the login is one use of the account port.
+  These requests go to Apple's store/playback services through the Android Apple Music stack,
+  not the catalog API, and leave from the same IP. How strict Apple is about them is not known.
+
+Neither is covered by the gateway; the concurrency of download jobs is the only brake.
+
 ## Still open
 
-- Persistent response cache in `library.db` (search results, album/artist metadata).
-- Importer: fewer queries per track (the reversed and title-only queries), ISRC batches
-  with `filter[isrc]` when the source has ISRCs, pause the session visibly during a
-  cooldown (today it sleeps on `Retry-After` and retries).
-- Download jobs: one `getSong` with `include=albums` instead of `getSong` + `getAlbum`,
-  reuse of the album already fetched for other songs of the same album.
+- Persistent response cache in `library.db` (search results, album/artist metadata); the
+  importer query cache and the album cache are in memory only.
+- Parsers that can supply ISRCs (none of the URL parsers does today).
+- `getSong` + `getAlbum` when a song arrives without an album id (needs the album's track
+  list for naming, so it stays two calls for now).
 - Calls made by the downloader and wrapper are not paced by the gateway.
 - Schedulers keep their startup run; a restart plus page load can still stack bursts
-  (now bounded by the gateway, and visible in the logs).
+  (bounded by the gateway, and visible in the logs).
 - The real threshold is still unknown. After a few real imports the `[apple]` 429
-  summaries and the learned gap in `apple-rate.json` show where it is, and the defaults
+  summaries and the learned floor in `apple-rate.json` show where it is, and the defaults
   above should be tuned from that.

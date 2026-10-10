@@ -20,7 +20,7 @@ function sleep(ms) {
 // real backend: a 24-track import produced twelve 429s before this retry
 // existed, one even at a 300ms pace between searches). The backend doesn't
 // forward Apple's own Retry-After, so this backs off blind but generously.
-async function call(path, { method = 'GET', body } = {}, attempt = 0) {
+async function call(path, { method = 'GET', body } = {}, attempt = 0, onWait = null) {
   const { backendUrl, internalApiKey } = getAlacarteConfig()
   const res = await fetch(`${backendUrl}${path}`, {
     method,
@@ -35,8 +35,10 @@ async function call(path, { method = 'GET', body } = {}, attempt = 0) {
     const delayMs = Number.isFinite(retryAfterSec) && retryAfterSec > 0
       ? retryAfterSec * 1000
       : Math.min(MAX_BACKOFF_MS, 1000 * 2 ** attempt)
+    // lets the caller show "waiting for Apple" while the backend is rate limited
+    onWait?.(delayMs)
     await sleep(delayMs)
-    return call(path, { method, body }, attempt + 1)
+    return call(path, { method, body }, attempt + 1, onWait)
   }
   const data = await res.json().catch(() => null)
   if (!res.ok) {
@@ -47,12 +49,21 @@ async function call(path, { method = 'GET', body } = {}, attempt = 0) {
   return data
 }
 
-export async function searchSongs({ q, storefront, limit, language } = {}) {
+export async function searchSongs({ q, storefront, limit, language, onWait } = {}) {
   const params = new URLSearchParams({ q: q || '' })
   if (storefront) params.set('storefront', storefront)
   if (limit) params.set('limit', String(limit))
   if (language) params.set('language', language)
-  const data = await call(`/api/internal/search?${params}`)
+  const data = await call(`/api/internal/search?${params}`, {}, 0, onWait)
+  return data?.songs || []
+}
+
+// Up to 25 ISRCs in one backend (and one Apple) call.
+export async function searchSongsByIsrc({ isrcs, storefront, language, onWait } = {}) {
+  const params = new URLSearchParams({ isrcs: (isrcs || []).join(',') })
+  if (storefront) params.set('storefront', storefront)
+  if (language) params.set('language', language)
+  const data = await call(`/api/internal/songs-by-isrc?${params}`, {}, 0, onWait)
   return data?.songs || []
 }
 

@@ -20,6 +20,16 @@ export function cleanTitleRemarks(str) {
     .trim()
 }
 
+// An ISRC written on a line ("Title - Artist ISRC USAAA0000001", "[USAAA0000001]", ...)
+// is taken out of the text and kept on the track, so it can be looked up directly.
+const ISRC_IN_LINE = /[\[(]?\s*(?:ISRC[:\s]*)?\b([A-Z]{2}[A-Z0-9]{3}\d{7})\b\s*[\])]?/
+
+function extractIsrc(line) {
+  const m = ISRC_IN_LINE.exec(line)
+  if (!m) return { text: line, isrc: null }
+  return { text: line.replace(m[0], ' ').replace(/\s{2,}/g, ' ').trim(), isrc: m[1] }
+}
+
 export function parsePlainText(text) {
   const rawLines = String(text || '')
     .split(/\r?\n/)
@@ -47,7 +57,8 @@ export function parsePlainText(text) {
 
   for (const rawLine of lines) {
     // Strip leading track numbers: "01. ", "1 - ", "[1] ", "1、"
-    const line = rawLine
+    const { text: withoutIsrc, isrc } = extractIsrc(rawLine)
+    const line = withoutIsrc
       .replace(/^\s*(?:\[\d+\]|\(\d+\)|\d+[\s.、_-]+)\s*/, '')
       .replace(AUDIO_FILE_EXT, '')
       .trim()
@@ -69,7 +80,7 @@ export function parsePlainText(text) {
         }
       }
 
-      parsedItems.push({ raw: rawLine, left, right, hasExplicitDelimiter: true })
+      parsedItems.push({ raw: rawLine, isrc, left, right, hasExplicitDelimiter: true })
       leftCounts[left] = (leftCounts[left] || 0) + 1
       rightCounts[right] = (rightCounts[right] || 0) + 1
       continue
@@ -80,7 +91,7 @@ export function parsePlainText(text) {
     if (colParts.length >= 2) {
       const left = colParts[0].trim()
       const right = colParts.slice(1).join(' ').trim()
-      parsedItems.push({ raw: rawLine, left, right, hasExplicitDelimiter: false })
+      parsedItems.push({ raw: rawLine, isrc, left, right, hasExplicitDelimiter: false })
       leftCounts[left] = (leftCounts[left] || 0) + 1
       rightCounts[right] = (rightCounts[right] || 0) + 1
       continue
@@ -94,27 +105,27 @@ export function parsePlainText(text) {
     if (twoWordMatch) {
       const left = twoWordMatch[1].trim()
       const right = twoWordMatch[2].trim()
-      parsedItems.push({ raw: rawLine, left, right, hasExplicitDelimiter: false })
+      parsedItems.push({ raw: rawLine, isrc, left, right, hasExplicitDelimiter: false })
       leftCounts[left] = (leftCounts[left] || 0) + 1
       rightCounts[right] = (rightCounts[right] || 0) + 1
       continue
     } else if (latinHanMatch) {
       const left = latinHanMatch[1].trim()
       const right = latinHanMatch[2].trim()
-      parsedItems.push({ raw: rawLine, left, right, hasExplicitDelimiter: false })
+      parsedItems.push({ raw: rawLine, isrc, left, right, hasExplicitDelimiter: false })
       leftCounts[left] = (leftCounts[left] || 0) + 1
       rightCounts[right] = (rightCounts[right] || 0) + 1
       continue
     } else if (hanLatinMatch) {
       const left = hanLatinMatch[1].trim()
       const right = hanLatinMatch[2].trim()
-      parsedItems.push({ raw: rawLine, left, right, hasExplicitDelimiter: false })
+      parsedItems.push({ raw: rawLine, isrc, left, right, hasExplicitDelimiter: false })
       leftCounts[left] = (leftCounts[left] || 0) + 1
       rightCounts[right] = (rightCounts[right] || 0) + 1
       continue
     }
 
-    parsedItems.push({ raw: rawLine, single: line })
+    parsedItems.push({ raw: rawLine, isrc, single: line })
   }
 
   // 4. Batch direction analysis: count repeated strings on left vs right
@@ -140,6 +151,7 @@ export function parsePlainText(text) {
         title: item.single,
         artists: [],
       }
+      if (item.isrc) track.isrc = item.isrc
       Object.defineProperties(track, {
         partA: { value: item.single, enumerable: false, writable: true, configurable: true },
         partB: { value: null, enumerable: false, writable: true, configurable: true },
@@ -192,6 +204,7 @@ export function parsePlainText(text) {
       title: cleanedTitle,
       artists,
     }
+    if (item.isrc) track.isrc = item.isrc
     Object.defineProperties(track, {
       partA: { value: left, enumerable: false, writable: true, configurable: true },
       partB: { value: right, enumerable: false, writable: true, configurable: true },

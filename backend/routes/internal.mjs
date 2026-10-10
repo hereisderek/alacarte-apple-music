@@ -1,7 +1,7 @@
 import express from 'express'
 import path from 'node:path'
 
-import { getAppleCooldownMs, searchCatalog } from '../lib/appleApi.mjs'
+import { getAppleCooldownMs, getSongsByIsrc, searchCatalog } from '../lib/appleApi.mjs'
 import { appleGateway } from '../lib/appleGateway.mjs'
 import { readSettings } from '../lib/settingsStore.mjs'
 import { enqueueSong, getJob, listJobs } from '../lib/queue.mjs'
@@ -113,6 +113,39 @@ internalRouter.get('/search', async (req, res) => {
     const upstreamStatus = Number(String(err.message || '').match(/Apple API (\d+)/)?.[1])
     const status = upstreamStatus === 429 ? 429 : 502
     // Tell the importer how long to stand down (it honours Retry-After).
+    if (status === 429) {
+      const wait = Math.ceil(getAppleCooldownMs() / 1000) || Number(err.retryAfterSec) || 60
+      res.set('Retry-After', String(Math.max(1, wait)))
+    }
+    res.status(status).json({ error: err.message })
+  }
+})
+
+// Up to 25 ISRCs in one Apple call (filter[isrc]); the importer uses it for tracks whose
+// source knows the ISRC, instead of one text search per track.
+const ISRC_RE = /^[A-Z]{2}[A-Z0-9]{3}\d{7}$/
+internalRouter.get('/songs-by-isrc', async (req, res) => {
+  try {
+    const isrcs = [
+      ...new Set(
+        String(req.query.isrcs || '')
+          .split(',')
+          .map((v) => v.trim().toUpperCase())
+          .filter(Boolean),
+      ),
+    ]
+    if (isrcs.length === 0 || isrcs.length > 25 || !isrcs.every((v) => ISRC_RE.test(v))) {
+      return res.status(400).json({ error: '1-25 valid ISRCs required (isrcs=A,B,...)' })
+    }
+    const settings = await readSettings()
+    const storefront = String(req.query.storefront || settings.storefront || 'us')
+    const reqLang = req.query.language || req.query.l
+    const language = reqLang ? toAppleLanguage(reqLang) : settings.language || 'en-US'
+    const data = await getSongsByIsrc({ storefront, isrcs, language, include: 'artists' })
+    res.json({ songs: (data?.data || []).map(mapSong), storefront })
+  } catch (err) {
+    const upstreamStatus = Number(String(err.message || '').match(/Apple API (\d+)/)?.[1])
+    const status = upstreamStatus === 429 ? 429 : 502
     if (status === 429) {
       const wait = Math.ceil(getAppleCooldownMs() / 1000) || Number(err.retryAfterSec) || 60
       res.set('Retry-After', String(Math.max(1, wait)))

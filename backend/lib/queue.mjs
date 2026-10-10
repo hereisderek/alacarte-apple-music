@@ -1807,7 +1807,7 @@ async function runJob(job) {
 // the track is not out yet, or not offered in this storefront.
 async function explainNoAudio(job) {
   try {
-    const raw = await getAlbum({ storefront: job.storefront, id: job.albumId })
+    const raw = await getAlbum({ storefront: job.storefront, id: job.albumId, fresh: true })
     const album = raw?.data?.[0]
     const tracks = album?.relationships?.tracks?.data || []
     const wanted = job.songId ? tracks.filter((t) => t.id === job.songId) : tracks

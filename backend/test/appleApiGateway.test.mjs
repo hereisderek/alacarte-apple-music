@@ -46,3 +46,13 @@ test('requests from different lanes are not merged, later ones are sent again', 
   await searchCatalog({ storefront: 'nz', term: 'q' })
   assert.equal(appleCalls.length, 3)
 })
+
+test('an album is kept for a few minutes, fresh: true asks Apple again', async () => {
+  appleCalls = []
+  await getAlbum({ storefront: 'nz', id: 'cache-1' })
+  await getAlbum({ storefront: 'nz', id: 'cache-1' })
+  await getAlbum({ storefront: 'nz', id: 'cache-1', language: 'zh-Hans-CN' })
+  assert.equal(appleCalls.length, 2, 'same album and language once, other language separately')
+  await getAlbum({ storefront: 'nz', id: 'cache-1', fresh: true })
+  assert.equal(appleCalls.length, 3)
+})
