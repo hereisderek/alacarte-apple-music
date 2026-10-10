@@ -17,6 +17,7 @@ services:
       - AMDL_FOLLOW_TICK_MS=3600000
       - MOCK_APPLE_LIMIT_RPS=${MOCK_APPLE_LIMIT_RPS:-5}
       - MOCK_APPLE_LATENCY_MS=${MOCK_APPLE_LATENCY_MS:-80}
+      - AMDL_ARTIST_RESOLVE_INTERVAL_MS=${AMDL_ARTIST_RESOLVE_INTERVAL_MS:-4000}
     volumes:
       - ./backend:/app
       - web-dev-node-modules:/app/node_modules

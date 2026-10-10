@@ -70,7 +70,7 @@ Pacing exists only for the importer's search (`routes/internal.mjs`, 1.5 s FIFO 
 
 | Caller | Trigger | Calls | Paced | Persisted cache |
 |---|---|---|---|---|
-| `routes/library.mjs` `resolveArtistId` | every `GET /api/library`; the UI calls it once per page load from `LibraryPresenceProvider` (`frontend/src/hooks/useLibraryPresence.tsx`, mounted in `main.tsx`) | 1 search per library artist (252) | no, concurrency 4 | memory only, 24 h |
+| `routes/library.mjs` background artist resolver (was: blocking lookups inside the request) | `GET /api/library`; the UI calls it once per page load from `LibraryPresenceProvider` (`frontend/src/hooks/useLibraryPresence.tsx`, mounted in `main.tsx`) | 1 search per unresolved library artist, one every 4 s (`AMDL_ARTIST_RESOLVE_INTERVAL_MS`), stops on 429 | yes | `library.db` `artist_ids`, 90 d (7 d for no match) |
 | `routes/search.mjs` | user search | 1 | no | no |
 | `routes/album.mjs`, `artist.mjs`, `playlist.mjs` | page views | 1 each | no | partial (`originalMetadataCache`) |
 | `routes/internal.mjs` `/search` | importer | 1 per query, up to 3 queries per track | yes, 1.5 s | no |
@@ -114,7 +114,7 @@ bypass it.
 
 Pacing limits the damage; removing calls raises throughput.
 
-- **`/api/library` must not resolve artists on page load.** Return the library from disk
+- **`/api/library` must not resolve artists on page load. (Done.)** Return the library from disk
   only (as `AGENTS.md` already requires). Resolve artist IDs on demand when the user
   opens an artist, or in the `background` lane a few per minute, writing results to
   `library.db` so they survive restarts. Unresolved artists link to `/search?q=…`.
@@ -157,7 +157,10 @@ Pacing limits the damage; removing calls raises throughput.
 
 1. Done on `fix/apple-request-logging`: per-call logging, flat 15 min cooldown,
    `Retry-After`, egress IP logging.
-2. Stop `/api/library` page-load lookups (removes the likeliest trigger).
+2. Done: `/api/library` answers from disk and `library.db`; missing artist IDs are
+   resolved one at a time in the background (default every 4 s, stops on any 429) and
+   stored. Locally with 252 artists: the request takes 44 ms and makes no Apple call
+   itself; lookups never overlap; IDs survive a restart.
 3. Gateway: priority lanes, adaptive interval, escalating cooldown, persisted state,
    in-flight dedupe, with unit tests using a fake clock and mocked `fetch`.
 4. Persistent response cache in `library.db`.
