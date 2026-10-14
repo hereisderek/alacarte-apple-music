@@ -357,6 +357,7 @@ export function SettingsPage() {
                   >
                     <option value="lrc" className="bg-zinc-900">{t('settings.lyricsFormatLrc')}</option>
                     <option value="ttml" className="bg-zinc-900">{t('settings.lyricsFormatTtml')}</option>
+                    <option value="both" className="bg-zinc-900">{t('settings.lyricsFormatBoth')}</option>
                   </select>
 
                 </div>
@@ -1830,7 +1831,6 @@ function AppleStatusCard({ flash }: { flash: (msg: string, err?: boolean) => voi
   const { t } = useTranslation()
   const [status, setStatus] = useState<AppleStatus | null>(null)
   const [form, setForm] = useState<{ interval: string; min: string; adaptive: boolean; cooldown: string } | null>(null)
-  const [now, setNow] = useState(() => Date.now())
   const [busy, setBusy] = useState(false)
 
   const load = useCallback(
@@ -1855,10 +1855,7 @@ function AppleStatusCard({ flash }: { flash: (msg: string, err?: boolean) => voi
 
   useEffect(() => {
     load()
-    const timer = setInterval(() => {
-      load()
-      setNow(Date.now())
-    }, 5000)
+    const timer = setInterval(load, 5000)
     return () => clearInterval(timer)
   }, [load])
 
@@ -1869,7 +1866,6 @@ function AppleStatusCard({ flash }: { flash: (msg: string, err?: boolean) => voi
     status.cooldownSeconds >= 90
       ? t('settings.timeMinutes', { count: minutes })
       : t('settings.timeSeconds', { count: status.cooldownSeconds })
-  void now
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault()

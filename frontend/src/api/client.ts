@@ -188,7 +188,7 @@ export type PublicSettings = {
   coverSize: string
   downloadLyrics: boolean
   promptForDownloadQuality: boolean
-  lyricsFormat: 'lrc' | 'ttml'
+  lyricsFormat: 'lrc' | 'ttml' | 'both'
   lyricsType: 'lyrics' | 'lyrics-with-translation'
   explicitFilter: 'explicit' | 'clean' | 'both'
   appleEmailMasked: string | null
@@ -414,10 +414,10 @@ export type TagBackfillStatus = {
 export type LyricsBackfillStatus = {
   running: boolean
   waitingUntil?: number | null
-  converted?: number
   scanned: number
   total: number
   added: number
+  converted?: number
   skipped: number
   noLyrics: number
   noMatch: number
