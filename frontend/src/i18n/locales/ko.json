@@ -226,7 +226,6 @@
     "appleMinIntervalLabel": "최단 간격(초)",
     "appleCooldownLabel": "속도 제한 후 일시 중지(분)",
     "appleAdaptiveLabel": "속도 자동 조정",
-    "saveAppleSettings": "저장",
     "backfillScanning": "라이브러리 스캔 중… 파일 {{count}}개 발견",
     "backfillAlbums": "앨범 {{done}} / {{total}} · Apple 요청 {{calls}}회",
     "backfillWaitingApple": "일시 중지됨: Apple이 이 서버를 속도 제한하고 있습니다. 약 {{time}} 후 자동으로 다시 시작됩니다.",

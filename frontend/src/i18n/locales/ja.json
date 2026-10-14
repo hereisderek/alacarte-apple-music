@@ -226,7 +226,6 @@
     "appleMinIntervalLabel": "最短間隔（秒）",
     "appleCooldownLabel": "レート制限後の停止時間（分）",
     "appleAdaptiveLabel": "ペースを自動調整",
-    "saveAppleSettings": "保存",
     "backfillScanning": "ライブラリをスキャン中… {{count}} 個のファイルを検出",
     "backfillAlbums": "アルバム {{done}} / {{total}} · Apple へのリクエスト {{calls}} 回",
     "backfillWaitingApple": "一時停止中：Apple がこのサーバーをレート制限しています。約 {{time}} 後に自動で再開します。",

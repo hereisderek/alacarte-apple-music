@@ -226,7 +226,6 @@
     "appleMinIntervalLabel": "最短間隔（秒）",
     "appleCooldownLabel": "被限流後暫停（分鐘）",
     "appleAdaptiveLabel": "自動調整速率",
-    "saveAppleSettings": "儲存",
     "backfillScanning": "正在掃描資料庫… 已找到 {{count}} 個檔案",
     "backfillAlbums": "專輯 {{done}} / {{total}} · {{calls}} 次 Apple 請求",
     "backfillWaitingApple": "已暫停：Apple 正在限制此伺服器。約 {{time}} 後自動繼續。",

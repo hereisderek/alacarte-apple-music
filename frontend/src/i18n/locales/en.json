@@ -227,7 +227,6 @@
     "appleMinIntervalLabel": "Fastest gap (s)",
     "appleCooldownLabel": "Pause after a rate limit (min)",
     "appleAdaptiveLabel": "Adjust the pace automatically",
-    "saveAppleSettings": "Save",
     "backfillScanning": "Scanning library… {{count}} files found",
     "backfillAlbums": "Album {{done}} of {{total}} · {{calls}} Apple requests",
     "backfillWaitingApple": "Paused: Apple is rate limiting this server. Resumes automatically in about {{time}}.",

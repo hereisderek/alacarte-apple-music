@@ -1814,18 +1814,17 @@ function AppleStatusCard({ flash }: { flash: (msg: string, err?: boolean) => voi
       ? t('settings.timeMinutes', { count: minutes })
       : t('settings.timeSeconds', { count: status.cooldownSeconds })
 
-  const save = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const save = async (next: typeof form, reread = false) => {
     setBusy(true)
     try {
       await api.saveSettings({
-        appleGatewayIntervalMs: Math.round(Number(form.interval) * 1000) || null,
-        appleGatewayMinIntervalMs: Math.round(Number(form.min) * 1000) || null,
-        appleGatewayAdaptive: form.adaptive,
-        appleGatewayPaceIntegration: form.pace,
-        appleGatewayCooldownMinutes: Math.round(Number(form.cooldown)) || null,
+        appleGatewayIntervalMs: Math.round(Number(next.interval) * 1000) || null,
+        appleGatewayMinIntervalMs: Math.round(Number(next.min) * 1000) || null,
+        appleGatewayAdaptive: next.adaptive,
+        appleGatewayPaceIntegration: next.pace,
+        appleGatewayCooldownMinutes: Math.round(Number(next.cooldown)) || null,
       })
-      setForm(null)
+      if (reread) setForm(null)
       await load()
       flash(t('settings.saved'))
     } catch (err: any) {
@@ -1835,11 +1834,34 @@ function AppleStatusCard({ flash }: { flash: (msg: string, err?: boolean) => voi
     }
   }
 
+  const change = (patch: Partial<typeof form>) => {
+    const next = { ...form, ...patch }
+    setForm(next)
+    save(next)
+  }
+
+  const saveNumbers = () => {
+    const c = status.config
+    const same =
+      Math.round(Number(form.interval) * 1000) === c.intervalMs &&
+      Math.round(Number(form.min) * 1000) === c.minIntervalMs &&
+      Math.round(Number(form.cooldown)) === c.cooldownMinutes
+    if (!same) save(form, true)
+  }
+
+  const numberProps = {
+    onBlur: saveNumbers,
+    onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') e.currentTarget.blur()
+    },
+  }
+
   const toggle = async (on: boolean) => {
     setBusy(true)
     try {
       await api.saveSettings({ appleGatewayEnabled: on })
       await load()
+      flash(t('settings.saved'))
     } catch (err: any) {
       flash(t('settings.errorPrefix', { message: err.message }), true)
     } finally {
@@ -1908,29 +1930,29 @@ function AppleStatusCard({ flash }: { flash: (msg: string, err?: boolean) => voi
               )}
             </div>
 
-            <form className="space-y-3" onSubmit={save}>
+            <div className="space-y-3">
               <div className="grid gap-3 sm:grid-cols-3">
                 <label className="space-y-1 text-sm text-white/70">
                   <span>{t('settings.appleIntervalLabel')}</span>
                   <Input type="number" min="0.1" max="30" step="0.1" value={form.interval}
-                    onChange={(e) => setForm({ ...form, interval: e.target.value })} />
+                    onChange={(e) => setForm({ ...form, interval: e.target.value })} {...numberProps} />
                 </label>
                 <label className="space-y-1 text-sm text-white/70">
                   <span>{t('settings.appleMinIntervalLabel')}</span>
                   <Input type="number" min="0.1" max="30" step="0.1" value={form.min}
-                    onChange={(e) => setForm({ ...form, min: e.target.value })} />
+                    onChange={(e) => setForm({ ...form, min: e.target.value })} {...numberProps} />
                 </label>
                 <label className="space-y-1 text-sm text-white/70">
                   <span>{t('settings.appleCooldownLabel')}</span>
                   <Input type="number" min="1" max="240" step="1" value={form.cooldown}
-                    onChange={(e) => setForm({ ...form, cooldown: e.target.value })} />
+                    onChange={(e) => setForm({ ...form, cooldown: e.target.value })} {...numberProps} />
                 </label>
               </div>
               <label className="flex items-start gap-3">
                 <input
                   type="checkbox"
                   checked={form.adaptive}
-                  onChange={(e) => setForm({ ...form, adaptive: e.target.checked })}
+                  onChange={(e) => change({ adaptive: e.target.checked })}
                   className="mt-0.5 shrink-0"
                 />
                 <span className="text-sm text-white/70">{t('settings.appleAdaptiveLabel')}</span>
@@ -1939,15 +1961,12 @@ function AppleStatusCard({ flash }: { flash: (msg: string, err?: boolean) => voi
                 <input
                   type="checkbox"
                   checked={form.pace}
-                  onChange={(e) => setForm({ ...form, pace: e.target.checked })}
+                  onChange={(e) => change({ pace: e.target.checked })}
                   className="mt-0.5 shrink-0"
                 />
                 <span className="text-sm text-white/70">{t('settings.appleLimitIntegrationLabel')}</span>
               </label>
-              <Button type="submit" disabled={busy}>
-                {t('settings.saveAppleSettings')}
-              </Button>
-            </form>
+            </div>
             </div>
           </motion.div>
         )}

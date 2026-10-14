@@ -227,7 +227,6 @@
     "appleMinIntervalLabel": "Intervalle minimal (s)",
     "appleCooldownLabel": "Pause après une limitation (min)",
     "appleAdaptiveLabel": "Ajuster la cadence automatiquement",
-    "saveAppleSettings": "Enregistrer",
     "backfillScanning": "Analyse de la bibliothèque… {{count}} fichiers trouvés",
     "backfillAlbums": "Album {{done}} sur {{total}} · {{calls}} requêtes Apple",
     "backfillWaitingApple": "En pause : Apple limite ce serveur. Reprise automatique dans environ {{time}}.",
