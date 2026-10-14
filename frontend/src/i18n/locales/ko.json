@@ -233,7 +233,8 @@
     "timeMinutes": "{{count}}분",
     "timeSeconds": "{{count}}초",
     "appleLimitLabel": "Apple Music 요청 제한",
-    "cardIntegrations": "연동"
+    "cardIntegrations": "연동",
+    "appleLimitIntegrationLabel": "octo-fiesta 조회도 제한"
   },
   "album": {
     "loadError": "불러오지 못했습니다",

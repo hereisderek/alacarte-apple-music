@@ -233,7 +233,8 @@
     "timeMinutes": "{{count}} 分鐘",
     "timeSeconds": "{{count}} 秒",
     "appleLimitLabel": "限制 Apple Music 請求",
-    "cardIntegrations": "整合"
+    "cardIntegrations": "整合",
+    "appleLimitIntegrationLabel": "同時限制 octo-fiesta 查詢"
   },
   "album": {
     "loadError": "載入失敗",

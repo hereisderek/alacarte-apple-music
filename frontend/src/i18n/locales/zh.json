@@ -233,7 +233,8 @@
     "timeMinutes": "{{count}} 分钟",
     "timeSeconds": "{{count}} 秒",
     "appleLimitLabel": "限制 Apple Music 请求",
-    "cardIntegrations": "集成"
+    "cardIntegrations": "集成",
+    "appleLimitIntegrationLabel": "同时限制 octo-fiesta 查询"
   },
   "album": {
     "loadError": "加载失败",

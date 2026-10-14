@@ -1776,7 +1776,7 @@ function BackfillCard<S extends BackfillStatusBase>({
 function AppleStatusCard({ flash }: { flash: (msg: string, err?: boolean) => void }) {
   const { t } = useTranslation()
   const [status, setStatus] = useState<AppleStatus | null>(null)
-  const [form, setForm] = useState<{ interval: string; min: string; adaptive: boolean; cooldown: string } | null>(null)
+  const [form, setForm] = useState<{ interval: string; min: string; adaptive: boolean; pace: boolean; cooldown: string } | null>(null)
   const [busy, setBusy] = useState(false)
 
   const load = useCallback(
@@ -1791,6 +1791,7 @@ function AppleStatusCard({ flash }: { flash: (msg: string, err?: boolean) => voi
                 interval: String(s.config.intervalMs / 1000),
                 min: String(s.config.minIntervalMs / 1000),
                 adaptive: s.config.adaptive,
+                pace: s.config.paceIntegration,
                 cooldown: String(s.config.cooldownMinutes),
               },
           )
@@ -1821,6 +1822,7 @@ function AppleStatusCard({ flash }: { flash: (msg: string, err?: boolean) => voi
         appleGatewayIntervalMs: Math.round(Number(form.interval) * 1000) || null,
         appleGatewayMinIntervalMs: Math.round(Number(form.min) * 1000) || null,
         appleGatewayAdaptive: form.adaptive,
+        appleGatewayPaceIntegration: form.pace,
         appleGatewayCooldownMinutes: Math.round(Number(form.cooldown)) || null,
       })
       setForm(null)
@@ -1932,6 +1934,15 @@ function AppleStatusCard({ flash }: { flash: (msg: string, err?: boolean) => voi
                   className="mt-0.5 shrink-0"
                 />
                 <span className="text-sm text-white/70">{t('settings.appleAdaptiveLabel')}</span>
+              </label>
+              <label className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={form.pace}
+                  onChange={(e) => setForm({ ...form, pace: e.target.checked })}
+                  className="mt-0.5 shrink-0"
+                />
+                <span className="text-sm text-white/70">{t('settings.appleLimitIntegrationLabel')}</span>
               </label>
               <Button type="submit" disabled={busy}>
                 {t('settings.saveAppleSettings')}

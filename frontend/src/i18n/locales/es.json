@@ -234,7 +234,8 @@
     "timeMinutes": "{{count}} min",
     "timeSeconds": "{{count}} s",
     "appleLimitLabel": "Limitar solicitudes a Apple Music",
-    "cardIntegrations": "Integraciones"
+    "cardIntegrations": "Integraciones",
+    "appleLimitIntegrationLabel": "Limitar también las búsquedas de octo-fiesta"
   },
   "album": {
     "loadError": "Error al cargar",

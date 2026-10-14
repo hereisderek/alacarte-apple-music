@@ -55,6 +55,7 @@ const DEFAULTS = {
   appleGatewayIntervalMs: null,
   appleGatewayMinIntervalMs: null,
   appleGatewayEnabled: true,
+  appleGatewayPaceIntegration: false,
   appleGatewayAdaptive: true,
   appleGatewayCooldownMinutes: null,
 }
@@ -284,6 +285,7 @@ function normalizeSettings(input) {
     appleGatewayIntervalMs: clampSetting(parsed?.appleGatewayIntervalMs, ...APPLE_GATEWAY_LIMITS.appleGatewayIntervalMs),
     appleGatewayMinIntervalMs: clampSetting(parsed?.appleGatewayMinIntervalMs, ...APPLE_GATEWAY_LIMITS.appleGatewayMinIntervalMs),
     appleGatewayEnabled: toBool(parsed?.appleGatewayEnabled, DEFAULTS.appleGatewayEnabled),
+    appleGatewayPaceIntegration: toBool(parsed?.appleGatewayPaceIntegration, DEFAULTS.appleGatewayPaceIntegration),
     appleGatewayAdaptive: toBool(parsed?.appleGatewayAdaptive, DEFAULTS.appleGatewayAdaptive),
     appleGatewayCooldownMinutes: clampSetting(parsed?.appleGatewayCooldownMinutes, ...APPLE_GATEWAY_LIMITS.appleGatewayCooldownMinutes),
   }

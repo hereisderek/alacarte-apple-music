@@ -233,7 +233,8 @@
     "timeMinutes": "{{count}} 分",
     "timeSeconds": "{{count}} 秒",
     "appleLimitLabel": "Apple Music へのリクエストを制限",
-    "cardIntegrations": "連携"
+    "cardIntegrations": "連携",
+    "appleLimitIntegrationLabel": "octo-fiesta の検索も制限する"
   },
   "album": {
     "loadError": "読み込みに失敗しました",

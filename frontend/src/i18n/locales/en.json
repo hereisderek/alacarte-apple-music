@@ -234,7 +234,8 @@
     "timeMinutes": "{{count}} min",
     "timeSeconds": "{{count}} s",
     "appleLimitLabel": "Limit Apple Music requests",
-    "cardIntegrations": "Integrations"
+    "cardIntegrations": "Integrations",
+    "appleLimitIntegrationLabel": "Also limit octo-fiesta lookups"
   },
   "album": {
     "loadError": "Failed to load",

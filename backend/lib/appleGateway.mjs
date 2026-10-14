@@ -9,8 +9,9 @@ import path from 'node:path'
 //  - lanes: interactive (UI), batch (importer, integration API, download jobs) and
 //    background (schedulers, backfills, lookups nobody is waiting for). Interactive goes
 //    first, batch is guaranteed a share, background only uses what is left.
-//  - direct: lookups a client is waiting on (integration API) skip the queue and the
-//    pacing, but still fail locally during a cooldown.
+//  - integration (octo-fiesta lookups, a search per keystroke) skips the queue and the
+//    pacing, but still fails locally during a cooldown. Setting it to be paced puts it
+//    in the batch lane.
 //  - one adaptive gap between dispatches: it shrinks a little after a long run of
 //    successes and doubles on a 429, and never drops below a floor learned from the
 //    429s seen so far.
@@ -63,6 +64,7 @@ export function createGateway({
   let minIntervalMs = defaultMinIntervalMs
   let cooldownBaseMs = defaultCooldownBaseMs
   let enabled = true
+  let paceIntegration = false
   let adaptive = true
   // Raised by every 429: never go faster than a margin above a pace that failed.
   let learnedFloor = 0
@@ -201,6 +203,7 @@ export function createGateway({
   }
 
   function schedule(task, { lane = 'background', path: requestPath = '' } = {}) {
+    if (lane === 'integration') lane = paceIntegration ? 'batch' : 'direct'
     if (!enabled || lane === 'direct') {
       if (enabled && inCooldown()) return Promise.reject(limitedError(requestPath))
       return Promise.resolve().then(task)
@@ -266,6 +269,7 @@ export function createGateway({
       learnedFloorMs: learnedFloor,
       config: {
         enabled,
+        paceIntegration,
         intervalMs: startIntervalMs,
         minIntervalMs,
         adaptive,
@@ -287,12 +291,13 @@ export function createGateway({
   // Applies user settings. A key that is null/undefined goes back to its default.
   // resetPace: false (used at boot) keeps the pace the gateway had adapted to.
   function configure(
-    { enabled: on, intervalMs, minIntervalMs: min, adaptive: auto, cooldownMinutes } = {},
+    { enabled: on, paceIntegration: pace, intervalMs, minIntervalMs: min, adaptive: auto, cooldownMinutes } = {},
     { resetPace = true } = {},
   ) {
     startIntervalMs = Number.isFinite(intervalMs) ? Math.max(0, intervalMs) : defaultIntervalMs
     minIntervalMs = Number.isFinite(min) ? Math.max(0, min) : defaultMinIntervalMs
     enabled = on !== false
+    paceIntegration = pace === true
     adaptive = auto !== false
     cooldownBaseMs = Number.isFinite(cooldownMinutes) ? Math.max(0, cooldownMinutes * 60_000) : defaultCooldownBaseMs
     // The configured starting gap applies right away (never below the floor).

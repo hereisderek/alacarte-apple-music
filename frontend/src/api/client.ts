@@ -444,7 +444,7 @@ export type AppleStatus = {
   intervalMs: number
   floorMs: number
   learnedFloorMs: number
-  config: { enabled: boolean; intervalMs: number; minIntervalMs: number; adaptive: boolean; cooldownMinutes: number }
+  config: { enabled: boolean; paceIntegration: boolean; intervalMs: number; minIntervalMs: number; adaptive: boolean; cooldownMinutes: number }
   inFlight: number
   queued: { interactive: number; batch: number; background: number }
   strikes: number
@@ -454,6 +454,7 @@ export type AppleStatus = {
 
 export type AppleGatewaySettingsPatch = {
   appleGatewayEnabled: boolean
+  appleGatewayPaceIntegration: boolean
   appleGatewayIntervalMs: number | null
   appleGatewayMinIntervalMs: number | null
   appleGatewayAdaptive: boolean
