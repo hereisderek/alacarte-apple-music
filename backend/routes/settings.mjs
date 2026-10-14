@@ -307,7 +307,14 @@ settingsRouter.get('/tag-backfill', (_req, res) => {
 
 settingsRouter.post('/tag-backfill', async (req, res) => {
   try {
-    res.json(await runInLane('background', () => startTagBackfill({ dryRun: Boolean(req.body?.dryRun) })))
+    res.json(
+      await runInLane('background', () =>
+        startTagBackfill({
+          dryRun: Boolean(req.body?.dryRun),
+          retryUnmatched: Boolean(req.body?.retryUnmatched),
+        }),
+      ),
+    )
   } catch (err) {
     res.status(err.statusCode || 500).json({ error: err.message })
   }
