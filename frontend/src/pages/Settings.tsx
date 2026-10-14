@@ -25,7 +25,6 @@ import {
   api,
   type AppleStatus,
   type ArtistBackfillStatus,
-  type EffectiveCheckInterval,
   type LyricsBackfillStatus,
   type PublicSettings,
   type TagBackfillStatus,
@@ -285,9 +284,6 @@ export function SettingsPage() {
                 />
                 <div>
                   <div className="text-sm font-medium">{t('settings.askQualityBeforeManual')}</div>
-                  <div className="mt-1 text-sm text-white/55">
-                    {t('settings.askQualityBeforeManualHelp')}
-                  </div>
                 </div>
               </label>
               <label className="flex items-start gap-3">
@@ -299,19 +295,11 @@ export function SettingsPage() {
                 />
                 <div>
                   <div className="text-sm font-medium">{t('settings.stagingInsideLibrary')}</div>
-                  <div className="mt-1 text-sm text-white/55">
-                    {t('settings.stagingHelpOff')} <code>/tmp/alacarte-staging</code>. {t('settings.stagingHelpOn')}
-                    <code> /music/.amdl-tmp</code>.
-                  </div>
                 </div>
               </label>
               <div className="flex items-start gap-3">
                 <div className="flex-1">
                   <div className="text-sm font-medium">{t('settings.namingConvention')}</div>
-                  <div className="mt-1 text-sm text-white/55">
-                    {t('settings.namingConventionHelpPre')} <em>{t('settings.qobuzCompatible')}</em>{' '}
-                    {t('settings.namingConventionHelpPost')}
-                  </div>
                   <select
                     value={settings.namingConvention ?? 'apple'}
                     onChange={(e) => update({ namingConvention: e.target.value as 'apple' | 'qobuz' })}
@@ -419,15 +407,16 @@ export function SettingsPage() {
                       </option>
                     ))}
                   </select>
-                  <div className="mt-1.5 text-[13px] text-white/45">
-                    {t(`${NAMING_LANGUAGE_MODE_OPTIONS.find((o) => o.value === settings.namingLanguageMode)?.labelKey ?? 'settings.namingModeDisplay'}Help`)}
-                  </div>
+                  {settings.namingLanguageMode !== 'display' && (
+                    <div className="mt-1.5 text-[13px] text-white/45">
+                      {t(`${NAMING_LANGUAGE_MODE_OPTIONS.find((o) => o.value === settings.namingLanguageMode)?.labelKey}Help`)}
+                    </div>
+                  )}
                 </div>
               </label>
 
               <div className="border-t border-white/[0.06] pt-4">
                 <div className="text-sm text-white/70">{t('settings.acceptedLanguages')}</div>
-                <div className="mt-1 text-[13px] text-white/45">{t('settings.acceptedLanguagesHelp')}</div>
                 <div className="mt-2">
                   <LanguageChipInput
                     value={settings.acceptedLanguages}
@@ -457,9 +446,6 @@ export function SettingsPage() {
                 <div>
                   <div className="text-[13px] font-medium">
                     {t('settings.showOtherVersionOptions')}
-                  </div>
-                  <div className="mt-0.5 text-[13px] text-[var(--text-dim)]">
-                    {t('settings.showOtherVersionOptionsHelp')}
                   </div>
                 </div>
               </label>
@@ -516,9 +502,6 @@ export function SettingsPage() {
                 />
                 <div>
                   <div className="text-sm font-medium">{t('settings.enableAutoDownloads')}</div>
-                  <div className="mt-1 text-sm text-white/55">
-                    {t('settings.enableAutoDownloadsHelp')}
-                  </div>
                 </div>
               </label>
               <label className="flex flex-col gap-1.5 md:flex-row md:items-start md:gap-3">
@@ -540,9 +523,6 @@ export function SettingsPage() {
                       </option>
                     ))}
                   </select>
-                  <EffectiveIntervalHint
-                    mode={settings.autoDownloadCheckFrequency}
-                  />
                 </div>
               </label>
             </div>
@@ -576,14 +556,18 @@ export function SettingsPage() {
         </StaggeredItem>
 
         <StaggeredItem>
-          <SettingsCard icon={<Globe className="h-4 w-4" />} title={t('settings.cardNavidromeIntegration')}>
-            <NavidromeForm settings={settings} onChange={reload} onFlash={flash} />
-          </SettingsCard>
-        </StaggeredItem>
-
-        <StaggeredItem>
-          <SettingsCard icon={<Plug className="h-4 w-4" />} title={t('settings.cardOctoFiestaIntegration')}>
-            <OctoIntegrationForm settings={settings} onChange={reload} onFlash={flash} />
+          <SettingsCard icon={<Plug className="h-4 w-4" />} title={t('settings.cardIntegrations')}>
+            <div className="space-y-6">
+              <div className="space-y-3">
+                <div className="text-sm font-semibold text-white/80">Navidrome</div>
+                <NavidromeForm settings={settings} onChange={reload} onFlash={flash} />
+              </div>
+              <div className="border-t border-white/[0.06]" />
+              <div className="space-y-3">
+                <div className="text-sm font-semibold text-white/80">octo-fiesta</div>
+                <OctoIntegrationForm settings={settings} onChange={reload} onFlash={flash} />
+              </div>
+            </div>
           </SettingsCard>
         </StaggeredItem>
 
@@ -602,41 +586,6 @@ export function SettingsPage() {
         </StaggeredItem>
       </StaggeredList>
     </>
-  )
-}
-
-function EffectiveIntervalHint({
-  mode,
-}: {
-  mode: PublicSettings['autoDownloadCheckFrequency']
-}) {
-  const { t } = useTranslation()
-  const [data, setData] = useState<EffectiveCheckInterval | null>(null)
-  useEffect(() => {
-    let cancelled = false
-    setData(null)
-    api
-      .effectiveCheckInterval(mode)
-      .then((r) => {
-        if (!cancelled) setData(r)
-      })
-      .catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [mode])
-  if (!data || data.mode !== mode) return null
-  if (mode === 'auto') {
-    return (
-      <p className="mt-2 text-xs text-white/45">
-        {t('settings.autoIntervalAuto', { count: data.followedCount, label: data.label })}
-      </p>
-    )
-  }
-  return (
-    <p className="mt-2 text-xs text-white/45">
-      {t('settings.autoIntervalManual', { label: data.label })}
-    </p>
   )
 }
 
@@ -1110,9 +1059,6 @@ function NavidromeForm({ settings, onChange, onFlash }: { settings: PublicSettin
         />
         <div>
           <div className="text-sm font-medium">{t('settings.enableNavidromeScan')}</div>
-          <div className="text-xs text-white/55 mt-0.5">
-            {t('settings.enableNavidromeScanHelp')}
-          </div>
         </div>
       </label>
 
@@ -1920,7 +1866,6 @@ function AppleStatusCard({ flash }: { flash: (msg: string, err?: boolean) => voi
         />
         <div>
           <div className="text-sm font-medium">{t('settings.appleLimitLabel')}</div>
-          <div className="mt-1 text-sm text-white/55">{t('settings.appleLimitHelp')}</div>
         </div>
       </label>
       <AnimatePresence initial={false}>
@@ -1959,7 +1904,6 @@ function AppleStatusCard({ flash }: { flash: (msg: string, err?: boolean) => voi
                   </Button>
                 </div>
               )}
-              <div className="text-xs text-white/40">{t('settings.appleStatusHelp')}</div>
             </div>
 
             <form className="space-y-3" onSubmit={save}>
@@ -1989,7 +1933,6 @@ function AppleStatusCard({ flash }: { flash: (msg: string, err?: boolean) => voi
                 />
                 <span className="text-sm text-white/70">{t('settings.appleAdaptiveLabel')}</span>
               </label>
-              <div className="text-xs text-white/40">{t('settings.appleSettingsHelp')}</div>
               <Button type="submit" disabled={busy}>
                 {t('settings.saveAppleSettings')}
               </Button>

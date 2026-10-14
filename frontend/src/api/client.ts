@@ -223,13 +223,6 @@ export type AutoCheckFrequency =
   | 'daily'
   | 'weekly'
 
-export type EffectiveCheckInterval = {
-  mode: AutoCheckFrequency
-  followedCount: number
-  ms: number | null
-  label: string
-}
-
 export type FollowedArtist = Artist & {
   storefront: string
   knownReleaseIds: string[]
@@ -732,10 +725,6 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ quality }),
     }),
-  effectiveCheckInterval: (mode?: AutoCheckFrequency) =>
-    http<EffectiveCheckInterval>(
-      `/api/following/check/effective-interval${mode ? `?mode=${encodeURIComponent(mode)}` : ''}`,
-    ),
   playlistFollowing: () =>
     http<{ playlists: FollowedPlaylist[] }>('/api/playlist-following'),
   followedPlaylist: (id: string) =>
