@@ -248,7 +248,9 @@
     "backfillAlbums": "アルバム {{done}} / {{total}} · Apple へのリクエスト {{calls}} 回",
     "backfillWaitingApple": "一時停止中：Apple がこのサーバーをレート制限しています。約 {{time}} 後に自動で再開します。",
     "timeMinutes": "{{count}} 分",
-    "timeSeconds": "{{count}} 秒"
+    "timeSeconds": "{{count}} 秒",
+    "appleLimitLabel": "Apple Music へのリクエストを制限",
+    "appleLimitHelp": "レート制限を避けるためリクエストの間隔を空けます。オフにすると制限なしで送信します。"
   },
   "album": {
     "loadError": "読み込みに失敗しました",

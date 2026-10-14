@@ -248,7 +248,9 @@
     "backfillAlbums": "앨범 {{done}} / {{total}} · Apple 요청 {{calls}}회",
     "backfillWaitingApple": "일시 중지됨: Apple이 이 서버를 속도 제한하고 있습니다. 약 {{time}} 후 자동으로 다시 시작됩니다.",
     "timeMinutes": "{{count}}분",
-    "timeSeconds": "{{count}}초"
+    "timeSeconds": "{{count}}초",
+    "appleLimitLabel": "Apple Music 요청 제한",
+    "appleLimitHelp": "속도 제한을 피하려고 요청 간격을 둡니다. 끄면 제한 없이 보냅니다."
   },
   "album": {
     "loadError": "불러오지 못했습니다",

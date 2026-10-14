@@ -76,6 +76,7 @@ export const WRITABLE_KEYS = new Set([
   'namingLanguageMode',
   'appleGatewayIntervalMs',
   'appleGatewayMinIntervalMs',
+  'appleGatewayEnabled',
   'appleGatewayAdaptive',
   'appleGatewayCooldownMinutes',
   ])
@@ -113,7 +114,7 @@ settingsRouter.put('/', async (req, res) => {
       if (k === 'lyricsType' && !LYRICS_TYPE_VALUES.has(v)) continue
       if (k === 'quality' && !QUALITY_VALUES.has(v)) continue
       if (k === 'namingConvention' && !NAMING_CONVENTION_VALUES.has(v)) continue
-      if (k === 'appleGatewayAdaptive' && typeof v !== 'boolean') continue
+      if ((k === 'appleGatewayEnabled' || k === 'appleGatewayAdaptive') && typeof v !== 'boolean') continue
       if (k in APPLE_GATEWAY_LIMITS) {
         patch[k] = clampSetting(v, ...APPLE_GATEWAY_LIMITS[k])
         continue

@@ -9,6 +9,7 @@ export async function applyAppleGatewaySettings({ resetPace = true } = {}) {
     {
       intervalMs: s.appleGatewayIntervalMs,
       minIntervalMs: s.appleGatewayMinIntervalMs,
+      enabled: s.appleGatewayEnabled,
       adaptive: s.appleGatewayAdaptive,
       cooldownMinutes: s.appleGatewayCooldownMinutes,
     },

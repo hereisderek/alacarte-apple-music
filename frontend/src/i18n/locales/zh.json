@@ -248,7 +248,9 @@
     "backfillAlbums": "第 {{done}} / {{total}} 张专辑 · 已发送 {{calls}} 次 Apple 请求",
     "backfillWaitingApple": "已暂停：Apple 正在限制此服务器的请求，约 {{time}} 后自动继续。",
     "timeMinutes": "{{count}} 分钟",
-    "timeSeconds": "{{count}} 秒"
+    "timeSeconds": "{{count}} 秒",
+    "appleLimitLabel": "限制 Apple Music 请求",
+    "appleLimitHelp": "控制请求间隔以避免被限流。关闭后请求将不再限速。"
   },
   "album": {
     "loadError": "加载失败",

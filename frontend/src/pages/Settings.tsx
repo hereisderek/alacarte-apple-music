@@ -1887,6 +1887,18 @@ function AppleStatusCard({ flash }: { flash: (msg: string, err?: boolean) => voi
     }
   }
 
+  const toggle = async (on: boolean) => {
+    setBusy(true)
+    try {
+      await api.saveSettings({ appleGatewayEnabled: on })
+      await load()
+    } catch (err: any) {
+      flash(t('settings.errorPrefix', { message: err.message }), true)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const reset = async () => {
     setBusy(true)
     try {
@@ -1897,67 +1909,95 @@ function AppleStatusCard({ flash }: { flash: (msg: string, err?: boolean) => voi
   }
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-2.5">
-        <Badge variant={status.state === 'ok' ? 'ok' : status.state === 'cooldown' ? 'bad' : 'warn'}>
-          {status.state === 'cooldown'
-            ? t('settings.appleStatusCooldown', { time: wait })
-            : status.state === 'probing'
-              ? t('settings.appleStatusProbing')
-              : t('settings.appleStatusOk')}
-        </Badge>
-        <div className="text-[13px] text-white/50">
-          {t('settings.applePace', { seconds: (status.intervalMs / 1000).toFixed(1) })}
+    <div>
+      <label className="flex items-start gap-3">
+        <input
+          type="checkbox"
+          checked={status.config.enabled}
+          disabled={busy}
+          onChange={(e) => toggle(e.target.checked)}
+          className="mt-0.5 shrink-0 focus-visible:ring-2 focus-visible:ring-[rgba(var(--accent),0.35)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0a]"
+        />
+        <div>
+          <div className="text-sm font-medium">{t('settings.appleLimitLabel')}</div>
+          <div className="mt-1 text-sm text-white/55">{t('settings.appleLimitHelp')}</div>
         </div>
-        <div className="text-[13px] text-white/50">{t('settings.appleQueued', status.queued)}</div>
-        {status.rateLimited24h > 0 && (
-          <div className="text-[13px] text-amber-200/80">
-            {t('settings.appleRateLimited24h', { count: status.rateLimited24h })}
-          </div>
-        )}
-        {status.learnedFloorMs > 0 && (
-          <div className="flex flex-wrap items-center gap-3 text-[13px] text-white/50">
-            <span>{t('settings.appleLearnedFloor', { seconds: (status.learnedFloorMs / 1000).toFixed(1) })}</span>
-            <Button type="button" variant="ghost" onClick={reset} disabled={busy}>
-              {t('settings.appleResetLearned')}
-            </Button>
-          </div>
-        )}
-        <div className="text-xs text-white/40">{t('settings.appleStatusHelp')}</div>
-      </div>
+      </label>
+      <AnimatePresence initial={false}>
+        {status.config.enabled && (
+          <motion.div
+            key="apple-limit"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            style={{ overflow: 'hidden' }}
+          >
+            <div className="space-y-4 pt-4">
+            <div className="space-y-2.5">
+              <Badge variant={status.state === 'ok' ? 'ok' : status.state === 'cooldown' ? 'bad' : 'warn'}>
+                {status.state === 'cooldown'
+                  ? t('settings.appleStatusCooldown', { time: wait })
+                  : status.state === 'probing'
+                    ? t('settings.appleStatusProbing')
+                    : t('settings.appleStatusOk')}
+              </Badge>
+              <div className="text-[13px] text-white/50">
+                {t('settings.applePace', { seconds: (status.intervalMs / 1000).toFixed(1) })}
+              </div>
+              <div className="text-[13px] text-white/50">{t('settings.appleQueued', status.queued)}</div>
+              {status.rateLimited24h > 0 && (
+                <div className="text-[13px] text-amber-200/80">
+                  {t('settings.appleRateLimited24h', { count: status.rateLimited24h })}
+                </div>
+              )}
+              {status.learnedFloorMs > 0 && (
+                <div className="flex flex-wrap items-center gap-3 text-[13px] text-white/50">
+                  <span>{t('settings.appleLearnedFloor', { seconds: (status.learnedFloorMs / 1000).toFixed(1) })}</span>
+                  <Button type="button" variant="ghost" onClick={reset} disabled={busy}>
+                    {t('settings.appleResetLearned')}
+                  </Button>
+                </div>
+              )}
+              <div className="text-xs text-white/40">{t('settings.appleStatusHelp')}</div>
+            </div>
 
-      <form className="space-y-3" onSubmit={save}>
-        <div className="grid gap-3 sm:grid-cols-3">
-          <label className="space-y-1 text-sm text-white/70">
-            <span>{t('settings.appleIntervalLabel')}</span>
-            <Input type="number" min="0.1" max="30" step="0.1" value={form.interval}
-              onChange={(e) => setForm({ ...form, interval: e.target.value })} />
-          </label>
-          <label className="space-y-1 text-sm text-white/70">
-            <span>{t('settings.appleMinIntervalLabel')}</span>
-            <Input type="number" min="0.1" max="30" step="0.1" value={form.min}
-              onChange={(e) => setForm({ ...form, min: e.target.value })} />
-          </label>
-          <label className="space-y-1 text-sm text-white/70">
-            <span>{t('settings.appleCooldownLabel')}</span>
-            <Input type="number" min="1" max="240" step="1" value={form.cooldown}
-              onChange={(e) => setForm({ ...form, cooldown: e.target.value })} />
-          </label>
-        </div>
-        <label className="flex items-start gap-3">
-          <input
-            type="checkbox"
-            checked={form.adaptive}
-            onChange={(e) => setForm({ ...form, adaptive: e.target.checked })}
-            className="mt-0.5 shrink-0"
-          />
-          <span className="text-sm text-white/70">{t('settings.appleAdaptiveLabel')}</span>
-        </label>
-        <div className="text-xs text-white/40">{t('settings.appleSettingsHelp')}</div>
-        <Button type="submit" disabled={busy}>
-          {t('settings.saveAppleSettings')}
-        </Button>
-      </form>
+            <form className="space-y-3" onSubmit={save}>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <label className="space-y-1 text-sm text-white/70">
+                  <span>{t('settings.appleIntervalLabel')}</span>
+                  <Input type="number" min="0.1" max="30" step="0.1" value={form.interval}
+                    onChange={(e) => setForm({ ...form, interval: e.target.value })} />
+                </label>
+                <label className="space-y-1 text-sm text-white/70">
+                  <span>{t('settings.appleMinIntervalLabel')}</span>
+                  <Input type="number" min="0.1" max="30" step="0.1" value={form.min}
+                    onChange={(e) => setForm({ ...form, min: e.target.value })} />
+                </label>
+                <label className="space-y-1 text-sm text-white/70">
+                  <span>{t('settings.appleCooldownLabel')}</span>
+                  <Input type="number" min="1" max="240" step="1" value={form.cooldown}
+                    onChange={(e) => setForm({ ...form, cooldown: e.target.value })} />
+                </label>
+              </div>
+              <label className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={form.adaptive}
+                  onChange={(e) => setForm({ ...form, adaptive: e.target.checked })}
+                  className="mt-0.5 shrink-0"
+                />
+                <span className="text-sm text-white/70">{t('settings.appleAdaptiveLabel')}</span>
+              </label>
+              <div className="text-xs text-white/40">{t('settings.appleSettingsHelp')}</div>
+              <Button type="submit" disabled={busy}>
+                {t('settings.saveAppleSettings')}
+              </Button>
+            </form>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

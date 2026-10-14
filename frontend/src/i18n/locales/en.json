@@ -249,7 +249,9 @@
     "backfillAlbums": "Album {{done}} of {{total}} · {{calls}} Apple requests",
     "backfillWaitingApple": "Paused: Apple is rate limiting this server. Resumes automatically in about {{time}}.",
     "timeMinutes": "{{count}} min",
-    "timeSeconds": "{{count}} s"
+    "timeSeconds": "{{count}} s",
+    "appleLimitLabel": "Limit Apple Music requests",
+    "appleLimitHelp": "Spaces out requests to avoid rate limits. Turn off to send them as fast as they come."
   },
   "album": {
     "loadError": "Failed to load",

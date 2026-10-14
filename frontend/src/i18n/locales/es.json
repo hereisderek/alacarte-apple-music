@@ -249,7 +249,9 @@
     "backfillAlbums": "Álbum {{done}} de {{total}} · {{calls}} solicitudes a Apple",
     "backfillWaitingApple": "En pausa: Apple está limitando este servidor. Se reanuda automáticamente en unos {{time}}.",
     "timeMinutes": "{{count}} min",
-    "timeSeconds": "{{count}} s"
+    "timeSeconds": "{{count}} s",
+    "appleLimitLabel": "Limitar solicitudes a Apple Music",
+    "appleLimitHelp": "Espacia las solicitudes para evitar límites de uso. Desactívalo para enviarlas sin restricciones."
   },
   "album": {
     "loadError": "Error al cargar",
