@@ -9,6 +9,8 @@ import path from 'node:path'
 //  - lanes: interactive (UI), batch (importer, integration API, download jobs) and
 //    background (schedulers, backfills, lookups nobody is waiting for). Interactive goes
 //    first, batch is guaranteed a share, background only uses what is left.
+//  - direct: lookups a client is waiting on (integration API) skip the queue and the
+//    pacing, but still fail locally during a cooldown.
 //  - one adaptive gap between dispatches: it shrinks a little after a long run of
 //    successes and doubles on a 429, and never drops below a floor learned from the
 //    429s seen so far.
@@ -198,8 +200,9 @@ export function createGateway({
   }
 
   function schedule(task, { lane = 'background', path: requestPath = '' } = {}) {
-    if (!LANES.includes(lane)) lane = 'background'
     if (inCooldown()) return Promise.reject(limitedError(requestPath))
+    if (lane === 'direct') return Promise.resolve().then(task)
+    if (!LANES.includes(lane)) lane = 'background'
     return new Promise((resolve, reject) => {
       const entry = { task, resolve, reject, path: requestPath, timer: null }
       if (lane === 'interactive' && interactiveMaxWaitMs > 0) {

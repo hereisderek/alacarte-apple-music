@@ -181,3 +181,13 @@ test('boot-time configure keeps the adapted pace; a learned floor survives setti
   assert.equal(s.strikes, 0)
   assert.equal(s.intervalMs, 100)
 })
+
+test('direct calls skip the queue and the pacing but not a cooldown', async () => {
+  const gw = createGateway({ intervalMs: 200, minIntervalMs: 200, burst: 1, maxInFlight: 1, cooldownBaseMs: 60_000 })
+  const { runs, task } = recorder()
+  await Promise.all(['a', 'b', 'c', 'd'].map((n) => gw.schedule(task(n), { lane: 'direct' })))
+  assert.equal(runs.length, 4)
+  assert.ok(runs[3].at - runs[0].at < 100, 'no spacing between direct calls')
+  gw.report(429)
+  await assert.rejects(gw.schedule(task('e'), { lane: 'direct' }), AppleRateLimitedError)
+})

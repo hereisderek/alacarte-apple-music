@@ -97,10 +97,10 @@ app.use((req, _res, next) => {
 })
 
 // Every Apple call made while handling a request goes through the Apple gateway in the
-// lane of that request: the octo-fiesta integration is batch work, everything else is a
-// person waiting on the UI. (Schedulers, backfills and download jobs set their own lane.)
+// lane of that request: octo-fiesta lookups are not paced (a search fires per keystroke),
+// everything else is a person waiting on the UI. (Schedulers, backfills and download jobs set their own lane.)
 app.use('/api', (req, _res, next) => {
-  runInLane(/^\/integration\b/.test(req.path) ? 'batch' : 'interactive', next)
+  runInLane(/^\/integration\b/.test(req.path) ? 'direct' : 'interactive', next)
 })
 
 // Auth router is mounted before the guard so /state, /setup, and /login
