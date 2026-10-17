@@ -9,12 +9,14 @@ const { loadCurator, loadRecordLabel } = await import('../lib/browseCatalog.mjs'
 const realFetch = globalThis.fetch
 let appleCalls = []
 let routes = {}
+let lastQuery = ''
 globalThis.fetch = async (url) => {
   const u = String(url)
   if (u === 'https://music.apple.com') return new Response('<script src="/assets/index~a.js"></script>')
   if (u.endsWith('/assets/index~a.js')) return new Response('eyJhaa.eyJbbb.ccc')
   const path = new URL(u).pathname
   appleCalls.push(path)
+  lastQuery = new URL(u).search
   const body = routes[path]
   if (!body) return new Response('{"errors":[]}', { status: 404 })
   return Response.json(body)
@@ -25,10 +27,10 @@ test.after(() => {
 
 const album = (id, extra = {}) => ({ id, type: 'albums', attributes: { name: `A${id}`, artistName: 'X', ...extra } })
 
-test('curator links fall back to apple-curators', async () => {
+test('curator links ask for either curator type in one call', async () => {
   appleCalls = []
   routes = {
-    '/v1/catalog/us/apple-curators/7': {
+    '/v1/catalog/us': {
       data: [{
         id: '7',
         attributes: { name: 'Lost Lands', editorialNotes: { short: 'fest' } },
@@ -37,7 +39,8 @@ test('curator links fall back to apple-curators', async () => {
     },
   }
   const r = await loadCurator({ id: '7', storefront: 'us' })
-  assert.deepEqual(appleCalls, ['/v1/catalog/us/curators/7', '/v1/catalog/us/apple-curators/7'])
+  assert.deepEqual(appleCalls, ['/v1/catalog/us'])
+  assert.match(lastQuery, /ids%5Bcurators%5D=7&ids%5Bapple-curators%5D=7/)
   assert.equal(r.curator.name, 'Lost Lands')
   assert.equal(r.curator.description, 'fest')
   assert.deepEqual(r.playlists.map((p) => p.id), ['pl.a'])

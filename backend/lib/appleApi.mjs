@@ -1,6 +1,5 @@
 import { getBearerToken, invalidateBearerCache } from './appleToken.mjs'
 import { AppleRateLimitedError, appleGateway, currentLane } from './appleGateway.mjs'
-import { isMissingCatalogResource } from './appleErrors.mjs'
 
 const BASE = 'https://amp-api.music.apple.com/v1/catalog'
 
@@ -249,16 +248,10 @@ export async function getPlaylist({ storefront, id, language = 'en-US' }) {
   return apiGet(url, { language })
 }
 
-// curator links cover both curators and apple-curators, so try one then the other
+// curator links cover both curators and apple-curators; one call asks for either
 export async function getCurator({ storefront, id, language = 'en-US' }) {
-  const qs = new URLSearchParams({ include: 'playlists', l: language })
-  const sf = encodeURIComponent(storefront)
-  try {
-    return await apiGet(`${BASE}/${sf}/curators/${encodeURIComponent(id)}?${qs.toString()}`, { language })
-  } catch (err) {
-    if (!isMissingCatalogResource(err)) throw err
-    return apiGet(`${BASE}/${sf}/apple-curators/${encodeURIComponent(id)}?${qs.toString()}`, { language })
-  }
+  const qs = new URLSearchParams({ 'ids[curators]': id, 'ids[apple-curators]': id, include: 'playlists', l: language })
+  return apiGet(`${BASE}/${encodeURIComponent(storefront)}?${qs.toString()}`, { language })
 }
 
 export async function getRecordLabel({ storefront, id, language = 'en-US' }) {
