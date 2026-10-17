@@ -68,3 +68,10 @@ test('label pages the latest releases only when there are more', async () => {
   await loadRecordLabel({ id: '9', storefront: 'us' })
   assert.equal(appleCalls.length, 1)
 })
+
+test('missing catalog resources are told apart from other apple errors', async () => {
+  const { isMissingCatalogResource } = await import('../lib/appleErrors.mjs')
+  assert.equal(isMissingCatalogResource(new Error('Apple API 404 on /v1/catalog/us/record-labels/1: ')), true)
+  assert.equal(isMissingCatalogResource({ status: 404 }), true)
+  assert.equal(isMissingCatalogResource(new Error('Apple API 500 on /v1/catalog/us/record-labels/1: ')), false)
+})

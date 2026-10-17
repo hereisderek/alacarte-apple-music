@@ -1,5 +1,6 @@
 import { getBearerToken, invalidateBearerCache } from './appleToken.mjs'
 import { AppleRateLimitedError, appleGateway, currentLane } from './appleGateway.mjs'
+import { isMissingCatalogResource } from './appleErrors.mjs'
 
 const BASE = 'https://amp-api.music.apple.com/v1/catalog'
 
@@ -255,7 +256,7 @@ export async function getCurator({ storefront, id, language = 'en-US' }) {
   try {
     return await apiGet(`${BASE}/${sf}/curators/${encodeURIComponent(id)}?${qs.toString()}`, { language })
   } catch (err) {
-    if (!/^Apple API 404\b/.test(err.message)) throw err
+    if (!isMissingCatalogResource(err)) throw err
     return apiGet(`${BASE}/${sf}/apple-curators/${encodeURIComponent(id)}?${qs.toString()}`, { language })
   }
 }

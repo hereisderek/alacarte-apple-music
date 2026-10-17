@@ -1,6 +1,6 @@
 import express from 'express'
 
-import { sendAppleError } from '../lib/appleErrors.mjs'
+import { isMissingCatalogResource, sendAppleError } from '../lib/appleErrors.mjs'
 import { readSettings } from '../lib/settingsStore.mjs'
 import { loadCurator, loadRecordLabel } from '../lib/browseCatalog.mjs'
 
@@ -21,7 +21,7 @@ function browseRoute(load, what) {
       if (!result) return res.status(404).json({ error: `${what} not found` })
       res.json({ ...result, storefront })
     } catch (err) {
-      if (/^Apple API 404\b/.test(String(err?.message))) {
+      if (isMissingCatalogResource(err)) {
         return res.status(404).json({ error: `${what} not found` })
       }
       sendAppleError(res, err)

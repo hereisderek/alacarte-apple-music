@@ -12,18 +12,12 @@ import {
 import { parseAppleMusicUrl } from '../lib/appleMusicUrl.mjs'
 import { readSettings } from '../lib/settingsStore.mjs'
 import { rememberArtistNames } from '../lib/artistIdCache.mjs'
-import { sendAppleError } from '../lib/appleErrors.mjs'
+import { isMissingCatalogResource, sendAppleError } from '../lib/appleErrors.mjs'
 import { filterAlbumsByRating } from '../lib/contentRatingFilter.mjs'
 
 export const searchRouter = express.Router()
 
 const EMPTY = { albums: [], artists: [], songs: [], playlists: [] }
-
-function isMissingCatalogResource(err) {
-  if (err?.status === 404) return true
-  const msg = String(err?.message || '')
-  return /Apple API 404\b/.test(msg) || /resource not found/i.test(msg)
-}
 
 function sendSearchError(res, err) {
   if (/^Apple API 429\b/.test(String(err?.message))) return sendAppleError(res, err)
