@@ -248,6 +248,33 @@ export async function getPlaylist({ storefront, id, language = 'en-US' }) {
   return apiGet(url, { language })
 }
 
+// curator links cover both curators and apple-curators, so try one then the other
+export async function getCurator({ storefront, id, language = 'en-US' }) {
+  const qs = new URLSearchParams({ include: 'playlists', l: language })
+  const sf = encodeURIComponent(storefront)
+  try {
+    return await apiGet(`${BASE}/${sf}/curators/${encodeURIComponent(id)}?${qs.toString()}`, { language })
+  } catch (err) {
+    if (!/^Apple API 404\b/.test(err.message)) throw err
+    return apiGet(`${BASE}/${sf}/apple-curators/${encodeURIComponent(id)}?${qs.toString()}`, { language })
+  }
+}
+
+export async function getRecordLabel({ storefront, id, language = 'en-US' }) {
+  const base = `${BASE}/${encodeURIComponent(storefront)}/record-labels/${encodeURIComponent(id)}`
+  const qs = new URLSearchParams({ views: 'latest-releases,top-releases', l: language })
+  const raw = await apiGet(`${base}?${qs.toString()}`, { language })
+  const latest = raw?.data?.[0]?.views?.['latest-releases']
+  if (latest?.next) {
+    const more = await apiGet(
+      `${base}/view/latest-releases?${new URLSearchParams({ limit: '100', l: language }).toString()}`,
+      { language },
+    )
+    latest.data = more?.data || latest.data
+  }
+  return raw
+}
+
 const PLAYLIST_TRACKS_PAGE_SIZE = 100
 
 export async function fetchCatalogPlaylistTracksPage({

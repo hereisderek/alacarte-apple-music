@@ -695,5 +695,11 @@
     "description": "Apple Digital Master: 고해상도 마스터를 기반으로 Apple 사양에 맞게 마스터링됨",
     "ariaLabel": "Apple Digital Master",
     "label": "ADM"
+  },
+  "browse": {
+    "curatorLabel": "큐레이터",
+    "labelLabel": "레이블",
+    "latestReleases": "최신 발매",
+    "topReleases": "인기 발매"
   }
 }

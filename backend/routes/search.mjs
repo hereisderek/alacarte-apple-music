@@ -196,6 +196,14 @@ async function resolveAppleMusicLink(parsed, { storefront, language, explicitFil
     }
   }
 
+  if (parsed.kind === 'curator' || parsed.kind === 'label') {
+    return {
+      ...EMPTY,
+      storefront: sf,
+      redirect: `/${parsed.kind}/${encodeURIComponent(parsed.id)}`,
+    }
+  }
+
   const err = new Error('unsupported Apple Music link')
   err.status = 400
   throw err

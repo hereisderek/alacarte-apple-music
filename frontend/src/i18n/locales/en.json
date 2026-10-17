@@ -696,5 +696,11 @@
     "description": "Apple Digital Master: mastered to Apple's spec from a high-resolution master",
     "ariaLabel": "Apple Digital Master",
     "label": "ADM"
+  },
+  "browse": {
+    "curatorLabel": "Curator",
+    "labelLabel": "Label",
+    "latestReleases": "Latest releases",
+    "topReleases": "Top releases"
   }
 }

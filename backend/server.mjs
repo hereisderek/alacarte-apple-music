@@ -10,6 +10,7 @@ import { settingsRouter } from './routes/settings.mjs'
 import { searchRouter } from './routes/search.mjs'
 import { albumRouter } from './routes/album.mjs'
 import { artistRouter } from './routes/artist.mjs'
+import { curatorRouter, labelRouter } from './routes/browse.mjs'
 import { downloadRouter } from './routes/download.mjs'
 import { queueRouter } from './routes/queue.mjs'
 import { eventsRouter } from './routes/events.mjs'
@@ -113,6 +114,8 @@ app.use('/api/settings', settingsRouter)
 app.use('/api/search', searchRouter)
 app.use('/api/album', albumRouter)
 app.use('/api/artist', artistRouter)
+app.use('/api/curator', curatorRouter)
+app.use('/api/label', labelRouter)
 app.use('/api/download', downloadRouter)
 app.use('/api/queue', queueRouter)
 app.use('/api/events', eventsRouter)

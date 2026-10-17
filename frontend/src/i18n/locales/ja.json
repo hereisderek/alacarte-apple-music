@@ -695,5 +695,11 @@
     "description": "Apple Digital Master：ハイレゾマスターから Apple の仕様に基づいてマスタリング",
     "ariaLabel": "Apple Digital Master",
     "label": "ADM"
+  },
+  "browse": {
+    "curatorLabel": "キュレーター",
+    "labelLabel": "レーベル",
+    "latestReleases": "最新リリース",
+    "topReleases": "人気リリース"
   }
 }

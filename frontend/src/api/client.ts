@@ -47,6 +47,15 @@ export type Playlist = {
   description?: string
 }
 
+export type BrowseHeader = {
+  id: string
+  name: string
+  description?: string
+  url?: string
+  artworkTemplate?: string | null
+  artworkColor?: string | null
+}
+
 export type PlaylistTrack = {
   id: string
   name: string
@@ -668,6 +677,17 @@ export const api = {
       albums: Album[]
       storefront: string
     }>(`/api/artist/${encodeURIComponent(id)}`),
+  curator: (id: string) =>
+    http<{ curator: BrowseHeader; playlists: Playlist[]; storefront: string }>(
+      `/api/curator/${encodeURIComponent(id)}`,
+    ),
+  label: (id: string) =>
+    http<{
+      label: BrowseHeader
+      latestReleases: Album[]
+      topReleases: Album[]
+      storefront: string
+    }>(`/api/label/${encodeURIComponent(id)}`),
   playlist: (id: string) =>
     http<{ playlist: PlaylistDetail; storefront: string }>(
       `/api/playlist/${encodeURIComponent(id)}`,

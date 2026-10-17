@@ -695,5 +695,11 @@
     "description": "Apple Digital Master：根据 Apple 规格由高解析度母带制作",
     "ariaLabel": "Apple Digital Master",
     "label": "ADM"
+  },
+  "browse": {
+    "curatorLabel": "策展人",
+    "labelLabel": "厂牌",
+    "latestReleases": "最新发行",
+    "topReleases": "热门发行"
   }
 }
