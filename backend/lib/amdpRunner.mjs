@@ -60,6 +60,9 @@ export async function writeAmdpConfig({
     'get-m3u8-mode': 'hires',
     'aac-type': 'aac-lc',
     'alac-max': 192000,
+    // Some ALAC escape frames lack the END tag and ffmpeg drops them, cutting
+    // out audio in the m4a and the converted flac (#37).
+    'alac-fix': true,
     'atmos-max': 2768,
     'limit-max': 200,
     'album-folder-format': '{AlbumName}',
