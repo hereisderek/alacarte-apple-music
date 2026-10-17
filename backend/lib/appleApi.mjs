@@ -249,16 +249,23 @@ export async function getPlaylist({ storefront, id, language = 'en-US' }) {
 }
 
 // Later pages of a list by offset, until a short page or maxItems. Apple's next
-// links can't be relied on: some lists leave them out at limit 100.
+// links can't be relied on: some lists leave them out at limit 100. A page that
+// fails ends the list there, so the pages already read still show.
 async function fetchRestOfList(path, { from, limit, maxItems, language, params = {} }) {
   const items = []
   for (let offset = from; offset < maxItems; offset += limit) {
     const qs = new URLSearchParams({ ...params, offset: String(offset), limit: String(limit), l: language })
-    const data = (await apiGet(`${path}?${qs.toString()}`, { language }))?.data || []
+    let data
+    try {
+      data = (await apiGet(`${path}?${qs.toString()}`, { language }))?.data || []
+    } catch (err) {
+      console.warn(`[apple] ${new URL(path).pathname} stopped at ${offset}: ${err.message}`)
+      return { items, complete: false }
+    }
     items.push(...data)
     if (data.length < limit) break
   }
-  return items
+  return { items, complete: true }
 }
 
 const CURATOR_MAX_PLAYLISTS = 500
@@ -271,12 +278,14 @@ export async function getCurator({ storefront, id, language = 'en-US' }) {
   const playlists = raw?.data?.[0]?.relationships?.playlists
   if (playlists?.next) {
     const item = raw.data[0]
-    playlists.data.push(...(await fetchRestOfList(`${BASE}/${sf}/${item.type}/${encodeURIComponent(item.id)}/playlists`, {
+    const rest = await fetchRestOfList(`${BASE}/${sf}/${item.type}/${encodeURIComponent(item.id)}/playlists`, {
       from: playlists.data.length,
       limit: 25,
       maxItems: CURATOR_MAX_PLAYLISTS,
       language,
-    })))
+    })
+    playlists.data.push(...rest.items)
+    if (!rest.complete) raw.partial = true
   }
   return raw
 }
@@ -290,13 +299,15 @@ export async function getRecordLabel({ storefront, id, language = 'en-US' }) {
   for (const [name, maxItems] of Object.entries(LABEL_MAX_RELEASES)) {
     const view = raw?.data?.[0]?.views?.[name]
     if (!view?.next) continue
-    view.data.push(...(await fetchRestOfList(`${base}/view/${name}`, {
+    const rest = await fetchRestOfList(`${base}/view/${name}`, {
       from: view.data.length,
       limit: 100,
       maxItems,
       language,
       params: { 'include[albums]': 'artists' },
-    })))
+    })
+    view.data.push(...rest.items)
+    if (!rest.complete) raw.partial = true
   }
   return raw
 }

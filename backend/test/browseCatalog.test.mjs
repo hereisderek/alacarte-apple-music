@@ -134,3 +134,22 @@ test('a label with hundreds of releases is paged to the end', async () => {
   assert.equal(appleCalls.filter((p) => p.endsWith('latest-releases')).length, 3)
   assert.equal(appleCalls.filter((p) => p.endsWith('top-releases')).length, 2)
 })
+
+test('a label page whose later pages fail still shows the releases it has', async () => {
+  appleCalls = []
+  routes = {
+    '/v1/catalog/us/record-labels/6': {
+      data: [{
+        id: '6',
+        attributes: { name: 'Flaky' },
+        views: {
+          'latest-releases': { data: [album('1'), album('2')], next: '/v1/catalog/us/record-labels/6/view/latest-releases?offset=2' },
+          'top-releases': { data: [album('3')], next: '/v1/catalog/us/record-labels/6/view/top-releases?offset=1' },
+        },
+      }],
+    },
+  }
+  const r = await loadRecordLabel({ id: '6', storefront: 'us' })
+  assert.deepEqual(r.latestReleases.map((a) => a.id), ['1', '2'])
+  assert.deepEqual(r.topReleases.map((a) => a.id), ['3'])
+})
