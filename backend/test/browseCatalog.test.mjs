@@ -76,13 +76,13 @@ test('label pages the latest releases only when there are more', async () => {
         id: '9',
         attributes: { name: 'NSD' },
         views: {
-          'latest-releases': { data: [album('1')], next: '/v1/catalog/us/record-labels/9/view/latest-releases?offset=10' },
+          'latest-releases': { data: [{ ...album('1'), relationships: { artists: { data: [{ id: '55', attributes: { name: 'X' } }] } } }], next: '/v1/catalog/us/record-labels/9/view/latest-releases?offset=10' },
           'top-releases': { data: [album('2'), album('2'), album('3', { name: 'A2', contentRating: 'explicit' })] },
         },
       }],
     },
     '/v1/catalog/us/record-labels/9/view/latest-releases': {
-      data: [{ ...album('1'), relationships: { artists: { data: [{ id: '55', attributes: { name: 'X' } }] } } }, album('4')],
+      data: [album('1'), album('4')],
     },
   }
   const r = await loadRecordLabel({ id: '9', storefront: 'us', explicitFilter: 'clean' })
@@ -102,4 +102,35 @@ test('missing catalog resources are told apart from other apple errors', async (
   assert.equal(isMissingCatalogResource(new Error('Apple API 404 on /v1/catalog/us/record-labels/1: ')), true)
   assert.equal(isMissingCatalogResource({ status: 404 }), true)
   assert.equal(isMissingCatalogResource(new Error('Apple API 500 on /v1/catalog/us/record-labels/1: ')), false)
+})
+
+test('a label with hundreds of releases is paged to the end', async () => {
+  appleCalls = []
+  const range = (a, b) => Array.from({ length: b - a }, (_, i) => album(String(a + i)))
+  routes = {
+    '/v1/catalog/us/record-labels/5': {
+      data: [{
+        id: '5',
+        attributes: { name: 'Big' },
+        views: {
+          'latest-releases': { data: range(0, 10), next: '/v1/catalog/us/record-labels/5/view/latest-releases?offset=10' },
+          'top-releases': { data: range(0, 10), next: '/v1/catalog/us/record-labels/5/view/top-releases?offset=10' },
+        },
+      }],
+    },
+  }
+  const total = 296
+  routes['/v1/catalog/us/record-labels/5/view/latest-releases'] = () => {
+    const off = Number(new URL(lastUrl).searchParams.get('offset'))
+    return { data: range(off, Math.min(off + 100, total)) }
+  }
+  routes['/v1/catalog/us/record-labels/5/view/top-releases'] = () => {
+    const off = Number(new URL(lastUrl).searchParams.get('offset'))
+    return { data: range(off, Math.min(off + 100, 150)) }
+  }
+  const r = await loadRecordLabel({ id: '5', storefront: 'us', explicitFilter: 'both' })
+  assert.equal(r.latestReleases.length, total)
+  assert.equal(r.topReleases.length, 150)
+  assert.equal(appleCalls.filter((p) => p.endsWith('latest-releases')).length, 3)
+  assert.equal(appleCalls.filter((p) => p.endsWith('top-releases')).length, 2)
 })

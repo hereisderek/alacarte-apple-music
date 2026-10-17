@@ -281,17 +281,22 @@ export async function getCurator({ storefront, id, language = 'en-US' }) {
   return raw
 }
 
+const LABEL_MAX_RELEASES = { 'latest-releases': 500, 'top-releases': 500 }
+
 export async function getRecordLabel({ storefront, id, language = 'en-US' }) {
   const base = `${BASE}/${encodeURIComponent(storefront)}/record-labels/${encodeURIComponent(id)}`
   const qs = new URLSearchParams({ views: 'latest-releases,top-releases', 'include[albums]': 'artists', l: language })
   const raw = await apiGet(`${base}?${qs.toString()}`, { language })
-  const latest = raw?.data?.[0]?.views?.['latest-releases']
-  if (latest?.next) {
-    const more = await apiGet(
-      `${base}/view/latest-releases?${new URLSearchParams({ limit: '100', 'include[albums]': 'artists', l: language }).toString()}`,
-      { language },
-    )
-    latest.data = more?.data || latest.data
+  for (const [name, maxItems] of Object.entries(LABEL_MAX_RELEASES)) {
+    const view = raw?.data?.[0]?.views?.[name]
+    if (!view?.next) continue
+    view.data.push(...(await fetchRestOfList(`${base}/view/${name}`, {
+      from: view.data.length,
+      limit: 100,
+      maxItems,
+      language,
+      params: { 'include[albums]': 'artists' },
+    })))
   }
   return raw
 }
