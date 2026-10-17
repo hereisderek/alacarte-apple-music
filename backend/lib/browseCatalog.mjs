@@ -7,13 +7,14 @@ import {
   playlistFromNormalized,
 } from './appleApi.mjs'
 import { filterAlbumsByRating } from './contentRatingFilter.mjs'
+import { decodeEntities } from './ttmlLrc.mjs'
 
 function header(item, description) {
   const a = item.attributes || {}
   return {
     id: item.id,
     name: a.name,
-    description: String(description || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(),
+    description: decodeEntities(String(description || '').replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim(),
     url: a.url,
     artworkTemplate: a.artwork?.url || null,
     artworkColor: a.artwork?.bgColor || null,

@@ -9,7 +9,7 @@ function parseTtmlTime(value) {
   return parts.reduce((acc, n) => acc * 60 + n, 0)
 }
 
-function decodeEntities(s) {
+export function decodeEntities(s) {
   return s
     .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
     .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))

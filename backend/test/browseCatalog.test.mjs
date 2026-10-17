@@ -35,7 +35,7 @@ test('curator links ask for either curator type in one call', async () => {
     '/v1/catalog/us': {
       data: [{
         id: '7',
-        attributes: { name: 'Lost Lands', editorialNotes: { short: 'fest' } },
+        attributes: { name: 'Lost Lands', editorialNotes: { short: 'Drum &amp; Bass<br/>fest &#8212; &lt;3' } },
         relationships: { playlists: { data: [{ id: 'pl.a', type: 'playlists', attributes: { name: 'P' } }] } },
       }],
     },
@@ -44,7 +44,7 @@ test('curator links ask for either curator type in one call', async () => {
   assert.deepEqual(appleCalls, ['/v1/catalog/us'])
   assert.match(lastQuery, /ids%5Bcurators%5D=7&ids%5Bapple-curators%5D=7/)
   assert.equal(r.curator.name, 'Lost Lands')
-  assert.equal(r.curator.description, 'fest')
+  assert.equal(r.curator.description, 'Drum & Bass fest \u2014 <3')
   assert.deepEqual(r.playlists.map((p) => p.id), ['pl.a'])
 })
 
