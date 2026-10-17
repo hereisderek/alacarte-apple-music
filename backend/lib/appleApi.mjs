@@ -248,10 +248,37 @@ export async function getPlaylist({ storefront, id, language = 'en-US' }) {
   return apiGet(url, { language })
 }
 
+// Later pages of a list by offset, until a short page or maxItems. Apple's next
+// links can't be relied on: some lists leave them out at limit 100.
+async function fetchRestOfList(path, { from, limit, maxItems, language, params = {} }) {
+  const items = []
+  for (let offset = from; offset < maxItems; offset += limit) {
+    const qs = new URLSearchParams({ ...params, offset: String(offset), limit: String(limit), l: language })
+    const data = (await apiGet(`${path}?${qs.toString()}`, { language }))?.data || []
+    items.push(...data)
+    if (data.length < limit) break
+  }
+  return items
+}
+
+const CURATOR_MAX_PLAYLISTS = 500
+
 // curator links cover both curators and apple-curators; one call asks for either
 export async function getCurator({ storefront, id, language = 'en-US' }) {
+  const sf = encodeURIComponent(storefront)
   const qs = new URLSearchParams({ 'ids[curators]': id, 'ids[apple-curators]': id, include: 'playlists', l: language })
-  return apiGet(`${BASE}/${encodeURIComponent(storefront)}?${qs.toString()}`, { language })
+  const raw = await apiGet(`${BASE}/${sf}?${qs.toString()}`, { language })
+  const playlists = raw?.data?.[0]?.relationships?.playlists
+  if (playlists?.next) {
+    const item = raw.data[0]
+    playlists.data.push(...(await fetchRestOfList(`${BASE}/${sf}/${item.type}/${encodeURIComponent(item.id)}/playlists`, {
+      from: playlists.data.length,
+      limit: 25,
+      maxItems: CURATOR_MAX_PLAYLISTS,
+      language,
+    })))
+  }
+  return raw
 }
 
 export async function getRecordLabel({ storefront, id, language = 'en-US' }) {

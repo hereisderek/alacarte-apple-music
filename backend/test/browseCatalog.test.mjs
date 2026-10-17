@@ -10,6 +10,7 @@ const realFetch = globalThis.fetch
 let appleCalls = []
 let routes = {}
 let lastQuery = ''
+let lastUrl = ''
 globalThis.fetch = async (url) => {
   const u = String(url)
   if (u === 'https://music.apple.com') return new Response('<script src="/assets/index~a.js"></script>')
@@ -17,7 +18,8 @@ globalThis.fetch = async (url) => {
   const path = new URL(u).pathname
   appleCalls.push(path)
   lastQuery = new URL(u).search
-  const body = routes[path]
+  lastUrl = u
+  const body = typeof routes[path] === 'function' ? routes[path]() : routes[path]
   if (!body) return new Response('{"errors":[]}', { status: 404 })
   return Response.json(body)
 }
@@ -44,6 +46,26 @@ test('curator links ask for either curator type in one call', async () => {
   assert.equal(r.curator.name, 'Lost Lands')
   assert.equal(r.curator.description, 'fest')
   assert.deepEqual(r.playlists.map((p) => p.id), ['pl.a'])
+})
+
+test('a curator with more playlists than the first page shows all of them', async () => {
+  appleCalls = []
+  const pl = (n) => ({ id: `pl.${n}`, type: 'playlists', attributes: { name: `P${n}` } })
+  const range = (a, b) => Array.from({ length: b - a }, (_, i) => pl(a + i))
+  routes = {
+    '/v1/catalog/us': {
+      data: [{
+        id: '8', type: 'apple-curators', attributes: { name: 'Hits' },
+        relationships: { playlists: { data: range(0, 10), next: '/v1/catalog/us/apple-curators/8/playlists?offset=10' } },
+      }],
+    },
+  }
+  const pages = { 10: range(10, 35), 35: range(35, 41) }
+  routes['/v1/catalog/us/apple-curators/8/playlists'] = () => ({ data: pages[new URL(lastUrl).searchParams.get('offset')] })
+  const r = await loadCurator({ id: '8', storefront: 'us' })
+  assert.equal(r.playlists.length, 41)
+  assert.equal(new Set(r.playlists.map((p) => p.id)).size, 41)
+  assert.equal(appleCalls.length, 3)
 })
 
 test('label pages the latest releases only when there are more', async () => {
