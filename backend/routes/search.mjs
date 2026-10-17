@@ -89,7 +89,7 @@ function mapPlaylist(x) {
   }
 }
 
-async function resolveAppleMusicLink(parsed, { storefront, language, explicitFilter }) {
+export async function resolveAppleMusicLink(parsed, { storefront, language, explicitFilter }) {
   const sf = parsed.storefront || storefront
   if (parsed.kind === 'album') {
     const raw = await getAlbum({ storefront: sf, id: parsed.id, language })
@@ -161,7 +161,8 @@ async function resolveAppleMusicLink(parsed, { storefront, language, explicitFil
     return {
       ...EMPTY,
       storefront: sf,
-      redirect: `/${parsed.kind}/${encodeURIComponent(parsed.id)}`,
+      // the page loads in the link's storefront, which may not be the settings one
+      redirect: `/${parsed.kind}/${encodeURIComponent(parsed.id)}${parsed.storefront ? `?storefront=${encodeURIComponent(sf)}` : ''}`,
     }
   }
 

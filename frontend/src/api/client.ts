@@ -677,17 +677,17 @@ export const api = {
       albums: Album[]
       storefront: string
     }>(`/api/artist/${encodeURIComponent(id)}`),
-  curator: (id: string) =>
+  curator: (id: string, storefront?: string | null) =>
     http<{ curator: BrowseHeader; playlists: Playlist[]; storefront: string }>(
-      `/api/curator/${encodeURIComponent(id)}`,
+      `/api/curator/${encodeURIComponent(id)}${storefront ? `?storefront=${encodeURIComponent(storefront)}` : ''}`,
     ),
-  label: (id: string) =>
+  label: (id: string, storefront?: string | null) =>
     http<{
       label: BrowseHeader
       latestReleases: Album[]
       topReleases: Album[]
       storefront: string
-    }>(`/api/label/${encodeURIComponent(id)}`),
+    }>(`/api/label/${encodeURIComponent(id)}${storefront ? `?storefront=${encodeURIComponent(storefront)}` : ''}`),
   playlist: (id: string) =>
     http<{ playlist: PlaylistDetail; storefront: string }>(
       `/api/playlist/${encodeURIComponent(id)}`,

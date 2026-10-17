@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { ListChecks, X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
@@ -22,8 +22,12 @@ import { useLibraryPresence } from "../hooks/useLibraryPresence";
 const GRID =
     "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4";
 
-function useBrowse<T>(id: string | undefined, load: (id: string) => Promise<T>) {
+function useBrowse<T>(
+    id: string | undefined,
+    load: (id: string, storefront: string | null) => Promise<T>,
+) {
     const { t } = useTranslation();
+    const storefront = useSearchParams()[0].get("storefront");
     const [data, setData] = useState<T | null>(null);
     const [error, setError] = useState<string | null>(null);
     useEffect(() => {
@@ -31,7 +35,7 @@ function useBrowse<T>(id: string | undefined, load: (id: string) => Promise<T>) 
         let cancelled = false;
         setData(null);
         setError(null);
-        load(id)
+        load(id, storefront)
             .then((r) => {
                 if (!cancelled) setData(r);
             })
@@ -41,7 +45,7 @@ function useBrowse<T>(id: string | undefined, load: (id: string) => Promise<T>) 
         return () => {
             cancelled = true;
         };
-    }, [id]);
+    }, [id, storefront]);
     return { data, error };
 }
 

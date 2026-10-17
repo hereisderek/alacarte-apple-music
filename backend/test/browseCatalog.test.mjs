@@ -153,3 +153,15 @@ test('a label page whose later pages fail still shows the releases it has', asyn
   assert.deepEqual(r.latestReleases.map((a) => a.id), ['1', '2'])
   assert.deepEqual(r.topReleases.map((a) => a.id), ['3'])
 })
+
+test('pasted curator and label links keep their storefront', async () => {
+  const { resolveAppleMusicLink } = await import('../routes/search.mjs')
+  const { parseAppleMusicUrl } = await import('../lib/appleMusicUrl.mjs')
+  appleCalls = []
+  const opts = { storefront: 'us', language: 'en-US', explicitFilter: 'explicit' }
+  const jp = await resolveAppleMusicLink(parseAppleMusicUrl('https://music.apple.com/jp/label/x/1571161766'), opts)
+  assert.equal(jp.redirect, '/label/1571161766?storefront=jp')
+  const bare = await resolveAppleMusicLink(parseAppleMusicUrl('https://music.apple.com/curator/x/1607171756'), opts)
+  assert.equal(bare.redirect, '/curator/1607171756')
+  assert.equal(appleCalls.length, 0)
+})
