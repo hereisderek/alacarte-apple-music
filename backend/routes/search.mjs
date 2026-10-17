@@ -8,6 +8,8 @@ import {
   normalizeAlbum,
   normalizePlaylist,
   searchCatalog,
+  albumFromNormalized,
+  playlistFromNormalized,
 } from '../lib/appleApi.mjs'
 import { parseAppleMusicUrl } from '../lib/appleMusicUrl.mjs'
 import { readSettings } from '../lib/settingsStore.mjs'
@@ -84,41 +86,6 @@ function mapPlaylist(x) {
     artworkColor: x.attributes?.artwork?.bgColor || null,
     url: x.attributes?.url,
     description: x.attributes?.description?.standard || '',
-  }
-}
-
-function albumFromNormalized(album) {
-  if (!album) return null
-  return {
-    id: album.id,
-    type: album.type,
-    name: album.name,
-    artistName: album.artistName,
-    artistId: album.artistId,
-    releaseDate: album.releaseDate,
-    year: album.year,
-    trackCount: album.trackCount,
-    isSingle: album.isSingle,
-    contentRating: album.contentRating,
-    artworkTemplate: album.artworkTemplate,
-    artworkColor: album.artworkColor,
-    url: album.url,
-    upc: album.upc || null,
-  }
-}
-
-function playlistFromNormalized(playlist) {
-  if (!playlist) return null
-  return {
-    id: playlist.id,
-    type: playlist.type,
-    name: playlist.name,
-    curatorName: playlist.curatorName || 'Apple Music',
-    trackCount: playlist.trackCount,
-    artworkTemplate: playlist.artworkTemplate,
-    artworkColor: playlist.artworkColor,
-    url: playlist.url,
-    description: playlist.description || '',
   }
 }
 

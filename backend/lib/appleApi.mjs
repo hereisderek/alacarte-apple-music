@@ -263,12 +263,12 @@ export async function getCurator({ storefront, id, language = 'en-US' }) {
 
 export async function getRecordLabel({ storefront, id, language = 'en-US' }) {
   const base = `${BASE}/${encodeURIComponent(storefront)}/record-labels/${encodeURIComponent(id)}`
-  const qs = new URLSearchParams({ views: 'latest-releases,top-releases', l: language })
+  const qs = new URLSearchParams({ views: 'latest-releases,top-releases', 'include[albums]': 'artists', l: language })
   const raw = await apiGet(`${base}?${qs.toString()}`, { language })
   const latest = raw?.data?.[0]?.views?.['latest-releases']
   if (latest?.next) {
     const more = await apiGet(
-      `${base}/view/latest-releases?${new URLSearchParams({ limit: '100', l: language }).toString()}`,
+      `${base}/view/latest-releases?${new URLSearchParams({ limit: '100', 'include[albums]': 'artists', l: language }).toString()}`,
       { language },
     )
     latest.data = more?.data || latest.data
@@ -436,6 +436,42 @@ export function normalizePlaylist(raw) {
         a.audioTraits?.includes?.('spatial'),
     ),
     tracks,
+  }
+}
+
+// The card shape search and browse pages hand the client.
+export function albumFromNormalized(album) {
+  if (!album) return null
+  return {
+    id: album.id,
+    type: album.type,
+    name: album.name,
+    artistName: album.artistName,
+    artistId: album.artistId,
+    releaseDate: album.releaseDate,
+    year: album.year,
+    trackCount: album.trackCount,
+    isSingle: album.isSingle,
+    contentRating: album.contentRating,
+    artworkTemplate: album.artworkTemplate,
+    artworkColor: album.artworkColor,
+    url: album.url,
+    upc: album.upc || null,
+  }
+}
+
+export function playlistFromNormalized(playlist) {
+  if (!playlist) return null
+  return {
+    id: playlist.id,
+    type: playlist.type,
+    name: playlist.name,
+    curatorName: playlist.curatorName || 'Apple Music',
+    trackCount: playlist.trackCount,
+    artworkTemplate: playlist.artworkTemplate,
+    artworkColor: playlist.artworkColor,
+    url: playlist.url,
+    description: playlist.description || '',
   }
 }
 

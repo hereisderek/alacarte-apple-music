@@ -1,40 +1,12 @@
-import { getCurator, getRecordLabel } from './appleApi.mjs'
+import {
+  albumFromNormalized,
+  getCurator,
+  getRecordLabel,
+  normalizeAlbum,
+  normalizePlaylist,
+  playlistFromNormalized,
+} from './appleApi.mjs'
 import { filterAlbumsByRating } from './contentRatingFilter.mjs'
-
-function mapAlbum(item) {
-  const a = item.attributes || {}
-  return {
-    id: item.id,
-    type: item.type,
-    name: a.name,
-    artistId: null,
-    artistName: a.artistName,
-    releaseDate: a.releaseDate,
-    year: a.releaseDate ? String(a.releaseDate).slice(0, 4) : null,
-    trackCount: a.trackCount,
-    artworkTemplate: a.artwork?.url || null,
-    artworkColor: a.artwork?.bgColor || null,
-    isSingle: a.isSingle,
-    contentRating: a.contentRating,
-    url: a.url,
-    upc: a.upc || null,
-  }
-}
-
-function mapPlaylist(item) {
-  const a = item.attributes || {}
-  return {
-    id: item.id,
-    type: item.type,
-    name: a.name,
-    curatorName: a.curatorName || 'Apple Music',
-    trackCount: a.trackCount,
-    artworkTemplate: a.artwork?.url || null,
-    artworkColor: a.artwork?.bgColor || null,
-    url: a.url,
-    description: a.description?.standard || '',
-  }
-}
 
 function header(item, description) {
   const a = item.attributes || {}
@@ -57,7 +29,7 @@ export async function loadCurator({ id, storefront, language }) {
     curator: header(item, notes?.standard || notes?.short),
     playlists: (item.relationships?.playlists?.data || [])
       .filter((p) => p.attributes)
-      .map(mapPlaylist),
+      .map((p) => playlistFromNormalized(normalizePlaylist(p))),
   }
 }
 
@@ -69,7 +41,7 @@ export async function loadRecordLabel({ id, storefront, language, explicitFilter
     const seen = new Set()
     const albums = (item.views?.[name]?.data || [])
       .filter((x) => x.attributes && !seen.has(x.id) && seen.add(x.id))
-      .map(mapAlbum)
+      .map((x) => albumFromNormalized(normalizeAlbum(x)))
     return filterAlbumsByRating(albums, explicitFilter || 'explicit')
   }
   return {

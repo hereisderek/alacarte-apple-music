@@ -56,11 +56,14 @@ test('label pages the latest releases only when there are more', async () => {
         },
       }],
     },
-    '/v1/catalog/us/record-labels/9/view/latest-releases': { data: [album('1'), album('4')] },
+    '/v1/catalog/us/record-labels/9/view/latest-releases': {
+      data: [{ ...album('1'), relationships: { artists: { data: [{ id: '55', attributes: { name: 'X' } }] } } }, album('4')],
+    },
   }
   const r = await loadRecordLabel({ id: '9', storefront: 'us', explicitFilter: 'clean' })
   assert.equal(appleCalls.length, 2)
   assert.deepEqual(r.latestReleases.map((a) => a.id), ['1', '4'])
+  assert.equal(r.latestReleases[0].artistId, '55', 'label albums keep their artist link')
   assert.deepEqual(r.topReleases.map((a) => a.id), ['2'])
 
   appleCalls = []
