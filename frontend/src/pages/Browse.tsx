@@ -45,6 +45,7 @@ function useBrowse<T>(
         return () => {
             cancelled = true;
         };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id, storefront]);
     return { data, error };
 }
