@@ -165,3 +165,23 @@ test('pasted curator and label links keep their storefront', async () => {
   assert.equal(bare.redirect, '/curator/1607171756')
   assert.equal(appleCalls.length, 0)
 })
+
+test('a label album in both views is offered for download once', async () => {
+  appleCalls = []
+  routes = {
+    '/v1/catalog/us/record-labels/4': {
+      data: [{
+        id: '4',
+        attributes: { name: 'Twice' },
+        views: {
+          'latest-releases': { data: [album('c', { name: 'Same', contentRating: 'clean' }), album('n', { name: 'New' })] },
+          'top-releases': { data: [album('e', { name: 'Same', contentRating: 'explicit' }), album('n', { name: 'New' })] },
+        },
+      }],
+    },
+  }
+  const r = await loadRecordLabel({ id: '4', storefront: 'us', explicitFilter: 'explicit' })
+  assert.deepEqual(r.latestReleases.map((a) => a.id), ['c', 'n'])
+  assert.deepEqual(r.topReleases.map((a) => a.id), ['e', 'n'])
+  assert.deepEqual(r.albums.map((a) => a.id).sort(), ['e', 'n'])
+})

@@ -686,6 +686,7 @@ export const api = {
       label: BrowseHeader
       latestReleases: Album[]
       topReleases: Album[]
+      albums: Album[]
       storefront: string
     }>(`/api/label/${encodeURIComponent(id)}${storefront ? `?storefront=${encodeURIComponent(storefront)}` : ''}`),
   playlist: (id: string) =>

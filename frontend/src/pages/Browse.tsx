@@ -126,12 +126,7 @@ export function LabelPage() {
         return () => clearTimeout(timer);
     }, [queuedCount]);
 
-    const albums = useMemo(() => {
-        const seen = new Set<string>();
-        return [...(data?.latestReleases || []), ...(data?.topReleases || [])].filter(
-            (a) => !seen.has(a.id) && Boolean(seen.add(a.id)),
-        );
-    }, [data]);
+    const albums = useMemo(() => data?.albums || [], [data]);
 
     const inLibraryAlbums = useMemo(
         () => Object.fromEntries(albums.map((a) => [a.id, isAlbumInLibrary(a)])),
