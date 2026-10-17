@@ -185,3 +185,24 @@ test('a label album in both views is offered for download once', async () => {
   assert.deepEqual(r.topReleases.map((a) => a.id), ['e', 'n'])
   assert.deepEqual(r.albums.map((a) => a.id).sort(), ['e', 'n'])
 })
+
+test('a page seen lately is served again without apple, a cut short one is not', async () => {
+  routes = {
+    '/v1/catalog/us': { data: [{ id: '3', type: 'curators', attributes: { name: 'Again' } }] },
+    '/v1/catalog/us/record-labels/2': {
+      data: [{ id: '2', attributes: { name: 'Cut' }, views: { 'latest-releases': { data: [album('1')], next: 'x' } } }],
+    },
+  }
+  appleCalls = []
+  await loadCurator({ id: '3', storefront: 'us' })
+  const again = await loadCurator({ id: '3', storefront: 'us' })
+  assert.equal(again.curator.name, 'Again')
+  assert.equal(appleCalls.length, 1)
+  await loadCurator({ id: '3', storefront: 'gb' }).catch(() => {})
+  assert.equal(appleCalls.length, 2, 'another storefront is its own page')
+
+  appleCalls = []
+  await loadRecordLabel({ id: '2', storefront: 'us' })
+  await loadRecordLabel({ id: '2', storefront: 'us' })
+  assert.equal(appleCalls.filter((p) => p.endsWith('/record-labels/2')).length, 2)
+})
