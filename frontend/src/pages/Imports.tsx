@@ -38,14 +38,15 @@ export function ImportsPage() {
     const onFilesChosen = async (
         event: React.ChangeEvent<HTMLInputElement>,
     ) => {
-        const picked = event.target.files;
+        // FileList is live in chromium/webkit: copy before clearing the input
+        const picked = [...(event.target.files ?? [])];
         event.target.value = "";
-        if (!picked || picked.length === 0) return;
+        if (picked.length === 0) return;
         setUploading(true);
         setError(null);
         try {
             const contents = await Promise.all(
-                [...picked].map(async (file) => ({
+                picked.map(async (file) => ({
                     name: file.name,
                     content: await file.text(),
                 })),
