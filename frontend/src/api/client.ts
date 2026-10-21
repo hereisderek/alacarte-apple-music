@@ -163,6 +163,13 @@ export type Job = {
 export type QualityPreference = 'flac' | 'alac' | 'atmos' | 'aac'
 export type QualityGroup = 'lossless' | 'atmos' | 'aac'
 
+export type BulkDownloadResult = {
+  requested: number
+  queued: number
+  skippedExisting: number
+  errors: Array<{ albumId: string; code: string | null; error: string }>
+}
+
 export type ReleaseScope = 'albums' | 'singles_eps' | 'everything'
 
 export type HealthReport = {
@@ -858,6 +865,11 @@ export const api = {
     http<{ job: Job }>('/api/download', {
       method: 'POST',
       body: JSON.stringify({ albumId, quality }),
+    }),
+  enqueueBulk: (albumIds: string[], quality?: QualityPreference) =>
+    http<BulkDownloadResult>('/api/download/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ albumIds, quality }),
     }),
   enqueueSong: (songId: string, albumId?: string | null, storefront?: string, quality?: QualityPreference) =>
     http<{ job: Job }>('/api/download/song', {

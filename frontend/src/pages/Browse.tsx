@@ -118,14 +118,17 @@ export function LabelPage() {
     const { id } = useParams<{ id: string }>();
     const { data, error } = useBrowse(id, api.label);
     const [modalOpen, setModalOpen] = useState(false);
-    const [queuedCount, setQueuedCount] = useState(0);
+    const [queuedStats, setQueuedStats] = useState({ queued: 0, skippedExisting: 0 });
     const { isAlbumInLibrary } = useLibraryPresence();
 
     useEffect(() => {
-        if (!queuedCount) return;
-        const timer = setTimeout(() => setQueuedCount(0), 6000);
+        if (!queuedStats.queued && !queuedStats.skippedExisting) return;
+        const timer = setTimeout(
+            () => setQueuedStats({ queued: 0, skippedExisting: 0 }),
+            6000,
+        );
         return () => clearTimeout(timer);
-    }, [queuedCount]);
+    }, [queuedStats]);
 
     const albums = useMemo(() => data?.albums || [], [data]);
 
@@ -147,7 +150,7 @@ export function LabelPage() {
     return (
         <div className="mx-auto w-full max-w-7xl pt-4 md:pt-6 space-y-4">
             <AnimatePresence>
-                {queuedCount > 0 && (
+                {(queuedStats.queued > 0 || queuedStats.skippedExisting > 0) && (
                     <motion.div
                         key="queued-banner"
                         initial={{ opacity: 0, y: -8, scale: 0.98 }}
@@ -157,17 +160,32 @@ export function LabelPage() {
                         className="flex items-center justify-between gap-3 rounded-app border border-[rgba(var(--accent),0.35)] bg-[rgba(var(--accent),0.10)] px-4 py-2.5 text-sm text-white/90 backdrop-blur-[10px]"
                     >
                         <div>
-                            {t("artist.queuedAlbums", { count: queuedCount })}{" "}
-                            <Link
-                                to="/"
-                                className="font-medium text-[rgb(var(--accent))] underline underline-offset-2 transition-colors hover:text-white"
-                            >
-                                {t("artist.openActivity")}
-                            </Link>
+                            {queuedStats.queued > 0 && (
+                                <>
+                                    {t("artist.queuedAlbums", { count: queuedStats.queued })}
+                                    {queuedStats.skippedExisting > 0 && <span className="text-white/60"> · </span>}
+                                </>
+                            )}
+                            {queuedStats.skippedExisting > 0 && (
+                                <span className="text-white/60">
+                                    {t("cloudLibrary.alreadyInLibrary", { count: queuedStats.skippedExisting })}
+                                </span>
+                            )}
+                            {queuedStats.queued > 0 && (
+                                <>
+                                    {" "}
+                                    <Link
+                                        to="/"
+                                        className="font-medium text-[rgb(var(--accent))] underline underline-offset-2 transition-colors hover:text-white"
+                                    >
+                                        {t("artist.openActivity")}
+                                    </Link>
+                                </>
+                            )}
                         </div>
                         <button
                             type="button"
-                            onClick={() => setQueuedCount(0)}
+                            onClick={() => setQueuedStats({ queued: 0, skippedExisting: 0 })}
                             aria-label={t("artist.dismiss")}
                             className="shrink-0 inline-flex h-[30px] w-[30px] items-center justify-center rounded-full border border-[rgba(var(--accent),0.25)] bg-[rgba(var(--accent),0.08)] text-white/75 transition-[background,border-color,color] duration-[250ms] ease-smooth hover:border-[rgba(var(--accent),0.45)] hover:bg-[rgba(var(--accent),0.18)] hover:text-white"
                         >
@@ -213,7 +231,9 @@ export function LabelPage() {
                 artistName={data?.label.name || t("browse.labelLabel")}
                 albums={albums}
                 inLibraryMap={inLibraryAlbums}
-                onQueued={(n) => setQueuedCount(n)}
+                onQueued={(queued, skippedExisting) =>
+                    setQueuedStats({ queued, skippedExisting })
+                }
             />
         </div>
     );
