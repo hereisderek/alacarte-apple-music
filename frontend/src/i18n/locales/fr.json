@@ -23,7 +23,8 @@
     "settings": "Réglages",
     "signOut": "Se déconnecter",
     "confirmSignOut": "Se déconnecter ?",
-    "cancel": "Annuler"
+    "cancel": "Annuler",
+    "imports": "Imports"
   },
   "topbar": {
     "search": "Rechercher",
@@ -702,5 +703,38 @@
     "labelLabel": "Label",
     "latestReleases": "Dernières sorties",
     "topReleases": "Sorties populaires"
+  },
+  "imports": {
+    "title": "Imports",
+    "subtitle": "Ajoutez un fichier avec des liens Apple Music, un par ligne. alacarte conserve une copie : la resynchronisation rejoue les liens enregistrés, les modifications du fichier nécessitent un nouvel ajout.",
+    "add": "Ajouter des fichiers",
+    "adding": "Ajout…",
+    "resync": "Resynchroniser",
+    "resyncing": "Resynchronisation…",
+    "remove": "Retirer",
+    "empty": "Aucun fichier importé pour le moment.",
+    "loading": "Chargement des imports…",
+    "linkCount_one": "{{count}} lien",
+    "linkCount_other": "{{count}} liens",
+    "countsPlaylists_one": "{{count}} playlist",
+    "countsPlaylists_other": "{{count}} playlists",
+    "countsAlbums_one": "{{count}} album",
+    "countsAlbums_other": "{{count}} albums",
+    "countsSongs_one": "{{count}} chanson",
+    "countsSongs_other": "{{count}} chansons",
+    "countsArtists_one": "{{count}} artiste",
+    "countsArtists_other": "{{count}} artistes",
+    "invalid_one": "{{count}} ligne invalide",
+    "invalid_other": "{{count}} lignes invalides",
+    "queued_one": "{{count}} en file d'attente",
+    "queued_other": "{{count}} en file d'attente",
+    "failed_one": "{{count}} échec",
+    "failed_other": "{{count}} échecs",
+    "lastRun": "Dernier import {{time}}",
+    "waitingFirstRun": "Mise en file d'attente…",
+    "errorLoad": "Échec du chargement des imports",
+    "errorAdd": "Échec de l'import des fichiers",
+    "errorResync": "Échec de la resynchronisation du fichier",
+    "errorRemove": "Échec du retrait du fichier"
   }
 }

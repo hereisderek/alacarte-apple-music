@@ -170,6 +170,26 @@ export type BulkDownloadResult = {
   errors: Array<{ albumId: string; code: string | null; error: string }>
 }
 
+export type ImportFileCounts = {
+  links: number
+  playlists: number
+  albums: number
+  songs: number
+  artists: number
+  invalid: number
+  queued: number
+  skippedExisting: number
+  failed: Array<{ kind: string; id: string; error: string }>
+}
+
+export type ImportedFile = {
+  id: string
+  name: string
+  addedAt: number
+  lastRunAt: number | null
+  counts: ImportFileCounts
+}
+
 export type ReleaseScope = 'albums' | 'singles_eps' | 'everything'
 
 export type HealthReport = {
@@ -798,6 +818,23 @@ export const api = {
       `/api/playlist-following/${encodeURIComponent(id)}/download-missing`,
       { method: 'POST', body: JSON.stringify({ quality }) },
     ),
+  importFiles: () =>
+    http<{ files: ImportedFile[] }>('/api/imports'),
+  importFilesAdd: (
+    files: Array<{ name: string; content: string }>,
+    quality?: QualityPreference | null,
+  ) =>
+    http<{ files: ImportedFile[] }>('/api/imports', {
+      method: 'POST',
+      body: JSON.stringify({ files, quality }),
+    }),
+  importFilesRun: (id: string) =>
+    http<{ file: ImportedFile }>(
+      `/api/imports/${encodeURIComponent(id)}/run`,
+      { method: 'POST' },
+    ),
+  importFilesRemove: (id: string) =>
+    http<{ ok: boolean }>(`/api/imports/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   queue: () => http<{ jobs: Job[]; paused: boolean }>('/api/queue'),
   reorderQueue: (ids: string[]) =>
     http<{ order: string[] }>('/api/queue/order', { method: 'PUT', body: JSON.stringify({ ids }) }),

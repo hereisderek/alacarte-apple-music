@@ -13,6 +13,7 @@ import { CuratorPage, LabelPage } from './pages/Browse'
 import { StatusPage } from './pages/Status'
 import { SettingsPage } from './pages/Settings'
 import { FollowingPage } from './pages/Following'
+import { ImportsPage } from './pages/Imports'
 import { CloudLibraryPage } from './pages/CloudLibrary'
 import { TopBar } from './components/TopBar'
 import { HealthPill, getHealthPillTarget, getHealthPillAriaLabel } from './components/HealthPill'
@@ -178,6 +179,7 @@ function AuthedApp() {
               <Route path="/search" element={<PageWrapper><SearchPage /></PageWrapper>} />
               <Route path="/library" element={<PageWrapper><LibraryPage /></PageWrapper>} />
               <Route path="/following" element={<PageWrapper><FollowingPage /></PageWrapper>} />
+              <Route path="/imports" element={<PageWrapper><ImportsPage /></PageWrapper>} />
               <Route path="/cloud-library" element={<PageWrapper><CloudLibraryPage /></PageWrapper>} />
               <Route path="/album/:id" element={<PageWrapper><AlbumPage /></PageWrapper>} />
               <Route path="/artist/:id" element={<PageWrapper><ArtistPage /></PageWrapper>} />

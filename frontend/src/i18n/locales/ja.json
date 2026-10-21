@@ -23,7 +23,8 @@
     "settings": "設定",
     "signOut": "サインアウト",
     "confirmSignOut": "サインアウトしますか？",
-    "cancel": "キャンセル"
+    "cancel": "キャンセル",
+    "imports": "インポート"
   },
   "topbar": {
     "search": "検索",
@@ -701,5 +702,38 @@
     "labelLabel": "レーベル",
     "latestReleases": "最新リリース",
     "topReleases": "人気リリース"
+  },
+  "imports": {
+    "title": "インポート",
+    "subtitle": "Apple Musicのリンクを1行に1つずつ書いたファイルを追加します。alacarteはコピーを保存するので再同期は保存済みのリンクを再実行します。後のファイルの変更は再追加が必要です。",
+    "add": "ファイルを追加",
+    "adding": "追加中…",
+    "resync": "再同期",
+    "resyncing": "再同期中…",
+    "remove": "削除",
+    "empty": "まだインポートされたファイルはありません。",
+    "loading": "インポートを読み込み中…",
+    "linkCount_one": "リンク{{count}}件",
+    "linkCount_other": "リンク{{count}}件",
+    "countsPlaylists_one": "プレイリスト{{count}}",
+    "countsPlaylists_other": "プレイリスト{{count}}",
+    "countsAlbums_one": "アルバム{{count}}",
+    "countsAlbums_other": "アルバム{{count}}",
+    "countsSongs_one": "曲{{count}}",
+    "countsSongs_other": "曲{{count}}",
+    "countsArtists_one": "アーティスト{{count}}",
+    "countsArtists_other": "アーティスト{{count}}",
+    "invalid_one": "無効な行{{count}}",
+    "invalid_other": "無効な行{{count}}",
+    "queued_one": "キューに追加{{count}}",
+    "queued_other": "キューに追加{{count}}",
+    "failed_one": "失敗{{count}}",
+    "failed_other": "失敗{{count}}",
+    "lastRun": "前回のインポート {{time}}",
+    "waitingFirstRun": "キューに追加中…",
+    "errorLoad": "インポートの読み込みに失敗しました",
+    "errorAdd": "ファイルのインポートに失敗しました",
+    "errorResync": "ファイルの再同期に失敗しました",
+    "errorRemove": "ファイルの削除に失敗しました"
   }
 }

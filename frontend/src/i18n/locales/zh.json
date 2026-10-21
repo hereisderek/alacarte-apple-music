@@ -23,7 +23,8 @@
     "settings": "设置",
     "signOut": "退出登录",
     "confirmSignOut": "确定要退出登录吗？",
-    "cancel": "取消"
+    "cancel": "取消",
+    "imports": "导入"
   },
   "topbar": {
     "search": "搜索",
@@ -701,5 +702,38 @@
     "labelLabel": "厂牌",
     "latestReleases": "最新发行",
     "topReleases": "热门发行"
+  },
+  "imports": {
+    "title": "导入",
+    "subtitle": "添加含 Apple Music 链接的文件，每行一个链接。alacarte 会保存文件副本，重新同步时重放已保存的链接，之后对原文件的修改需要重新添加。",
+    "add": "添加文件",
+    "adding": "正在添加…",
+    "resync": "重新同步",
+    "resyncing": "正在重新同步…",
+    "remove": "移除",
+    "empty": "还没有导入任何文件。",
+    "loading": "正在加载导入项目…",
+    "linkCount_one": "{{count}} 个链接",
+    "linkCount_other": "{{count}} 个链接",
+    "countsPlaylists_one": "{{count}} 个歌单",
+    "countsPlaylists_other": "{{count}} 个歌单",
+    "countsAlbums_one": "{{count}} 张专辑",
+    "countsAlbums_other": "{{count}} 张专辑",
+    "countsSongs_one": "{{count}} 首歌曲",
+    "countsSongs_other": "{{count}} 首歌曲",
+    "countsArtists_one": "{{count}} 位歌手",
+    "countsArtists_other": "{{count}} 位歌手",
+    "invalid_one": "{{count}} 行无效",
+    "invalid_other": "{{count}} 行无效",
+    "queued_one": "已排队 {{count}}",
+    "queued_other": "已排队 {{count}}",
+    "failed_one": "{{count}} 个失败",
+    "failed_other": "{{count}} 个失败",
+    "lastRun": "上次导入 {{time}}",
+    "waitingFirstRun": "排入队列中…",
+    "errorLoad": "加载导入项目失败",
+    "errorAdd": "导入文件失败",
+    "errorResync": "重新同步文件失败",
+    "errorRemove": "移除文件失败"
   }
 }

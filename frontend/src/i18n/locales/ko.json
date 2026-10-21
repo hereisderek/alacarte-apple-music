@@ -23,7 +23,8 @@
     "settings": "설정",
     "signOut": "로그아웃",
     "confirmSignOut": "로그아웃하시겠습니까?",
-    "cancel": "취소"
+    "cancel": "취소",
+    "imports": "가져오기"
   },
   "topbar": {
     "search": "검색",
@@ -701,5 +702,38 @@
     "labelLabel": "레이블",
     "latestReleases": "최신 발매",
     "topReleases": "인기 발매"
+  },
+  "imports": {
+    "title": "가져오기",
+    "subtitle": "Apple Music 링크를 한 줄에 하나씩 담은 파일을 추가하세요. alacarte는 사본을 저장하므로 다시 동기화는 저장된 링크를 다시 실행합니다. 이후의 수정은 다시 추가해야 합니다.",
+    "add": "파일 추가",
+    "adding": "추가 중…",
+    "resync": "다시 동기화",
+    "resyncing": "다시 동기화 중…",
+    "remove": "삭제",
+    "empty": "아직 가져온 파일이 없습니다.",
+    "loading": "가져오기를 불러오는 중…",
+    "linkCount_one": "링크 {{count}}개",
+    "linkCount_other": "링크 {{count}}개",
+    "countsPlaylists_one": "플레이리스트 {{count}}",
+    "countsPlaylists_other": "플레이리스트 {{count}}",
+    "countsAlbums_one": "앨범 {{count}}",
+    "countsAlbums_other": "앨범 {{count}}",
+    "countsSongs_one": "곡 {{count}}",
+    "countsSongs_other": "곡 {{count}}",
+    "countsArtists_one": "아티스트 {{count}}",
+    "countsArtists_other": "아티스트 {{count}}",
+    "invalid_one": "유효하지 않은 줄 {{count}}",
+    "invalid_other": "유효하지 않은 줄 {{count}}",
+    "queued_one": "대기열에 추가됨 {{count}}",
+    "queued_other": "대기열에 추가됨 {{count}}",
+    "failed_one": "{{count}}개 실패",
+    "failed_other": "{{count}}개 실패",
+    "lastRun": "마지막 가져오기 {{time}}",
+    "waitingFirstRun": "대기열에 추가 중…",
+    "errorLoad": "가져오기를 불러오지 못했습니다",
+    "errorAdd": "파일 가져오기 실패",
+    "errorResync": "파일 다시 동기화 실패",
+    "errorRemove": "파일 삭제 실패"
   }
 }

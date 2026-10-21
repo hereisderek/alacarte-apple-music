@@ -23,7 +23,8 @@
     "settings": "Settings",
     "signOut": "Sign Out",
     "confirmSignOut": "Sign out?",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "imports": "Imports"
   },
   "topbar": {
     "search": "Search",
@@ -702,5 +703,38 @@
     "labelLabel": "Label",
     "latestReleases": "Latest releases",
     "topReleases": "Top releases"
+  },
+  "imports": {
+    "title": "Imports",
+    "subtitle": "Add a file with Apple Music links, one link per line. alacarte stores a copy, so resync replays the saved links, not later edits to the file.",
+    "add": "Add files",
+    "adding": "Adding…",
+    "resync": "Resync",
+    "resyncing": "Resyncing…",
+    "remove": "Remove",
+    "empty": "No files imported yet.",
+    "loading": "Loading imports…",
+    "linkCount_one": "{{count}} link",
+    "linkCount_other": "{{count}} links",
+    "countsPlaylists_one": "{{count}} playlist",
+    "countsPlaylists_other": "{{count}} playlists",
+    "countsAlbums_one": "{{count}} album",
+    "countsAlbums_other": "{{count}} albums",
+    "countsSongs_one": "{{count}} song",
+    "countsSongs_other": "{{count}} songs",
+    "countsArtists_one": "{{count}} artist",
+    "countsArtists_other": "{{count}} artists",
+    "invalid_one": "{{count}} invalid line",
+    "invalid_other": "{{count}} invalid lines",
+    "queued_one": "Queued {{count}}",
+    "queued_other": "Queued {{count}}",
+    "failed_one": "{{count}} failed",
+    "failed_other": "{{count}} failed",
+    "lastRun": "Last import {{time}}",
+    "waitingFirstRun": "Queuing…",
+    "errorLoad": "Failed to load imports",
+    "errorAdd": "Failed to import files",
+    "errorResync": "Failed to resync the file",
+    "errorRemove": "Failed to remove the file"
   }
 }

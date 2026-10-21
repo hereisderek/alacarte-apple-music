@@ -23,7 +23,8 @@
     "settings": "設定",
     "signOut": "登出",
     "confirmSignOut": "確定要登出嗎？",
-    "cancel": "取消"
+    "cancel": "取消",
+    "imports": "匯入"
   },
   "topbar": {
     "search": "搜尋",
@@ -701,5 +702,38 @@
     "labelLabel": "唱片公司",
     "latestReleases": "最新發行",
     "topReleases": "熱門發行"
+  },
+  "imports": {
+    "title": "匯入",
+    "subtitle": "加入含 Apple Music 連結的檔案，每行一個連結。alacarte 會保存檔案副本，重新同步時會重放已儲存的連結，之後對原檔的修改需要重新加入。",
+    "add": "加入檔案",
+    "adding": "正在加入…",
+    "resync": "重新同步",
+    "resyncing": "正在重新同步…",
+    "remove": "移除",
+    "empty": "尚未匯入任何檔案。",
+    "loading": "正在載入匯入項目…",
+    "linkCount_one": "{{count}} 個連結",
+    "linkCount_other": "{{count}} 個連結",
+    "countsPlaylists_one": "{{count}} 個歌單",
+    "countsPlaylists_other": "{{count}} 個歌單",
+    "countsAlbums_one": "{{count}} 張專輯",
+    "countsAlbums_other": "{{count}} 張專輯",
+    "countsSongs_one": "{{count}} 首歌曲",
+    "countsSongs_other": "{{count}} 首歌曲",
+    "countsArtists_one": "{{count}} 位歌手",
+    "countsArtists_other": "{{count}} 位歌手",
+    "invalid_one": "{{count}} 行無效",
+    "invalid_other": "{{count}} 行無效",
+    "queued_one": "已排入佇列 {{count}}",
+    "queued_other": "已排入佇列 {{count}}",
+    "failed_one": "{{count}} 個失敗",
+    "failed_other": "{{count}} 個失敗",
+    "lastRun": "上次匯入 {{time}}",
+    "waitingFirstRun": "排入佇列中…",
+    "errorLoad": "載入匯入項目失敗",
+    "errorAdd": "匯入檔案失敗",
+    "errorResync": "重新同步檔案失敗",
+    "errorRemove": "移除檔案失敗"
   }
 }

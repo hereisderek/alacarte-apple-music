@@ -23,7 +23,8 @@
     "settings": "Ajustes",
     "signOut": "Cerrar sesión",
     "confirmSignOut": "¿Cerrar sesión?",
-    "cancel": "Cancelar"
+    "cancel": "Cancelar",
+    "imports": "Importar"
   },
   "topbar": {
     "search": "Buscar",
@@ -702,5 +703,38 @@
     "labelLabel": "Sello",
     "latestReleases": "Lanzamientos recientes",
     "topReleases": "Lanzamientos destacados"
+  },
+  "imports": {
+    "title": "Importar",
+    "subtitle": "Añade un archivo con enlaces de Apple Music, uno por línea. alacarte guarda una copia, así que la resincronización repite los enlaces guardados, no las ediciones posteriores del archivo.",
+    "add": "Añadir archivos",
+    "adding": "Añadiendo…",
+    "resync": "Resincronizar",
+    "resyncing": "Resincronizando…",
+    "remove": "Quitar",
+    "empty": "Aún no hay archivos importados.",
+    "loading": "Cargando importaciones…",
+    "linkCount_one": "{{count}} enlace",
+    "linkCount_other": "{{count}} enlaces",
+    "countsPlaylists_one": "{{count}} playlist",
+    "countsPlaylists_other": "{{count}} playlists",
+    "countsAlbums_one": "{{count}} álbum",
+    "countsAlbums_other": "{{count}} álbumes",
+    "countsSongs_one": "{{count}} canción",
+    "countsSongs_other": "{{count}} canciones",
+    "countsArtists_one": "{{count}} artista",
+    "countsArtists_other": "{{count}} artistas",
+    "invalid_one": "{{count}} línea no válida",
+    "invalid_other": "{{count}} líneas no válidas",
+    "queued_one": "{{count}} en cola",
+    "queued_other": "{{count}} en cola",
+    "failed_one": "{{count}} con fallo",
+    "failed_other": "{{count}} con fallo",
+    "lastRun": "Última importación {{time}}",
+    "waitingFirstRun": "Encolando…",
+    "errorLoad": "Error al cargar las importaciones",
+    "errorAdd": "Error al importar archivos",
+    "errorResync": "Error al resincronizar el archivo",
+    "errorRemove": "Error al quitar el archivo"
   }
 }

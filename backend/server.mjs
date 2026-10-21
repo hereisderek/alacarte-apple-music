@@ -20,6 +20,7 @@ import { playlistRouter } from './routes/playlist.mjs'
 import { followingRouter } from './routes/following.mjs'
 import { cloudLibraryRouter } from './routes/cloudLibrary.mjs'
 import { playlistFollowingRouter } from './routes/playlistFollowing.mjs'
+import { importsRouter } from './routes/imports.mjs'
 import { ensureConfigDir } from './lib/settingsStore.mjs'
 import { loadSecretsAtBoot } from './lib/secretKey.mjs'
 import { originGuard } from './lib/originGuard.mjs'
@@ -78,6 +79,10 @@ app.use(
     referrerPolicy: { policy: 'no-referrer' },
   }),
 )
+// File imports upload full csv column bodies; the global 64kb json limit
+// would cut those off. json() skips an already-parsed body, so the larger
+// limit applies only to this route.
+app.use('/api/imports', express.json({ limit: '2mb' }))
 app.use(express.json({ limit: '64kb' }))
 app.use(cookieParser())
 app.use(originGuard())
@@ -123,6 +128,7 @@ app.use('/api/library', libraryRouter)
 app.use('/api/playlist', playlistRouter)
 app.use('/api/following', followingRouter)
 app.use('/api/playlist-following', playlistFollowingRouter)
+app.use('/api/imports', importsRouter)
 app.use('/api/cloud-library', cloudLibraryRouter)
 app.use('/api/integration/v1', integrationRouter)
 
