@@ -15,6 +15,7 @@ import { settingsRouter } from './routes/settings.mjs'
 import { searchRouter } from './routes/search.mjs'
 import { albumRouter } from './routes/album.mjs'
 import { artistRouter } from './routes/artist.mjs'
+import { curatorRouter, labelRouter } from './routes/browse.mjs'
 import { downloadRouter } from './routes/download.mjs'
 import { queueRouter } from './routes/queue.mjs'
 import { eventsRouter } from './routes/events.mjs'
@@ -24,6 +25,7 @@ import { playlistRouter } from './routes/playlist.mjs'
 import { followingRouter } from './routes/following.mjs'
 import { cloudLibraryRouter } from './routes/cloudLibrary.mjs'
 import { playlistFollowingRouter } from './routes/playlistFollowing.mjs'
+import { importsRouter } from './routes/imports.mjs'
 import { ensureConfigDir } from './lib/settingsStore.mjs'
 import { loadSecretsAtBoot } from './lib/secretKey.mjs'
 import { originGuard } from './lib/originGuard.mjs'
@@ -85,6 +87,10 @@ app.use(
     referrerPolicy: { policy: 'no-referrer' },
   }),
 )
+// File imports upload full csv column bodies; the global 64kb json limit
+// would cut those off. json() skips an already-parsed body, so the larger
+// limit applies only to this route.
+app.use('/api/imports', express.json({ limit: '2mb' }))
 app.use(express.json({ limit: '64kb' }))
 app.use(cookieParser())
 app.use(originGuard())
@@ -105,10 +111,12 @@ app.use((req, _res, next) => {
 })
 
 // Every Apple call made while handling a request goes through the Apple gateway in the
-// lane of that request: the octo-fiesta integration is batch work, everything else is a
-// person waiting on the UI. (Schedulers, backfills and download jobs set their own lane.)
+// lane of that request: octo-fiesta lookups skip pacing unless the setting says otherwise (a search fires per keystroke),
+// everything else is a person waiting on the UI. (Schedulers, backfills and download jobs set their own lane.)
 app.use('/api', (req, _res, next) => {
-  runInLane(/^\/(internal|integration)\b/.test(req.path) ? 'batch' : 'interactive', next)
+  // Fork only: the importer's /api/internal calls are batch work, never a person waiting.
+  const lane = /^\/integration\b/.test(req.path) ? 'integration' : /^\/internal\b/.test(req.path) ? 'batch' : 'interactive'
+  runInLane(lane, next)
 })
 
 // Auth router is mounted before the guard so /state, /setup, and /login
@@ -126,6 +134,8 @@ app.use('/api/settings', settingsRouter)
 app.use('/api/search', searchRouter)
 app.use('/api/album', albumRouter)
 app.use('/api/artist', artistRouter)
+app.use('/api/curator', curatorRouter)
+app.use('/api/label', labelRouter)
 app.use('/api/download', downloadRouter)
 app.use('/api/queue', queueRouter)
 app.use('/api/events', eventsRouter)
@@ -133,6 +143,7 @@ app.use('/api/library', libraryRouter)
 app.use('/api/playlist', playlistRouter)
 app.use('/api/following', followingRouter)
 app.use('/api/playlist-following', playlistFollowingRouter)
+app.use('/api/imports', importsRouter)
 app.use('/api/cloud-library', cloudLibraryRouter)
 app.use('/api/integration/v1', integrationRouter)
 

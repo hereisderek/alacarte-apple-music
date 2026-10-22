@@ -289,6 +289,70 @@ export async function getPlaylist({ storefront, id, language = 'en-US' }) {
   return apiGet(url, { language })
 }
 
+// Later pages of a list by offset, until a short page or maxItems. Apple's next
+// links can't be relied on: some lists leave them out at limit 100. A page that
+// fails ends the list there, so the pages already read still show.
+async function fetchRestOfList(path, { from, limit, maxItems, language, params = {} }) {
+  const items = []
+  for (let offset = from; offset < maxItems; offset += limit) {
+    const qs = new URLSearchParams({ ...params, offset: String(offset), limit: String(limit), l: language })
+    let data
+    try {
+      data = (await apiGet(`${path}?${qs.toString()}`, { language }))?.data || []
+    } catch (err) {
+      console.warn(`[apple] ${new URL(path).pathname} stopped at ${offset}: ${err.message}`)
+      return { items, complete: false }
+    }
+    items.push(...data)
+    if (data.length < limit) break
+  }
+  return { items, complete: true }
+}
+
+const CURATOR_MAX_PLAYLISTS = 500
+
+// curator links cover both curators and apple-curators; one call asks for either
+export async function getCurator({ storefront, id, language = 'en-US' }) {
+  const sf = encodeURIComponent(storefront)
+  const qs = new URLSearchParams({ 'ids[curators]': id, 'ids[apple-curators]': id, include: 'playlists', l: language })
+  const raw = await apiGet(`${BASE}/${sf}?${qs.toString()}`, { language })
+  const playlists = raw?.data?.[0]?.relationships?.playlists
+  if (playlists?.next) {
+    const item = raw.data[0]
+    const rest = await fetchRestOfList(`${BASE}/${sf}/${item.type}/${encodeURIComponent(item.id)}/playlists`, {
+      from: playlists.data.length,
+      limit: 25,
+      maxItems: CURATOR_MAX_PLAYLISTS,
+      language,
+    })
+    playlists.data.push(...rest.items)
+    if (!rest.complete) raw.partial = true
+  }
+  return raw
+}
+
+const LABEL_MAX_RELEASES = { 'latest-releases': 500, 'top-releases': 500 }
+
+export async function getRecordLabel({ storefront, id, language = 'en-US' }) {
+  const base = `${BASE}/${encodeURIComponent(storefront)}/record-labels/${encodeURIComponent(id)}`
+  const qs = new URLSearchParams({ views: 'latest-releases,top-releases', 'include[albums]': 'artists', l: language })
+  const raw = await apiGet(`${base}?${qs.toString()}`, { language })
+  for (const [name, maxItems] of Object.entries(LABEL_MAX_RELEASES)) {
+    const view = raw?.data?.[0]?.views?.[name]
+    if (!view?.next) continue
+    const rest = await fetchRestOfList(`${base}/view/${name}`, {
+      from: view.data.length,
+      limit: 100,
+      maxItems,
+      language,
+      params: { 'include[albums]': 'artists' },
+    })
+    view.data.push(...rest.items)
+    if (!rest.complete) raw.partial = true
+  }
+  return raw
+}
+
 const PLAYLIST_TRACKS_PAGE_SIZE = 100
 
 export async function fetchCatalogPlaylistTracksPage({
@@ -449,6 +513,42 @@ export function normalizePlaylist(raw) {
         a.audioTraits?.includes?.('spatial'),
     ),
     tracks,
+  }
+}
+
+// The card shape search and browse pages hand the client.
+export function albumFromNormalized(album) {
+  if (!album) return null
+  return {
+    id: album.id,
+    type: album.type,
+    name: album.name,
+    artistName: album.artistName,
+    artistId: album.artistId,
+    releaseDate: album.releaseDate,
+    year: album.year,
+    trackCount: album.trackCount,
+    isSingle: album.isSingle,
+    contentRating: album.contentRating,
+    artworkTemplate: album.artworkTemplate,
+    artworkColor: album.artworkColor,
+    url: album.url,
+    upc: album.upc || null,
+  }
+}
+
+export function playlistFromNormalized(playlist) {
+  if (!playlist) return null
+  return {
+    id: playlist.id,
+    type: playlist.type,
+    name: playlist.name,
+    curatorName: playlist.curatorName || 'Apple Music',
+    trackCount: playlist.trackCount,
+    artworkTemplate: playlist.artworkTemplate,
+    artworkColor: playlist.artworkColor,
+    url: playlist.url,
+    description: playlist.description || '',
   }
 }
 

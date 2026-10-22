@@ -2,7 +2,6 @@ import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
-import { ttmlToLrc } from './ttmlLrc.mjs'
 
 // A single track converts in seconds; a hung ffmpeg would otherwise hold
 // the one-at-a-time queue forever.
@@ -42,26 +41,10 @@ export async function convertToFlac(inputPath, { deleteOriginal = true, signal, 
   const outPath = path.join(dir, `${base}.flac`)
   const lrcPath = path.join(dir, `${base}.lrc`)
   const ttmlPath = path.join(dir, `${base}.ttml`)
-  let lrcArgs = []
-  try {
-    let lrc = await fsp.readFile(lrcPath, 'utf8').catch(() => '')
-    if (!lrc) {
-      const ttml = await fsp.readFile(ttmlPath, 'utf8').catch(() => '')
-      if (ttml) {
-        lrc = ttmlToLrc(ttml)
-      }
-    }
-    if (lrc && lrc.trim()) {
-      lrcArgs = [
-        '-metadata',
-        `lyrics=${lrc}`,
-        '-metadata',
-        `LYRICS=${lrc}`,
-        '-metadata',
-        `UNSYNCEDLYRICS=${lrc}`,
-      ]
-    }
-  } catch {}
+  // With both sidecars present (lyrics format "both") the m4a carries TTML, so embed the LRC.
+  const hasTtml = await fsp.stat(ttmlPath).then(() => true, () => false)
+  const lrc = hasTtml ? await fsp.readFile(lrcPath, 'utf8').catch(() => '') : ''
+  const lrcArgs = lrc.trim() ? ['-metadata', `lyrics=${lrc}`] : []
   // ffmpeg writes to a hidden temp file that only becomes the .flac once it
   // finished, so a failed or killed conversion leaves no partial track to be
   // moved into the library next to the original.

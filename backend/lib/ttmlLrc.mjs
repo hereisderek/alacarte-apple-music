@@ -2,58 +2,42 @@ import fsp from 'node:fs/promises'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 
-/**
- * Format milliseconds or timestamp string (hh:mm:ss.xxx, mm:ss.xxx, or seconds)
- * into standard LRC timestamp string [mm:ss.xx].
- */
-export function formatLrcTimestamp(rawTime) {
-  if (!rawTime) return '[00:00.00]'
-  const t = String(rawTime).trim().replace(/s$/, '')
-  const parts = t.split(':')
-  let totalSec = 0
-  if (parts.length === 3) {
-    totalSec = parseInt(parts[0], 10) * 3600 + parseInt(parts[1], 10) * 60 + parseFloat(parts[2])
-  } else if (parts.length === 2) {
-    totalSec = parseInt(parts[0], 10) * 60 + parseFloat(parts[1])
-  } else {
-    totalSec = parseFloat(t) || 0
-  }
-  const totalCs = Math.max(0, Math.round(totalSec * 100))
-  const m = Math.floor(totalCs / 6000)
-  const s = Math.floor((totalCs % 6000) / 100)
-  const cs = totalCs % 100
-  return `[${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(cs).padStart(2, '0')}]`
+function parseTtmlTime(value) {
+  if (!value) return null
+  const parts = String(value).replace(/s$/, '').split(':').map(Number)
+  if (parts.some((n) => Number.isNaN(n))) return null
+  return parts.reduce((acc, n) => acc * 60 + n, 0)
 }
 
-function decodeXmlEntities(s) {
+export function decodeEntities(s) {
   return s
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
-    .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(parseInt(d, 10)))
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
 }
 
-/**
- * Convert TTML XML string to LRC format text.
- */
-export function ttmlToLrc(xml) {
-  if (!xml || typeof xml !== 'string') return ''
-  // Match <p ... begin="time" ...>inner</p>
-  const pRegex = /<p\b[^>]*\bbegin="([^"]+)"[^>]*>([\s\S]*?)<\/p>/gi
-  const lines = []
-  let match
-  while ((match = pRegex.exec(xml)) !== null) {
-    const time = formatLrcTimestamp(match[1])
-    const rawText = match[2].replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]+>/g, '')
-    const cleanText = decodeXmlEntities(rawText).trim()
-    if (cleanText) {
-      lines.push(`${time}${cleanText}`)
+// Same line format amdp writes: [mm:ss.cc]text, one line per <p>. Unsynced
+// lyrics come out as plain lines.
+export function ttmlToLrc(ttml) {
+  const synced = !/itunes:timing="None"/.test(ttml)
+  const out = []
+  for (const m of String(ttml).matchAll(/<p\b([^>]*)>([\s\S]*?)<\/p>/g)) {
+    const text = decodeEntities(m[2].replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim()
+    const begin = parseTtmlTime(/\bbegin="([^"]+)"/.exec(m[1])?.[1])
+    if (!synced || begin == null) {
+      out.push(text)
+      continue
     }
+    const cs = Math.floor(begin * 100)
+    const mm = String(Math.floor(cs / 6000)).padStart(2, '0')
+    const ss = String(Math.floor((cs % 6000) / 100)).padStart(2, '0')
+    out.push(`[${mm}:${ss}.${String(cs % 100).padStart(2, '0')}]${text}`)
   }
-  return lines.length > 0 ? lines.join('\n') + '\n' : ''
+  return out.length ? `${out.join('\n')}\n` : null
 }
 
 function runFfmpeg(args) {

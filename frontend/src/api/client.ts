@@ -47,6 +47,15 @@ export type Playlist = {
   description?: string
 }
 
+export type BrowseHeader = {
+  id: string
+  name: string
+  description?: string
+  url?: string
+  artworkTemplate?: string | null
+  artworkColor?: string | null
+}
+
 export type PlaylistTrack = {
   id: string
   name: string
@@ -154,6 +163,33 @@ export type Job = {
 export type QualityPreference = 'flac' | 'alac' | 'atmos' | 'aac'
 export type QualityGroup = 'lossless' | 'atmos' | 'aac'
 
+export type BulkDownloadResult = {
+  requested: number
+  queued: number
+  skippedExisting: number
+  errors: Array<{ albumId: string; code: string | null; error: string }>
+}
+
+export type ImportFileCounts = {
+  links: number
+  playlists: number
+  albums: number
+  songs: number
+  artists: number
+  invalid: number
+  queued: number
+  skippedExisting: number
+  failed: Array<{ kind: string; id: string; error: string }>
+}
+
+export type ImportedFile = {
+  id: string
+  name: string
+  addedAt: number
+  lastRunAt: number | null
+  counts: ImportFileCounts
+}
+
 export type ReleaseScope = 'albums' | 'singles_eps' | 'everything'
 
 export type HealthReport = {
@@ -222,13 +258,6 @@ export type AutoCheckFrequency =
   | '12h'
   | 'daily'
   | 'weekly'
-
-export type EffectiveCheckInterval = {
-  mode: AutoCheckFrequency
-  followedCount: number
-  ms: number | null
-  label: string
-}
 
 export type FollowedArtist = Artist & {
   storefront: string
@@ -451,7 +480,7 @@ export type AppleStatus = {
   intervalMs: number
   floorMs: number
   learnedFloorMs: number
-  config: { intervalMs: number; minIntervalMs: number; adaptive: boolean; cooldownMinutes: number }
+  config: { enabled: boolean; paceIntegration: boolean; intervalMs: number; minIntervalMs: number; adaptive: boolean; cooldownMinutes: number }
   inFlight: number
   queued: { interactive: number; batch: number; background: number }
   strikes: number
@@ -460,6 +489,8 @@ export type AppleStatus = {
 }
 
 export type AppleGatewaySettingsPatch = {
+  appleGatewayEnabled: boolean
+  appleGatewayPaceIntegration: boolean
   appleGatewayIntervalMs: number | null
   appleGatewayMinIntervalMs: number | null
   appleGatewayAdaptive: boolean
@@ -673,6 +704,18 @@ export const api = {
       albums: Album[]
       storefront: string
     }>(`/api/artist/${encodeURIComponent(id)}`),
+  curator: (id: string, storefront?: string | null) =>
+    http<{ curator: BrowseHeader; playlists: Playlist[]; storefront: string }>(
+      `/api/curator/${encodeURIComponent(id)}${storefront ? `?storefront=${encodeURIComponent(storefront)}` : ''}`,
+    ),
+  label: (id: string, storefront?: string | null) =>
+    http<{
+      label: BrowseHeader
+      latestReleases: Album[]
+      topReleases: Album[]
+      albums: Album[]
+      storefront: string
+    }>(`/api/label/${encodeURIComponent(id)}${storefront ? `?storefront=${encodeURIComponent(storefront)}` : ''}`),
   playlist: (id: string) =>
     http<{ playlist: PlaylistDetail; storefront: string }>(
       `/api/playlist/${encodeURIComponent(id)}`,
@@ -731,10 +774,6 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ quality }),
     }),
-  effectiveCheckInterval: (mode?: AutoCheckFrequency) =>
-    http<EffectiveCheckInterval>(
-      `/api/following/check/effective-interval${mode ? `?mode=${encodeURIComponent(mode)}` : ''}`,
-    ),
   playlistFollowing: () =>
     http<{ playlists: FollowedPlaylist[] }>('/api/playlist-following'),
   followedPlaylist: (id: string) =>
@@ -779,6 +818,23 @@ export const api = {
       `/api/playlist-following/${encodeURIComponent(id)}/download-missing`,
       { method: 'POST', body: JSON.stringify({ quality }) },
     ),
+  importFiles: () =>
+    http<{ files: ImportedFile[] }>('/api/imports'),
+  importFilesAdd: (
+    files: Array<{ name: string; content: string }>,
+    quality?: QualityPreference | null,
+  ) =>
+    http<{ files: ImportedFile[] }>('/api/imports', {
+      method: 'POST',
+      body: JSON.stringify({ files, quality }),
+    }),
+  importFilesRun: (id: string) =>
+    http<{ file: ImportedFile }>(
+      `/api/imports/${encodeURIComponent(id)}/run`,
+      { method: 'POST' },
+    ),
+  importFilesRemove: (id: string) =>
+    http<{ ok: boolean }>(`/api/imports/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   queue: () => http<{ jobs: Job[]; paused: boolean }>('/api/queue'),
   reorderQueue: (ids: string[]) =>
     http<{ order: string[] }>('/api/queue/order', { method: 'PUT', body: JSON.stringify({ ids }) }),
@@ -846,6 +902,11 @@ export const api = {
     http<{ job: Job }>('/api/download', {
       method: 'POST',
       body: JSON.stringify({ albumId, quality }),
+    }),
+  enqueueBulk: (albumIds: string[], quality?: QualityPreference) =>
+    http<BulkDownloadResult>('/api/download/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ albumIds, quality }),
     }),
   enqueueSong: (songId: string, albumId?: string | null, storefront?: string, quality?: QualityPreference) =>
     http<{ job: Job }>('/api/download/song', {

@@ -9,7 +9,8 @@ const tmpMusic = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'alacarte-lyri
 process.env.AMDL_CONFIG_DIR = tmpConfig
 process.env.AMDL_MUSIC_PATH = tmpMusic
 
-const { startLyricsBackfill, getLyricsBackfillStatus, ttmlToLrc } = await import('../lib/lyricsBackfill.mjs')
+const { startLyricsBackfill, getLyricsBackfillStatus } = await import('../lib/lyricsBackfill.mjs')
+const { ttmlToLrc } = await import('../lib/ttmlLrc.mjs')
 const { buildMinimalFlacWithTags } = await import('../lib/audioTags.mjs')
 
 function makeFlac(rel, isrc) {

@@ -18,3 +18,9 @@ export function sendAppleError(res, err, fallbackStatus = 502) {
   }
   return res.status(fallbackStatus).json({ error: err.message })
 }
+
+export function isMissingCatalogResource(err) {
+  if (err?.status === 404) return true
+  const msg = String(err?.message || '')
+  return /Apple API 404\b/.test(msg) || /resource not found/i.test(msg)
+}

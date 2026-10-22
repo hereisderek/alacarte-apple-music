@@ -47,7 +47,7 @@ test('pacing settings are clamped, saved, and applied to the running gateway', a
   })
   assert.equal(saved.status, 200)
   const status = (await call('GET', '/api/settings/apple-status')).json
-  assert.deepEqual(status.config, { intervalMs: 2500, minIntervalMs: 100, adaptive: false, cooldownMinutes: 240 })
+  assert.deepEqual(status.config, { enabled: true, paceIntegration: false, intervalMs: 2500, minIntervalMs: 100, adaptive: false, cooldownMinutes: 240 })
   assert.equal(status.intervalMs, 2500)
 })
 

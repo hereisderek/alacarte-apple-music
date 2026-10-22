@@ -8,22 +8,18 @@ import {
   normalizeAlbum,
   normalizePlaylist,
   searchCatalog,
+  albumFromNormalized,
+  playlistFromNormalized,
 } from '../lib/appleApi.mjs'
 import { parseAppleMusicUrl } from '../lib/appleMusicUrl.mjs'
 import { readSettings } from '../lib/settingsStore.mjs'
 import { rememberArtistNames } from '../lib/artistIdCache.mjs'
-import { sendAppleError } from '../lib/appleErrors.mjs'
+import { isMissingCatalogResource, sendAppleError } from '../lib/appleErrors.mjs'
 import { filterAlbumsByRating } from '../lib/contentRatingFilter.mjs'
 
 export const searchRouter = express.Router()
 
 const EMPTY = { albums: [], artists: [], songs: [], playlists: [] }
-
-function isMissingCatalogResource(err) {
-  if (err?.status === 404) return true
-  const msg = String(err?.message || '')
-  return /Apple API 404\b/.test(msg) || /resource not found/i.test(msg)
-}
 
 function sendSearchError(res, err) {
   if (/^Apple API 429\b/.test(String(err?.message))) return sendAppleError(res, err)
@@ -93,42 +89,7 @@ function mapPlaylist(x) {
   }
 }
 
-function albumFromNormalized(album) {
-  if (!album) return null
-  return {
-    id: album.id,
-    type: album.type,
-    name: album.name,
-    artistName: album.artistName,
-    artistId: album.artistId,
-    releaseDate: album.releaseDate,
-    year: album.year,
-    trackCount: album.trackCount,
-    isSingle: album.isSingle,
-    contentRating: album.contentRating,
-    artworkTemplate: album.artworkTemplate,
-    artworkColor: album.artworkColor,
-    url: album.url,
-    upc: album.upc || null,
-  }
-}
-
-function playlistFromNormalized(playlist) {
-  if (!playlist) return null
-  return {
-    id: playlist.id,
-    type: playlist.type,
-    name: playlist.name,
-    curatorName: playlist.curatorName || 'Apple Music',
-    trackCount: playlist.trackCount,
-    artworkTemplate: playlist.artworkTemplate,
-    artworkColor: playlist.artworkColor,
-    url: playlist.url,
-    description: playlist.description || '',
-  }
-}
-
-async function resolveAppleMusicLink(parsed, { storefront, language, explicitFilter }) {
+export async function resolveAppleMusicLink(parsed, { storefront, language, explicitFilter }) {
   const sf = parsed.storefront || storefront
   if (parsed.kind === 'album') {
     const raw = await getAlbum({ storefront: sf, id: parsed.id, language })
@@ -193,6 +154,15 @@ async function resolveAppleMusicLink(parsed, { storefront, language, explicitFil
       playlists: [playlist],
       storefront: sf,
       redirect: `/playlist/${encodeURIComponent(playlist.id)}`,
+    }
+  }
+
+  if (parsed.kind === 'curator' || parsed.kind === 'label') {
+    return {
+      ...EMPTY,
+      storefront: sf,
+      // the page loads in the link's storefront, which may not be the settings one
+      redirect: `/${parsed.kind}/${encodeURIComponent(parsed.id)}${parsed.storefront ? `?storefront=${encodeURIComponent(sf)}` : ''}`,
     }
   }
 

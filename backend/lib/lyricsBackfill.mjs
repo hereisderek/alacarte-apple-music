@@ -7,6 +7,7 @@ import { readAppleCreds, readSettings } from './settingsStore.mjs'
 import { getSongLyricsTtml, getSongsByIsrc } from './appleApi.mjs'
 import { triggerNavidromeScan } from './navidromeApi.mjs'
 import { withAppleRetry } from './appleWait.mjs'
+import { ttmlToLrc } from './ttmlLrc.mjs'
 
 const MUSIC_ROOT = process.env.AMDL_MUSIC_PATH || '/music'
 const ISRC_BATCH = 25
@@ -76,44 +77,6 @@ function emit(force = false) {
   emitEvent('lyrics.backfill.progress', { ...status(), done: !state.running })
 }
 
-function parseTtmlTime(value) {
-  if (!value) return null
-  const parts = String(value).replace(/s$/, '').split(':').map(Number)
-  if (parts.some((n) => Number.isNaN(n))) return null
-  return parts.reduce((acc, n) => acc * 60 + n, 0)
-}
-
-function decodeEntities(s) {
-  return s
-    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
-    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&')
-}
-
-// Same line format amdp writes: [mm:ss.cc]text, one line per <p>. Unsynced
-// lyrics come out as plain lines.
-export function ttmlToLrc(ttml) {
-  const synced = !/itunes:timing="None"/.test(ttml)
-  const out = []
-  for (const m of String(ttml).matchAll(/<p\b([^>]*)>([\s\S]*?)<\/p>/g)) {
-    const text = decodeEntities(m[2].replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim()
-    const begin = parseTtmlTime(/\bbegin="([^"]+)"/.exec(m[1])?.[1])
-    if (!synced || begin == null) {
-      out.push(text)
-      continue
-    }
-    const cs = Math.floor(begin * 100)
-    const mm = String(Math.floor(cs / 6000)).padStart(2, '0')
-    const ss = String(Math.floor((cs % 6000) / 100)).padStart(2, '0')
-    out.push(`[${mm}:${ss}.${String(cs % 100).padStart(2, '0')}]${text}`)
-  }
-  return out.length ? `${out.join('\n')}\n` : null
-}
-
 async function exists(p) {
   return fsp.stat(p).then(() => true, () => false)
 }
@@ -139,6 +102,7 @@ const callApple = (fn) =>
       emit(true)
     },
   })
+
 export function wantedFormats(setting) {
   if (setting === 'both') return ['lrc', 'ttml']
   return setting === 'ttml' ? ['ttml'] : ['lrc']

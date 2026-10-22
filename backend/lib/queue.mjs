@@ -1625,7 +1625,7 @@ async function runJob(job) {
     const albumPath = path.join(artistPath, firstAlbum.name)
     if (partial) await removeOrphanLyrics(albumPath)
 
-    await syncDualLyricsInDir(jobStaging)
+    if (settings.lyricsFormat === 'both') await syncDualLyricsInDir(jobStaging)
 
     if (progressState.convertEnabled) {
       await convertStagingToFlac(job, albumPath, progressState)
@@ -1855,7 +1855,7 @@ async function downloadSingleTrack({ job, trackStaging, settings, creds, url, qu
   } else {
     assertAmdpResult(sub, combined)
   }
-  await syncDualLyricsInDir(trackStaging)
+  if (settings.lyricsFormat === 'both') await syncDualLyricsInDir(trackStaging)
 }
 
 // A catalog playlist normally runs as one amdp pass, which cannot skip

@@ -1,37 +1,24 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { formatLrcTimestamp, ttmlToLrc } from '../lib/ttmlLrc.mjs'
+import fsp from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 
-test('formatLrcTimestamp parses various time strings to standard [mm:ss.xx]', () => {
-  assert.equal(formatLrcTimestamp('00:23.150'), '[00:23.15]')
-  assert.equal(formatLrcTimestamp('01:04.080'), '[01:04.08]')
-  assert.equal(formatLrcTimestamp('00:01:23.456'), '[01:23.46]')
-  assert.equal(formatLrcTimestamp('12.34s'), '[00:12.34]')
-  assert.equal(formatLrcTimestamp('75.5'), '[01:15.50]')
-  assert.equal(formatLrcTimestamp(''), '[00:00.00]')
-})
+import { syncDualLyricsInDir } from '../lib/ttmlLrc.mjs'
 
-test('ttmlToLrc parses standard TTML and converts to synchronized LRC', () => {
-  const ttml = `
-<tt xmlns="http://www.w3.org/ns/ttml">
-  <body>
-    <div>
-      <p begin="00:23.150" end="00:30.630">天空灰得像哭過 離開妳以後</p>
-      <p begin="00:30.630" end="00:34.920"><span>並沒有更自由</span></p>
-      <p begin="01:04.080" end="01:10.000">妳我的過去 &amp; 被順時針的忘記</p>
-    </div>
-  </body>
-</tt>
-`
-  const expected = `[00:23.15]天空灰得像哭過 離開妳以後
-[00:30.63]並沒有更自由
-[01:04.08]妳我的過去 & 被順時針的忘記
-`
-  assert.equal(ttmlToLrc(ttml), expected)
-})
+const TTML = '<tt><body><div><p begin="00:06.390" end="00:08.000">one</p></div></body></tt>'
 
-test('ttmlToLrc returns empty string on empty or invalid input', () => {
-  assert.equal(ttmlToLrc(''), '')
-  assert.equal(ttmlToLrc(null), '')
-  assert.equal(ttmlToLrc('<tt></tt>'), '')
+test('syncDualLyricsInDir writes an lrc next to every ttml and keeps an existing lrc', async () => {
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'alacarte-dual-'))
+  const sub = path.join(dir, 'Artist', 'Album')
+  await fsp.mkdir(sub, { recursive: true })
+  await fsp.writeFile(path.join(sub, '01. New.ttml'), TTML)
+  await fsp.writeFile(path.join(sub, '02. Old.ttml'), TTML)
+  await fsp.writeFile(path.join(sub, '02. Old.lrc'), 'mine\n')
+
+  await syncDualLyricsInDir(dir)
+
+  assert.equal(await fsp.readFile(path.join(sub, '01. New.lrc'), 'utf8'), '[00:06.39]one\n')
+  assert.equal(await fsp.readFile(path.join(sub, '02. Old.lrc'), 'utf8'), 'mine\n')
+  await fsp.rm(dir, { recursive: true, force: true })
 })
