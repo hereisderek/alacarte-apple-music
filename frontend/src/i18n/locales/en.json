@@ -50,6 +50,7 @@
     "cardAutoDownloads": "Auto-downloads",
     "cardAccount": "Account",
     "storefront": "Storefront",
+    "autoStorefront": "Auto-detect storefront",
     "contentRating": "Content rating",
     "preferExplicit": "Prefer explicit",
     "preferClean": "Prefer clean",
