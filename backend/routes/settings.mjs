@@ -8,6 +8,7 @@ import {
   readSettings,
   AUTO_DOWNLOAD_FREQUENCY_VALUES,
   NAMING_CONVENTION_VALUES,
+  FILE_NAME_BYTE_LIMITS,
   decryptSecret,
   APPLE_GATEWAY_LIMITS,
   clampSetting,
@@ -69,6 +70,7 @@ export const WRITABLE_KEYS = new Set([
   'autoDownloadCheckFrequency',
   'stagingInsideMusicLibrary',
   'namingConvention',
+  'maxFileNameBytes',
   'versionOptionsEnabled',
   'versionOptions',
   'uiLanguage',
@@ -116,6 +118,7 @@ settingsRouter.put('/', async (req, res) => {
       if (k === 'lyricsType' && !LYRICS_TYPE_VALUES.has(v)) continue
       if (k === 'quality' && !QUALITY_VALUES.has(v)) continue
       if (k === 'namingConvention' && !NAMING_CONVENTION_VALUES.has(v)) continue
+      if (k === 'maxFileNameBytes' && !FILE_NAME_BYTE_LIMITS.has(v)) continue
       if (APPLE_GATEWAY_FLAGS.has(k) && typeof v !== 'boolean') continue
       if (k in APPLE_GATEWAY_LIMITS) {
         patch[k] = clampSetting(v, ...APPLE_GATEWAY_LIMITS[k])

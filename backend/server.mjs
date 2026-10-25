@@ -21,7 +21,7 @@ import { followingRouter } from './routes/following.mjs'
 import { cloudLibraryRouter } from './routes/cloudLibrary.mjs'
 import { playlistFollowingRouter } from './routes/playlistFollowing.mjs'
 import { importsRouter } from './routes/imports.mjs'
-import { ensureConfigDir } from './lib/settingsStore.mjs'
+import { ensureConfigDir, readSettings } from './lib/settingsStore.mjs'
 import { loadSecretsAtBoot } from './lib/secretKey.mjs'
 import { originGuard } from './lib/originGuard.mjs'
 import { errorHandler } from './lib/errorHandler.mjs'
@@ -41,6 +41,8 @@ const MUSIC_PATH = process.env.AMDL_MUSIC_PATH || '/music'
 
 await ensureConfigDir(CONFIG_DIR)
 loadSecretsAtBoot(CONFIG_DIR)
+// Applies the file name byte limit before anything builds library paths.
+await readSettings()
 await initQueue().catch((err) => {
   console.error('queue init failed:', err.message)
 })
