@@ -321,19 +321,6 @@ export function SettingsPage() {
                   </select>
                 </div>
               </div>
-              <div className="flex items-start gap-3">
-                <div className="flex-1">
-                  <div className="text-sm font-medium">{t('settings.fileNameLimit')}</div>
-                  <select
-                    value={settings.maxFileNameBytes ?? 255}
-                    onChange={(e) => update({ maxFileNameBytes: Number(e.target.value) as 255 | 143 })}
-                    className="mt-2 w-full rounded-app border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-white outline-none transition-[border-color,background,box-shadow] duration-[250ms] ease-smooth focus:border-[rgba(var(--accent),0.45)] focus:bg-[rgba(var(--accent),0.04)] focus:shadow-[0_0_0_3px_rgba(var(--accent),0.18)]"
-                  >
-                    <option value={255} className="bg-zinc-900">{t('settings.fileNameLimitStandard')}</option>
-                    <option value={143} className="bg-zinc-900">{t('settings.fileNameLimitEncrypted')}</option>
-                  </select>
-                </div>
-              </div>
               <label
                 className={`flex items-start gap-3 ${settings.hasMediaUserToken ? 'cursor-pointer' : 'cursor-not-allowed'
                   }`}

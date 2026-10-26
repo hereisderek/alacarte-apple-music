@@ -4,7 +4,6 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 
 import { getRawKey } from './secretKey.mjs'
-import { FILE_NAME_BYTE_LIMITS, setNameByteLimit } from './libraryMatchKey.mjs'
 import {
   UI_LANGUAGE_VALUES,
   ACCEPTED_LANGUAGE_VALUES,
@@ -48,7 +47,6 @@ const DEFAULTS = {
   autoDownloadCheckFrequency: 'auto',
   stagingInsideMusicLibrary: false,
   namingConvention: 'apple',
-  maxFileNameBytes: 255,
   versionOptionsEnabled: false,
   versionOptions: ['atmos', 'lossless', 'aac'],
   uiLanguage: 'system',
@@ -92,7 +90,6 @@ export const APPLE_GATEWAY_LIMITS = {
   appleGatewayCooldownMinutes: [1, 240],
 }
 export const NAMING_CONVENTION_VALUES = new Set(['apple', 'qobuz'])
-export { FILE_NAME_BYTE_LIMITS }
 export const VERSION_GROUP_VALUES = new Set(['lossless', 'atmos', 'aac'])
 
 export const AUTO_DOWNLOAD_FREQUENCY_VALUES = new Set([
@@ -232,7 +229,7 @@ export function writeSettings(patch) {
 // Settings that never had any effect (amdp's folder and file names are fixed
 // in amdpRunner, and ALAC is not kept next to the FLAC); dropped from older
 // settings files on the next save.
-const RETIRED_KEYS = ['albumFolderFormat', 'artistFolderFormat', 'songFileFormat', 'keepAlac']
+const RETIRED_KEYS = ['albumFolderFormat', 'artistFolderFormat', 'songFileFormat', 'keepAlac', 'maxFileNameBytes']
 
 function normalizeSettings(input) {
   const parsed = { ...input }
@@ -247,10 +244,6 @@ function normalizeSettings(input) {
   )
     ? parsed.autoDownloadCheckFrequency
     : DEFAULTS.autoDownloadCheckFrequency
-  const maxFileNameBytes = FILE_NAME_BYTE_LIMITS.has(parsed?.maxFileNameBytes)
-    ? parsed.maxFileNameBytes
-    : DEFAULTS.maxFileNameBytes
-  setNameByteLimit(maxFileNameBytes)
   return {
     ...DEFAULTS,
     ...parsed,
@@ -272,7 +265,6 @@ function normalizeSettings(input) {
     namingConvention: NAMING_CONVENTION_VALUES.has(parsed?.namingConvention)
       ? parsed.namingConvention
       : DEFAULTS.namingConvention,
-    maxFileNameBytes,
     versionOptionsEnabled: toBool(
       parsed?.versionOptionsEnabled,
       DEFAULTS.versionOptionsEnabled,
@@ -339,7 +331,6 @@ export async function readPublicSettings() {
     autoDownloadCheckFrequency: s.autoDownloadCheckFrequency || 'auto',
     stagingInsideMusicLibrary: Boolean(s.stagingInsideMusicLibrary),
     namingConvention: s.namingConvention || 'apple',
-    maxFileNameBytes: s.maxFileNameBytes,
     versionOptionsEnabled: Boolean(s.versionOptionsEnabled),
     versionOptions: Array.isArray(s.versionOptions)
       ? s.versionOptions.filter((g) => VERSION_GROUP_VALUES.has(g))
