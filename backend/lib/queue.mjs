@@ -1851,7 +1851,7 @@ async function explainNoAudio(job) {
   try {
     const raw = await getAlbum({ storefront: job.storefront, id: job.albumId })
     const album = raw?.data?.[0]
-    const tracks = album?.relationships?.tracks?.data || []
+    const tracks = (album?.relationships?.tracks?.data || []).filter((t) => t?.type !== 'music-videos')
     const wanted = job.songId ? tracks.filter((t) => t.id === job.songId) : tracks
     if (wanted.length && wanted.every((t) => !isReleasedTrack(t))) {
       if (album?.attributes?.isPrerelease) return notReleasedError(album.attributes.releaseDate)
