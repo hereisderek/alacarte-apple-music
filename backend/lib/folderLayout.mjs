@@ -4,11 +4,12 @@ import path from 'node:path'
 
 import {
   applyQobuzWriteNaming,
+  fitFileName,
   sanitizeSegment,
 } from './libraryMatchKey.mjs'
 import { groupOf } from './qualityGroups.mjs'
 
-export { sanitizeSegment }
+export { fitFileName, sanitizeSegment }
 
 export function applyNamingConvention(name, convention) {
   if (convention !== 'qobuz') return name
@@ -120,7 +121,7 @@ export async function mergeMove(src, dest) {
   const entries = await fsp.readdir(src, { withFileTypes: true })
   for (const e of entries) {
     const from = path.join(src, e.name)
-    const to = path.join(dest, e.name)
+    const to = path.join(dest, e.isDirectory() ? e.name : fitFileName(e.name))
     if (e.isDirectory()) {
       await mergeMove(from, to)
     } else {

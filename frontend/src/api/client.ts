@@ -218,6 +218,7 @@ export type HealthReport = {
 
 export type PublicSettings = {
   storefront: string
+  autoStorefront: boolean
   language: string
   quality: QualityPreference
   convertToFlac: boolean
@@ -241,6 +242,7 @@ export type PublicSettings = {
   autoDownloadCheckFrequency: AutoCheckFrequency
   stagingInsideMusicLibrary: boolean
   namingConvention: 'apple' | 'qobuz'
+  maxFileNameBytes: 255 | 143
   versionOptionsEnabled: boolean
   versionOptions: QualityGroup[]
   uiLanguage: UiLanguage

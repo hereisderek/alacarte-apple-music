@@ -8,6 +8,7 @@ import {
   readSettings,
   AUTO_DOWNLOAD_FREQUENCY_VALUES,
   NAMING_CONVENTION_VALUES,
+  FILE_NAME_BYTE_LIMITS,
   decryptSecret,
   APPLE_GATEWAY_LIMITS,
   clampSetting,
@@ -31,6 +32,7 @@ import { generateIntegrationToken } from '../lib/apiToken.mjs'
 import { appleGateway, runInLane } from '../lib/appleGateway.mjs'
 import { applyAppleGatewaySettings } from '../lib/appleGatewaySettings.mjs'
 import { storefrontList } from '../lib/storefrontList.mjs'
+import { detectAndApplyStorefront } from '../lib/storefrontAuto.mjs'
 import {
   startTagBackfill,
   getTagBackfillStatus,
@@ -52,6 +54,7 @@ export const settingsRouter = express.Router()
 
 export const WRITABLE_KEYS = new Set([
   'storefront',
+  'autoStorefront',
   'language',
   'quality',
   'convertToFlac',
@@ -70,6 +73,7 @@ export const WRITABLE_KEYS = new Set([
   'autoDownloadCheckFrequency',
   'stagingInsideMusicLibrary',
   'namingConvention',
+  'maxFileNameBytes',
   'versionOptionsEnabled',
   'versionOptions',
   'uiLanguage',
@@ -117,7 +121,9 @@ settingsRouter.put('/', async (req, res) => {
       if (k === 'lyricsType' && !LYRICS_TYPE_VALUES.has(v)) continue
       if (k === 'quality' && !QUALITY_VALUES.has(v)) continue
       if (k === 'namingConvention' && !NAMING_CONVENTION_VALUES.has(v)) continue
+      if (k === 'maxFileNameBytes' && !FILE_NAME_BYTE_LIMITS.has(v)) continue
       if (APPLE_GATEWAY_FLAGS.has(k) && typeof v !== 'boolean') continue
+      if (k === 'autoStorefront' && typeof v !== 'boolean') continue
       if (k in APPLE_GATEWAY_LIMITS) {
         patch[k] = clampSetting(v, ...APPLE_GATEWAY_LIMITS[k])
         continue
@@ -151,7 +157,14 @@ settingsRouter.put('/', async (req, res) => {
       }
       patch[k] = v
     }
+    // Picking a storefront by hand means "stop second-guessing me": detection
+    // only runs again if the toggle is explicitly turned back on.
+    if (patch.storefront !== undefined && patch.autoStorefront === undefined) {
+      const current = await readSettings()
+      if (patch.storefront !== current.storefront) patch.autoStorefront = false
+    }
     const saved = await writeSettings(patch)
+    if (patch.autoStorefront === true) await detectAndApplyStorefront()
     if (Object.keys(patch).some((k) => k.startsWith('appleGateway'))) await applyAppleGatewaySettings()
     if (saved.octoIntegrationEnabled && !saved.octoIntegrationToken) {
       await writeSettings({ octoIntegrationToken: encryptSecret(generateIntegrationToken()) })
@@ -279,7 +292,14 @@ settingsRouter.post('/media-user-token', async (req, res) => {
       mediaUserToken: encryptSecret(token),
       downloadLyrics: true,
     })
-    res.json({ ok: true })
+    // The token is what unlocks /v1/me/storefront, so sync the storefront with
+    // the account right away instead of making the user pick it manually.
+    const detected = await detectAndApplyStorefront()
+    res.json({
+      ok: true,
+      storefront: detected.ok ? detected.storefront : null,
+      storefrontChanged: Boolean(detected.ok && detected.changed),
+    })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }

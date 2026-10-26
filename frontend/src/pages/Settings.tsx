@@ -222,6 +222,17 @@ export function SettingsPage() {
                   ))}
                 </select>
               </label>
+              <label className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={settings.autoStorefront}
+                  onChange={(e) => update({ autoStorefront: e.target.checked })}
+                  className="mt-0.5 shrink-0 focus-visible:ring-2 focus-visible:ring-[rgba(var(--accent),0.35)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0a]"
+                />
+                <div>
+                  <div className="text-sm font-medium">{t('settings.autoStorefront')}</div>
+                </div>
+              </label>
               <label className="flex flex-col gap-1.5 md:flex-row md:items-start md:gap-3">
                 <span className="text-sm text-white/70 md:w-32 md:pt-2">
                   {t('settings.contentRating')}
@@ -307,6 +318,19 @@ export function SettingsPage() {
                   >
                     <option value="apple" className="bg-zinc-900">{t('settings.namingApple')}</option>
                     <option value="qobuz" className="bg-zinc-900">{t('settings.qobuzCompatible')}</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="flex-1">
+                  <div className="text-sm font-medium">{t('settings.fileNameLimit')}</div>
+                  <select
+                    value={settings.maxFileNameBytes ?? 255}
+                    onChange={(e) => update({ maxFileNameBytes: Number(e.target.value) as 255 | 143 })}
+                    className="mt-2 w-full rounded-app border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-white outline-none transition-[border-color,background,box-shadow] duration-[250ms] ease-smooth focus:border-[rgba(var(--accent),0.45)] focus:bg-[rgba(var(--accent),0.04)] focus:shadow-[0_0_0_3px_rgba(var(--accent),0.18)]"
+                  >
+                    <option value={255} className="bg-zinc-900">{t('settings.fileNameLimitStandard')}</option>
+                    <option value={143} className="bg-zinc-900">{t('settings.fileNameLimitEncrypted')}</option>
                   </select>
                 </div>
               </div>

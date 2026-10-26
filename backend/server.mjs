@@ -26,7 +26,7 @@ import { followingRouter } from './routes/following.mjs'
 import { cloudLibraryRouter } from './routes/cloudLibrary.mjs'
 import { playlistFollowingRouter } from './routes/playlistFollowing.mjs'
 import { importsRouter } from './routes/imports.mjs'
-import { ensureConfigDir } from './lib/settingsStore.mjs'
+import { ensureConfigDir, readSettings } from './lib/settingsStore.mjs'
 import { loadSecretsAtBoot } from './lib/secretKey.mjs'
 import { originGuard } from './lib/originGuard.mjs'
 import { errorHandler } from './lib/errorHandler.mjs'
@@ -37,6 +37,7 @@ import { isAuthDisabled, requireAuth } from './lib/requireAuth.mjs'
 import { logEgress } from './lib/appleApi.mjs'
 import { runInLane } from './lib/appleGateway.mjs'
 import { applyAppleGatewaySettings } from './lib/appleGatewaySettings.mjs'
+import { detectAndApplyStorefront } from './lib/storefrontAuto.mjs'
 import { startAutoDownloadScheduler } from './lib/autoDownloads.mjs'
 import { startPlaylistSyncScheduler } from './lib/playlistSync.mjs'
 import { initQueue } from './lib/queue.mjs'
@@ -49,6 +50,8 @@ const MUSIC_PATH = process.env.AMDL_MUSIC_PATH || '/music'
 
 await ensureConfigDir(CONFIG_DIR)
 loadSecretsAtBoot(CONFIG_DIR)
+// Applies the file name byte limit before anything builds library paths.
+await readSettings()
 await initQueue().catch((err) => {
   console.error('queue init failed:', err.message)
 })
@@ -149,6 +152,10 @@ app.use('/api/integration/v1', integrationRouter)
 
 logEgress()
 applyAppleGatewaySettings({ resetPace: false }).catch(() => {})
+// Keep the catalog storefront aligned with the Apple ID's real region; a stale
+// "us" default makes region-locked albums fail with "error getting album
+// response". Needs a media-user-token, so it silently no-ops without one.
+detectAndApplyStorefront().catch(() => {})
 startAutoDownloadScheduler()
 startPlaylistSyncScheduler()
 

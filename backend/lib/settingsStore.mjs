@@ -4,6 +4,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 
 import { getRawKey } from './secretKey.mjs'
+import { FILE_NAME_BYTE_LIMITS, setNameByteLimit } from './libraryMatchKey.mjs'
 import {
   UI_LANGUAGE_VALUES,
   ACCEPTED_LANGUAGE_VALUES,
@@ -24,6 +25,7 @@ const SETTINGS_FILE = path.join(CONFIG_DIR, 'settings.json')
 
 const DEFAULTS = {
   storefront: 'us',
+  autoStorefront: true,
   language: 'en-US',
   quality: 'flac',
   convertToFlac: true,
@@ -46,6 +48,7 @@ const DEFAULTS = {
   autoDownloadCheckFrequency: 'auto',
   stagingInsideMusicLibrary: false,
   namingConvention: 'apple',
+  maxFileNameBytes: 255,
   versionOptionsEnabled: false,
   versionOptions: ['atmos', 'lossless', 'aac'],
   uiLanguage: 'system',
@@ -89,6 +92,7 @@ export const APPLE_GATEWAY_LIMITS = {
   appleGatewayCooldownMinutes: [1, 240],
 }
 export const NAMING_CONVENTION_VALUES = new Set(['apple', 'qobuz'])
+export { FILE_NAME_BYTE_LIMITS }
 export const VERSION_GROUP_VALUES = new Set(['lossless', 'atmos', 'aac'])
 
 export const AUTO_DOWNLOAD_FREQUENCY_VALUES = new Set([
@@ -243,6 +247,10 @@ function normalizeSettings(input) {
   )
     ? parsed.autoDownloadCheckFrequency
     : DEFAULTS.autoDownloadCheckFrequency
+  const maxFileNameBytes = FILE_NAME_BYTE_LIMITS.has(parsed?.maxFileNameBytes)
+    ? parsed.maxFileNameBytes
+    : DEFAULTS.maxFileNameBytes
+  setNameByteLimit(maxFileNameBytes)
   return {
     ...DEFAULTS,
     ...parsed,
@@ -264,6 +272,7 @@ function normalizeSettings(input) {
     namingConvention: NAMING_CONVENTION_VALUES.has(parsed?.namingConvention)
       ? parsed.namingConvention
       : DEFAULTS.namingConvention,
+    maxFileNameBytes,
     versionOptionsEnabled: toBool(
       parsed?.versionOptionsEnabled,
       DEFAULTS.versionOptionsEnabled,
@@ -288,6 +297,9 @@ function normalizeSettings(input) {
     appleGatewayPaceIntegration: toBool(parsed?.appleGatewayPaceIntegration, DEFAULTS.appleGatewayPaceIntegration),
     appleGatewayAdaptive: toBool(parsed?.appleGatewayAdaptive, DEFAULTS.appleGatewayAdaptive),
     appleGatewayCooldownMinutes: clampSetting(parsed?.appleGatewayCooldownMinutes, ...APPLE_GATEWAY_LIMITS.appleGatewayCooldownMinutes),
+    // Fresh installs get DEFAULTS written to disk; a settings file from before
+    // auto-detect existed has no key and keeps the storefront it was given.
+    autoStorefront: toBool(parsed?.autoStorefront, false),
   }
 }
 
@@ -302,6 +314,7 @@ export async function readPublicSettings() {
   const s = await readSettings()
   return {
     storefront: s.storefront,
+    autoStorefront: Boolean(s.autoStorefront),
     language: s.language,
     quality: s.quality,
     convertToFlac: s.quality === 'flac',
@@ -326,6 +339,7 @@ export async function readPublicSettings() {
     autoDownloadCheckFrequency: s.autoDownloadCheckFrequency || 'auto',
     stagingInsideMusicLibrary: Boolean(s.stagingInsideMusicLibrary),
     namingConvention: s.namingConvention || 'apple',
+    maxFileNameBytes: s.maxFileNameBytes,
     versionOptionsEnabled: Boolean(s.versionOptionsEnabled),
     versionOptions: Array.isArray(s.versionOptions)
       ? s.versionOptions.filter((g) => VERSION_GROUP_VALUES.has(g))
