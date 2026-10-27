@@ -33,15 +33,16 @@ const PRODUCT_TYPE_SUFFIX_RE =
 const YEAR_SUFFIX_RE = /\s*[([]\d{4}[)\]]\s*$/
 
 // Filesystems cap a name in bytes, not characters: 255 on most, about 143 on
-// eCryptfs (e.g. Synology encrypted shares). CJK characters take 3 bytes
-// each, so a character cap alone is not enough. Set from the
-// maxFileNameBytes setting on every settings read, so write paths and match
-// keys always agree on where a name gets cut.
-export const FILE_NAME_BYTE_LIMITS = new Set([255, 143])
+// eCryptfs (e.g. Synology encrypted shares). CJK and symbol characters take
+// 2-4 bytes each, so a character cap alone is not enough. The limit is
+// measured on the music and staging folders at startup (see
+// detectNameByteLimit), so write paths and match keys cut names the same way.
+const MIN_NAME_BYTES = 64
 let nameByteLimit = 255
 
 export function setNameByteLimit(limit) {
-  if (FILE_NAME_BYTE_LIMITS.has(limit)) nameByteLimit = limit
+  const n = Math.floor(Number(limit))
+  if (n >= MIN_NAME_BYTES) nameByteLimit = Math.min(n, 255)
 }
 
 export function getNameByteLimit() {

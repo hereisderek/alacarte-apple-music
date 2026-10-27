@@ -16,19 +16,14 @@ const hasFfmpeg = spawnSync('ffmpeg', ['-version'], { encoding: 'utf8' }).status
 const {
   amdpNameCharLimit,
   fitFileName,
-  getNameByteLimit,
   restoreTruncatedName,
   sanitizeSegment,
   setNameByteLimit,
 } = await import('../lib/libraryMatchKey.mjs')
-const { mergeMove } = await import('../lib/folderLayout.mjs')
+const { detectNameByteLimit, mergeMove, probeNameByteLimit } = await import('../lib/folderLayout.mjs')
 const { writeAmdpConfig } = await import('../lib/amdpRunner.mjs')
-const { ensureConfigDir, readSettings, readPublicSettings, writeSettings } = await import(
-  '../lib/settingsStore.mjs'
-)
 const { __test__ } = await import('../lib/queue.mjs')
 const { restoreTrackFileName, restoreTrackFileNames, nameTooLongMessage } = __test__
-await ensureConfigDir(tmpConfig)
 
 // What amdp writes: the title cut to limit-max characters, path characters
 // replaced, then trimmed.
@@ -105,7 +100,8 @@ test('restoreTruncatedName only restores names amdp actually cut', () => {
 
 test('restoreTrackFileName puts the full title back behind the track number', () => {
   setNameByteLimit(255)
-  const title = 'あ'.repeat(100)
+  // over amdp's character cut, under the byte limit
+  const title = 'あ'.repeat(75)
   assert.equal(restoreTrackFileName(`03. ${amdpCut(title)}.m4a`, title), `03. ${title}.m4a`)
   assert.equal(restoreTrackFileName('03. Get Lucky.m4a', 'Get Lucky'), '03. Get Lucky.m4a')
 })
@@ -138,22 +134,62 @@ test('long titles import with their full name, cut only to the byte limit', asyn
   setNameByteLimit(255)
 })
 
-test('maxFileNameBytes defaults to 255, rejects other values and sets the limit', async () => {
-  assert.equal((await readSettings()).maxFileNameBytes, 255)
-  await writeSettings({ maxFileNameBytes: 143 })
-  assert.equal((await readPublicSettings()).maxFileNameBytes, 143)
-  assert.equal(getNameByteLimit(), 143)
-  await writeSettings({ maxFileNameBytes: 200 })
-  assert.equal((await readSettings()).maxFileNameBytes, 255)
-  assert.equal(getNameByteLimit(), 255)
+// Hi This Is Flume, track 5: 124 characters but 319 bytes.
+const FLUME_05 = '╜φ°⌂▌╫§'.repeat(17) + '╜φ°⌂▌'
+
+test('a title far past the byte limit is restored only as far as it fits', () => {
+  setNameByteLimit(255)
+  const staged = `05. ${amdpCut(FLUME_05)}.flac`
+  assert.ok(Buffer.byteLength(staged) <= 255)
+  const restored = restoreTrackFileName(staged, FLUME_05)
+  assert.ok(Buffer.byteLength(restored) <= 255, `${Buffer.byteLength(restored)} bytes`)
+  assert.ok(restored.length > staged.length)
+  assert.ok(restored.startsWith(staged.slice(0, -'.flac'.length)))
+  assert.ok(restored.endsWith('.flac'))
 })
 
-test('a name-too-long failure points at the setting', () => {
+test('the Flume track imports at both limits with its lyrics alongside', async (t) => {
+  if (!hasFfmpeg) {
+    t.skip('ffmpeg not available on this host')
+    return
+  }
+  for (const limit of [255, 143]) {
+    setNameByteLimit(limit)
+    const staging = await fsp.mkdtemp(path.join(os.tmpdir(), 'alacarte-flume-stage-'))
+    const library = await fsp.mkdtemp(path.join(os.tmpdir(), 'alacarte-flume-lib-'))
+    const staged = `05. ${amdpCut(FLUME_05)}`
+    makeFlac(staging, `${staged}.flac`, FLUME_05)
+    await fsp.writeFile(path.join(staging, `${staged}.lrc`), '[00:00.00]x')
+
+    await restoreTrackFileNames(staging)
+    await mergeMove(staging, library)
+
+    const files = await fsp.readdir(library)
+    assert.equal(files.length, 2)
+    for (const f of files) assert.ok(Buffer.byteLength(f) <= limit, `${limit}: ${Buffer.byteLength(f)} bytes`)
+    const stems = new Set(files.map((f) => path.basename(f, path.extname(f))))
+    assert.equal(stems.size, 1)
+  }
   setNameByteLimit(255)
-  const err = Object.assign(new Error('ENAMETOOLONG'), { code: 'ENAMETOOLONG', dest: '/music/a/b.flac' })
-  assert.match(nameTooLongMessage(err), /\/music\/a\/b\.flac/)
-  assert.match(nameTooLongMessage(err), /File name length limit/)
-  setNameByteLimit(143)
-  assert.doesNotMatch(nameTooLongMessage(err), /Settings/)
-  setNameByteLimit(255)
+})
+
+test('the name limit is measured on the folder itself', async () => {
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'alacarte-probe-'))
+  assert.equal(await probeNameByteLimit(dir), 255)
+  assert.deepEqual(await fsp.readdir(dir), [], 'probe files are cleaned up')
+  const blocked = path.join(await fsp.mkdtemp(path.join(os.tmpdir(), 'alacarte-probe-')), 'file')
+  await fsp.writeFile(blocked, '')
+  assert.equal(await probeNameByteLimit(path.join(blocked, 'music')), null)
+  assert.equal(await detectNameByteLimit([dir, path.join(blocked, 'music')]), 255)
+})
+
+test('a name-too-long failure shows a short file name, not the path', () => {
+  const err = Object.assign(new Error('ENAMETOOLONG'), {
+    code: 'ENAMETOOLONG',
+    dest: `/tmp/alacarte-staging/job/Flume/Album/05. ${FLUME_05}.flac`,
+  })
+  const msg = nameTooLongMessage(err)
+  assert.ok(!msg.includes('/tmp/'))
+  assert.ok(msg.endsWith('….flac'))
+  assert.ok(Array.from(msg).length < 90, msg)
 })

@@ -33,6 +33,7 @@ import {
   assertWritableTarget,
   estimateJobBytes,
   computeFinalDir,
+  detectNameByteLimit,
   ensureDir,
   fitFileName,
   mergeMove,
@@ -43,7 +44,7 @@ import {
 import { findSongPathInLibrary, getAlbumTrackPresence, getAlbumVersionGroups, hasSongInLibrary, invalidateLibraryCache, isPlaylistInLibrary, songNameFromFilename, stripTrailingYear } from './libraryIndex.mjs'
 import { writePlaylistM3U } from './playlistExport.mjs'
 import { getDb, getMeta, setMeta } from './db.mjs'
-import { amdpNameCharLimit, getNameByteLimit, normalizeForMatchKey, restoreTruncatedName } from './libraryMatchKey.mjs'
+import { amdpNameCharLimit, normalizeForMatchKey, restoreTruncatedName } from './libraryMatchKey.mjs'
 import { readAudioMetaTags, writeAudioIdentityTags } from './audioTags.mjs'
 import { probeWrapperPorts } from './wrapperHealth.mjs'
 import { resolveMetadataName } from './metadataLanguage.mjs'
@@ -333,7 +334,7 @@ async function renameTrackFilesForLanguage(albumPath, overrides) {
     if (!track?.resolvedName || track.resolvedName === track.name) continue
     if (!fn.includes(track.name)) continue
     // resolved names come straight from Apple, so clean them like folder names
-    const newName = fn.split(track.name).join(sanitizeSegment(track.resolvedName))
+    const newName = fitFileName(fn.split(track.name).join(sanitizeSegment(track.resolvedName)))
     if (newName === fn) continue
     try {
       const dst = path.join(albumPath, newName)
@@ -1162,6 +1163,8 @@ const STAGING_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000
 let stagingSweepTimer = null
 
 export async function initQueue() {
+  const nameLimit = await detectNameByteLimit([MUSIC_ROOT, STAGING_ROOT_OUTSIDE])
+  if (nameLimit < 255) console.log(`[library] file names limited to ${nameLimit} bytes by the filesystem`)
   await sweepStagingRoots()
   if (!stagingSweepTimer) {
     stagingSweepTimer = setInterval(() => {
@@ -1298,13 +1301,13 @@ async function convertStagingToFlac(job, dir, progressState) {
 }
 
 // amdp cuts long titles short in its file names (see amdpNameCharLimit);
-// puts the full title from the tags back.
+// puts the full title from the tags back, as far as the filesystem allows.
 function restoreTrackFileName(fileName, title) {
   const ext = path.extname(fileName)
   const m = /^(\d+\.\s)(.+)$/.exec(path.basename(fileName, ext))
   if (!m || !title) return fileName
   const full = restoreTruncatedName(m[2], title)
-  return full === m[2] ? fileName : `${m[1]}${full}${ext}`
+  return full === m[2] ? fileName : fitFileName(`${m[1]}${full}${ext}`)
 }
 
 async function restoreTrackFileNames(dir) {
@@ -1335,7 +1338,7 @@ async function applyQobuzFileNames(dir) {
     const stem = path.basename(fn, ext)
     const newStem = applyNamingConvention(stem, 'qobuz')
     if (newStem !== stem) {
-      const dst = path.join(dir, newStem + ext)
+      const dst = path.join(dir, fitFileName(newStem + ext))
       if (!(await fsp.stat(dst).catch(() => null))) {
         await fsp.rename(path.join(dir, fn), dst)
       }
@@ -1836,17 +1839,19 @@ async function runJob(job) {
 
 // amdp finishing without any audio usually means Apple had nothing to give:
 // the track is not out yet, or not offered in this storefront.
+// Names only the file, shortened, so the message stays readable.
 function nameTooLongMessage(err) {
-  const hint =
-    getNameByteLimit() > 143 ? ' Set Settings → File name length limit to 143 bytes.' : ''
-  return `file name too long for the music library: ${err.dest || err.path || 'unknown path'}.${hint}`
+  const name = path.basename(err.dest || err.path || '')
+  const chars = Array.from(name)
+  const shown = chars.length > 60 ? `${chars.slice(0, 50).join('')}…${path.extname(name)}` : name
+  return `file name too long: ${shown || 'unknown file'}`
 }
 
 async function explainNoAudio(job) {
   try {
     const raw = await getAlbum({ storefront: job.storefront, id: job.albumId, fresh: true })
     const album = raw?.data?.[0]
-    const tracks = album?.relationships?.tracks?.data || []
+    const tracks = (album?.relationships?.tracks?.data || []).filter((t) => t?.type !== 'music-videos')
     const wanted = job.songId ? tracks.filter((t) => t.id === job.songId) : tracks
     if (wanted.length && wanted.every((t) => !isReleasedTrack(t))) {
       if (album?.attributes?.isPrerelease) return notReleasedError(album.attributes.releaseDate)

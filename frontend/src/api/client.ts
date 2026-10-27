@@ -242,7 +242,6 @@ export type PublicSettings = {
   autoDownloadCheckFrequency: AutoCheckFrequency
   stagingInsideMusicLibrary: boolean
   namingConvention: 'apple' | 'qobuz'
-  maxFileNameBytes: 255 | 143
   versionOptionsEnabled: boolean
   versionOptions: QualityGroup[]
   uiLanguage: UiLanguage

@@ -5,7 +5,9 @@ import path from 'node:path'
 import {
   applyQobuzWriteNaming,
   fitFileName,
+  getNameByteLimit,
   sanitizeSegment,
+  setNameByteLimit,
 } from './libraryMatchKey.mjs'
 import { groupOf } from './qualityGroups.mjs'
 
@@ -37,6 +39,52 @@ export async function computeFinalDir(musicRoot, artist, album, _year) {
 
 export async function ensureDir(p) {
   await fsp.mkdir(p, { recursive: true, mode: 0o775 })
+}
+
+/**
+ * Longest file name, in bytes, that dir accepts: 255 on most filesystems,
+ * about 143 on eCryptfs. Found by creating test files in a temporary folder
+ * inside dir. Null when dir cannot be written.
+ */
+export async function probeNameByteLimit(dir) {
+  let probeDir
+  try {
+    await ensureDir(dir)
+    probeDir = await fsp.mkdtemp(path.join(dir, '.alacarte-name-probe-'))
+  } catch {
+    return null
+  }
+  const fits = async (bytes) => {
+    const file = path.join(probeDir, 'a'.repeat(bytes))
+    try {
+      await fsp.writeFile(file, '')
+      await fsp.rm(file, { force: true })
+      return true
+    } catch {
+      return false
+    }
+  }
+  try {
+    if (!(await fits(16))) return null
+    if (await fits(255)) return 255
+    let lo = 16
+    let hi = 255
+    while (hi - lo > 1) {
+      const mid = (lo + hi) >> 1
+      if (await fits(mid)) lo = mid
+      else hi = mid
+    }
+    return lo
+  } finally {
+    await fsp.rm(probeDir, { recursive: true, force: true }).catch(() => {})
+  }
+}
+
+// Cuts every name alacarte writes to the tightest limit among dirs.
+export async function detectNameByteLimit(dirs) {
+  const limits = (await Promise.all(dirs.map(probeNameByteLimit))).filter(Boolean)
+  if (limits.length) setNameByteLimit(Math.min(...limits))
+  return getNameByteLimit()
 }
 
 /**
