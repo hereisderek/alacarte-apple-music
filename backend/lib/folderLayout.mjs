@@ -4,11 +4,15 @@ import path from 'node:path'
 
 import {
   applyQobuzWriteNaming,
+  fitFileName,
+  getNameByteLimit,
   sanitizeSegment,
+  setNameByteLimit,
 } from './libraryMatchKey.mjs'
-import { groupOf } from './qualityGroups.mjs'
+import { parsePathTemplate, renderSegment } from './pathTemplate.mjs'
+import { applyVariantSuffix, groupOf } from './qualityGroups.mjs'
 
-export { sanitizeSegment }
+export { fitFileName, sanitizeSegment }
 
 export function applyNamingConvention(name, convention) {
   if (convention !== 'qobuz') return name
@@ -34,8 +38,103 @@ export async function computeFinalDir(musicRoot, artist, album, _year) {
   return path.join(musicRoot, artistDir, albumSeg)
 }
 
+// An album that is already on disk wins over the scheme, and the directory
+// has to be a real artist/album folder inside the library. Anything else
+// (a symlink out of the library, a file, a deeper path) is ignored.
+async function existingAlbumDir(musicRoot, existingDir) {
+  if (!existingDir) return null
+  let root
+  try {
+    root = await fsp.realpath(musicRoot)
+  } catch {
+    return null
+  }
+  let real
+  try {
+    real = await fsp.realpath(existingDir)
+  } catch {
+    return null
+  }
+  if (real !== root && !real.startsWith(`${root}${path.sep}`)) return null
+  const parts = path.relative(root, real).split(path.sep).filter(Boolean)
+  if (parts.length !== 2) return null
+  if (parts[0] === 'Playlists' || parts.some((p) => p.startsWith('.'))) return null
+  const st = await fsp.stat(real).catch(() => null)
+  if (!st?.isDirectory()) return null
+  return real
+}
+
+// `layout` comes from parsePathTemplate. A missing or legacy layout is the
+// historical Artist/Album directory, year and all, with no scheme applied.
+export async function resolveLibraryDir(musicRoot, {
+  artist,
+  album,
+  year = null,
+  layout = null,
+  variant = null,
+  quality = null,
+  existingDir = null,
+} = {}) {
+  const kept = await existingAlbumDir(musicRoot, existingDir)
+  if (kept) return kept
+  const parsed = typeof layout === 'string' ? parsePathTemplate(layout) : layout
+  const useScheme = Boolean(parsed?.custom)
+  const vars = { artist, album, year }
+  const artistName = useScheme ? renderSegment(parsed.artist, vars) || artist : artist
+  const albumName = useScheme ? renderSegment(parsed.album, vars) || album : album
+  let dir = await computeFinalDir(musicRoot, artistName, albumName, year)
+  if (variant) dir = applyVariantSuffix(dir, variant, quality)
+  return dir
+}
+
 export async function ensureDir(p) {
   await fsp.mkdir(p, { recursive: true, mode: 0o775 })
+}
+
+/**
+ * Longest file name, in bytes, that dir accepts: 255 on most filesystems,
+ * about 143 on eCryptfs. Found by creating test files in a temporary folder
+ * inside dir. Null when dir cannot be written.
+ */
+export async function probeNameByteLimit(dir) {
+  let probeDir
+  try {
+    await ensureDir(dir)
+    probeDir = await fsp.mkdtemp(path.join(dir, '.alacarte-name-probe-'))
+  } catch {
+    return null
+  }
+  const fits = async (bytes) => {
+    const file = path.join(probeDir, 'a'.repeat(bytes))
+    try {
+      await fsp.writeFile(file, '')
+      await fsp.rm(file, { force: true })
+      return true
+    } catch {
+      return false
+    }
+  }
+  try {
+    if (!(await fits(16))) return null
+    if (await fits(255)) return 255
+    let lo = 16
+    let hi = 255
+    while (hi - lo > 1) {
+      const mid = (lo + hi) >> 1
+      if (await fits(mid)) lo = mid
+      else hi = mid
+    }
+    return lo
+  } finally {
+    await fsp.rm(probeDir, { recursive: true, force: true }).catch(() => {})
+  }
+}
+
+// Cuts every name alacarte writes to the tightest limit among dirs.
+export async function detectNameByteLimit(dirs) {
+  const limits = (await Promise.all(dirs.map(probeNameByteLimit))).filter(Boolean)
+  if (limits.length) setNameByteLimit(Math.min(...limits))
+  return getNameByteLimit()
 }
 
 /**
@@ -120,7 +219,7 @@ export async function mergeMove(src, dest) {
   const entries = await fsp.readdir(src, { withFileTypes: true })
   for (const e of entries) {
     const from = path.join(src, e.name)
-    const to = path.join(dest, e.name)
+    const to = path.join(dest, e.isDirectory() ? e.name : fitFileName(e.name))
     if (e.isDirectory()) {
       await mergeMove(from, to)
     } else {

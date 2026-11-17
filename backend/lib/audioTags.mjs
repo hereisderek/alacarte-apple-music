@@ -24,14 +24,16 @@ export function normalizeUpc(value) {
 }
 
 /**
- * Read ISRC / UPC / BARCODE from a FLAC Vorbis comment block or from the
- * iTunes freeform atoms amdp writes into .m4a files. Walks the FLAC
+ * Read ISRC / UPC / BARCODE (and the album name, as `album`, when tagged) from a FLAC Vorbis comment block, the comment
+ * packet of an Ogg file, or the iTunes freeform atoms amdp writes into .m4a
+ * files. Walks the FLAC
  * metadata block chain with seeks, so comment blocks after large PICTURE
  * blocks are found too (ffmpeg remuxes reorder blocks). Fail-soft.
  */
 export async function readAudioIdentityTags(filePath) {
   const empty = { isrc: '', upc: '' }
   if (/\.m4a$/i.test(filePath)) return readMp4IdentityTags(filePath)
+  if (/\.(opus|ogg)$/i.test(filePath)) return readOggIdentityTags(filePath)
   try {
     if (!/\.flac$/i.test(filePath)) return empty
     const fh = await fsp.open(filePath, 'r')
@@ -72,6 +74,56 @@ export async function readAudioIdentityTags(filePath) {
   } catch {
     return empty
   }
+}
+
+const MAX_OGG_TAGS_BYTES = 32 * 1024 * 1024
+
+// The comments are the second packet of an Ogg stream, in the same layout as a
+// FLAC comment block. Embedded cover art spreads that packet over many pages
+// and can sit before the ISRC, so the whole packet is put back together.
+async function readOggIdentityTags(filePath) {
+  const empty = { isrc: '', upc: '' }
+  try {
+    const fh = await fsp.open(filePath, 'r')
+    try {
+      const parts = []
+      let size = 0
+      let packet = 0
+      let offset = 0
+      while (size <= MAX_OGG_TAGS_BYTES) {
+        const header = Buffer.alloc(27)
+        const { bytesRead } = await fh.read(header, 0, 27, offset)
+        if (bytesRead < 27 || header.toString('ascii', 0, 4) !== 'OggS') return empty
+        const lacing = Buffer.alloc(header[26])
+        await fh.read(lacing, 0, lacing.length, offset + 27)
+        const body = Buffer.alloc(lacing.reduce((sum, n) => sum + n, 0))
+        await fh.read(body, 0, body.length, offset + 27 + lacing.length)
+        let pos = 0
+        for (const lace of lacing) {
+          if (packet === 1) {
+            parts.push(body.subarray(pos, pos + lace))
+            size += lace
+          }
+          pos += lace
+          if (lace === 255) continue
+          if (packet === 1) return parseOggComments(Buffer.concat(parts))
+          packet += 1
+        }
+        offset += 27 + lacing.length + body.length
+      }
+      return empty
+    } finally {
+      await fh.close()
+    }
+  } catch {
+    return empty
+  }
+}
+
+function parseOggComments(packet) {
+  if (packet.toString('latin1', 0, 8) === 'OpusTags') return extractVorbisIdentity(packet.subarray(8))
+  if (packet.toString('latin1', 0, 7) === '\x03vorbis') return extractVorbisIdentity(packet.subarray(7))
+  return { isrc: '', upc: '' }
 }
 
 const MAX_MOOV_BYTES = 32 * 1024 * 1024
@@ -140,6 +192,12 @@ export function parseMp4MoovIdentity(moov) {
   const ilst = findMp4Box(moov, meta.start + 4, meta.end, 'ilst')
   if (!ilst) return out
   for (const item of mp4Boxes(moov, ilst.start, ilst.end)) {
+    if (item.type === '\xa9alb' && !out.album) {
+      const data = findMp4Box(moov, item.start, item.end, 'data')
+      const album = data ? moov.toString('utf8', data.start + 8, data.end).trim() : ''
+      if (album) out.album = album
+      continue
+    }
     if (item.type !== '----') continue
     let name = ''
     let value = ''
@@ -192,6 +250,7 @@ function extractVorbisIdentity(block) {
 
     let isrc = ''
     let upc = ''
+    let album = ''
     for (let i = 0; i < commentCount; i++) {
       if (o + 4 > block.length) break
       const len = block.readUInt32LE(o)
@@ -206,8 +265,10 @@ function extractVorbisIdentity(block) {
       if (!val) continue
       if (key === 'ISRC' && !isrc) isrc = normalizeIsrc(val)
       else if ((key === 'UPC' || key === 'BARCODE') && !upc) upc = normalizeUpc(val)
+      else if (key === 'ALBUM' && !album) album = val
     }
-    return { isrc, upc }
+    // album only when tagged, so callers comparing { isrc, upc } keep working
+    return album ? { isrc, upc, album } : { isrc, upc }
   } catch {
     return empty
   }
@@ -271,6 +332,32 @@ export function buildMinimalFlacWithTags(tags = {}) {
     metaHeader(4, vorbis.length, true),
     vorbis,
   ])
+}
+
+/**
+ * Build a minimal Opus stream with the tags in a comment packet, which `padding`
+ * bytes of fake cover art push onto later pages. Enough for readAudioIdentityTags;
+ * not a playable encode.
+ */
+export function buildMinimalOpusWithTags({ isrc, upc, padding = 0 } = {}) {
+  const comments = []
+  if (padding) comments.push(['METADATA_BLOCK_PICTURE', 'x'.repeat(padding)])
+  if (isrc) comments.push(['ISRC', isrc])
+  if (upc) comments.push(['BARCODE', upc])
+  const tags = Buffer.concat([Buffer.from('OpusTags'), buildVorbisBlock({ vendor: 'test', comments })])
+  const lacing = [...Array(Math.floor(tags.length / 255)).fill(255), tags.length % 255]
+  const page = (lace, body) =>
+    Buffer.concat([Buffer.from('OggS'), Buffer.alloc(22), Buffer.from([lace.length]), Buffer.from(lace), body])
+  const head = Buffer.from('OpusHead')
+  const pages = [page([head.length], head)]
+  let pos = 0
+  for (let i = 0; i < lacing.length; i += 255) {
+    const lace = lacing.slice(i, i + 255)
+    const size = lace.reduce((sum, n) => sum + n, 0)
+    pages.push(page(lace, tags.subarray(pos, pos + size)))
+    pos += size
+  }
+  return Buffer.concat(pages)
 }
 
 /** Sync walker mirroring readAudioIdentityTags for scripts and tests. */
@@ -539,5 +626,62 @@ async function rewriteFlacComments(filePath, fields) {
   } catch {
     await fsp.rm(tmp, { force: true }).catch(() => {})
     return false
+  }
+}
+
+function splitList(values) {
+  const out = []
+  for (const v of values || []) {
+    for (const part of String(v).split(';')) {
+      const name = part.trim()
+      if (name && !out.includes(name)) out.push(name)
+    }
+  }
+  return out
+}
+
+/**
+ * Tags that name a track's place in the library: album, album artist(s),
+ * year, disc, track and title. FLACs are parsed directly; other formats go
+ * through ffprobe. Missing values are null; albumArtists is the ALBUMARTISTS
+ * list the artist credit fix writes, empty when untagged. Fail-soft.
+ */
+export async function readTrackTags(filePath) {
+  let get = () => []
+  if (/\.flac$/i.test(filePath)) {
+    const comments = await readFlacComments(filePath)
+    if (comments) get = (...keys) => keys.flatMap((k) => comments[k] || [])
+  } else {
+    try {
+      const { stdout } = await execFileAsync(
+        'ffprobe',
+        ['-v', 'error', '-show_entries', 'format_tags', '-of', 'json', filePath],
+        { timeout: 10_000 },
+      )
+      const raw = JSON.parse(stdout)?.format?.tags || {}
+      const tags = {}
+      for (const [key, value] of Object.entries(raw)) (tags[key.toUpperCase()] ||= []).push(String(value))
+      get = (...keys) => keys.flatMap((k) => tags[k] || [])
+    } catch {}
+  }
+  const first = (...keys) => get(...keys).map((v) => v.trim()).find(Boolean) || null
+  const number = (...keys) => {
+    const m = /^\s*(\d{1,3})/.exec(first(...keys) || '')
+    return m && Number(m[1]) > 0 ? Number(m[1]) : null
+  }
+  const year = /\b(\d{4})\b/.exec(first('DATE', 'YEAR', 'ORIGINALDATE', 'RELEASETIME') || '')?.[1] || null
+  const compilation = first('COMPILATION')
+  return {
+    title: first('TITLE'),
+    album: first('ALBUM'),
+    artist: first('ARTIST'),
+    albumArtist: first('ALBUMARTIST', 'ALBUM_ARTIST', 'ALBUM ARTIST'),
+    albumArtists: splitList(get('ALBUMARTISTS')),
+    year,
+    track: number('TRACKNUMBER', 'TRACK'),
+    disc: number('DISCNUMBER', 'DISC'),
+    isrc: normalizeIsrc(first('ISRC')) || null,
+    upc: normalizeUpc(first('BARCODE', 'UPC')) || null,
+    compilation: compilation === '1' || /^true$/i.test(compilation || ''),
   }
 }

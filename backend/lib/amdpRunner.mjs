@@ -3,6 +3,8 @@ import fsp from 'node:fs/promises'
 import path from 'node:path'
 import { promisify } from 'node:util'
 
+import { amdpNameCharLimit } from './libraryMatchKey.mjs'
+
 const CONFIG_DIR = process.env.AMDL_CONFIG_DIR || '/config'
 const AMDP_CONFIG = path.join(CONFIG_DIR, 'amdp-config.yaml')
 
@@ -32,12 +34,15 @@ export async function writeAmdpConfig({
   stagingRoot,
 }) {
   const lyricsEnabled = Boolean(settings.downloadLyrics && mediaUserToken)
+  const lrcFormat = settings.lyricsFormat === 'both' ? 'ttml' : (settings.lyricsFormat || 'lrc')
   const cfg = {
     'media-user-token': mediaUserToken || '',
     'authorization-token': '',
     language: settings.language || '',
-    'lrc-type': settings.lyricsType || 'lyrics',
-    'lrc-format': settings.lyricsFormat === 'both' ? 'ttml' : (settings.lyricsFormat || 'lrc'),
+    // Apple serves the line version here when a song has no word timing. lrc
+    // stays on lyrics, amdp would turn word timing into per-word stamps.
+    'lrc-type': lrcFormat === 'ttml' ? 'syllable-lyrics' : 'lyrics',
+    'lrc-format': lrcFormat,
     'embed-lrc': lyricsEnabled,
     'save-lrc-file': lyricsEnabled,
     'save-artist-cover': false,
@@ -64,7 +69,9 @@ export async function writeAmdpConfig({
     // out audio in the m4a and the converted flac (#37).
     'alac-fix': true,
     'atmos-max': 2768,
-    'limit-max': 200,
+    // amdp counts characters, the filesystem counts bytes. Short enough
+    // that staging never fails; alacarte restores the full names on import.
+    'limit-max': amdpNameCharLimit(),
     'album-folder-format': '{AlbumName}',
     'playlist-folder-format': '{PlaylistName}',
     'song-file-format': '{SongNumer}. {SongName}',

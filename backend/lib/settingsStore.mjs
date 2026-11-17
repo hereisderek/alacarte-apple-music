@@ -11,6 +11,7 @@ import {
   DEFAULT_NAMING_LANGUAGE_MODE,
   MAX_ACCEPTED_LANGUAGES,
 } from './metadataLanguage.mjs'
+import { parsePathTemplate } from './pathTemplate.mjs'
 
 export {
   UI_LANGUAGE_VALUES,
@@ -24,13 +25,13 @@ const SETTINGS_FILE = path.join(CONFIG_DIR, 'settings.json')
 
 const DEFAULTS = {
   storefront: 'us',
+  autoStorefront: true,
   language: 'en-US',
   quality: 'flac',
   convertToFlac: true,
   coverSize: '1400x1400',
   downloadLyrics: false,
   lyricsFormat: 'lrc',
-  lyricsType: 'lyrics',
   promptForDownloadQuality: false,
   explicitFilter: 'explicit',
   appleEmail: null,
@@ -46,9 +47,15 @@ const DEFAULTS = {
   autoDownloadCheckFrequency: 'auto',
   stagingInsideMusicLibrary: false,
   namingConvention: 'apple',
+  // Empty keeps Artist/Album/01. Title. Changing this asks before the
+  // library move rewrites folders that are already on disk.
+  pathTemplate: '',
+  primaryAlbumArtist: false,
   versionOptionsEnabled: false,
   versionOptions: ['atmos', 'lossless', 'aac'],
   uiLanguage: 'system',
+  season: 'follow',
+  appearance: 'system',
   acceptedLanguages: [],
   namingLanguageMode: DEFAULT_NAMING_LANGUAGE_MODE,
   // Apple request pacing (see appleGateway.mjs); null = use the built-in default.
@@ -75,6 +82,8 @@ function normalizeAcceptedLanguages(list) {
 }
 
 const QUALITY_VALUES = new Set(['flac', 'alac', 'atmos', 'aac'])
+export const SEASON_VALUES = new Set(['follow', 'spring', 'summer', 'autumn', 'winter'])
+export const APPEARANCE_VALUES = new Set(['system', 'day', 'night', 'midnight'])
 
 // Number inside [min, max], or null when absent/invalid (= use the default).
 export function clampSetting(value, min, max) {
@@ -228,7 +237,14 @@ export function writeSettings(patch) {
 // Settings that never had any effect (amdp's folder and file names are fixed
 // in amdpRunner, and ALAC is not kept next to the FLAC); dropped from older
 // settings files on the next save.
-const RETIRED_KEYS = ['albumFolderFormat', 'artistFolderFormat', 'songFileFormat', 'keepAlac']
+const RETIRED_KEYS = ['albumFolderFormat', 'artistFolderFormat', 'songFileFormat', 'keepAlac', 'maxFileNameBytes']
+
+// A scheme that is not artist/album/file, or that is just the historical
+// layout, is stored as empty so the write path stays on the old code.
+function storedPathTemplate(value) {
+  const parsed = parsePathTemplate(value)
+  return parsed.error ? '' : parsed.stored
+}
 
 function normalizeSettings(input) {
   const parsed = { ...input }
@@ -264,6 +280,8 @@ function normalizeSettings(input) {
     namingConvention: NAMING_CONVENTION_VALUES.has(parsed?.namingConvention)
       ? parsed.namingConvention
       : DEFAULTS.namingConvention,
+    pathTemplate: storedPathTemplate(parsed?.pathTemplate),
+    primaryAlbumArtist: toBool(parsed?.primaryAlbumArtist, false),
     versionOptionsEnabled: toBool(
       parsed?.versionOptionsEnabled,
       DEFAULTS.versionOptionsEnabled,
@@ -278,6 +296,8 @@ function normalizeSettings(input) {
     uiLanguage: UI_LANGUAGE_VALUES.has(parsed?.uiLanguage)
       ? parsed.uiLanguage
       : DEFAULTS.uiLanguage,
+    season: SEASON_VALUES.has(parsed?.season) ? parsed.season : DEFAULTS.season,
+    appearance: APPEARANCE_VALUES.has(parsed?.appearance) ? parsed.appearance : DEFAULTS.appearance,
     acceptedLanguages: normalizeAcceptedLanguages(parsed?.acceptedLanguages),
     namingLanguageMode: NAMING_LANGUAGE_MODE_VALUES.has(parsed?.namingLanguageMode)
       ? parsed.namingLanguageMode
@@ -288,6 +308,9 @@ function normalizeSettings(input) {
     appleGatewayPaceIntegration: toBool(parsed?.appleGatewayPaceIntegration, DEFAULTS.appleGatewayPaceIntegration),
     appleGatewayAdaptive: toBool(parsed?.appleGatewayAdaptive, DEFAULTS.appleGatewayAdaptive),
     appleGatewayCooldownMinutes: clampSetting(parsed?.appleGatewayCooldownMinutes, ...APPLE_GATEWAY_LIMITS.appleGatewayCooldownMinutes),
+    // Fresh installs get DEFAULTS written to disk; a settings file from before
+    // auto-detect existed has no key and keeps the storefront it was given.
+    autoStorefront: toBool(parsed?.autoStorefront, false),
   }
 }
 
@@ -302,13 +325,13 @@ export async function readPublicSettings() {
   const s = await readSettings()
   return {
     storefront: s.storefront,
+    autoStorefront: Boolean(s.autoStorefront),
     language: s.language,
     quality: s.quality,
     convertToFlac: s.quality === 'flac',
     coverSize: s.coverSize,
     downloadLyrics: Boolean(s.downloadLyrics),
     lyricsFormat: s.lyricsFormat || 'lrc',
-    lyricsType: s.lyricsType || 'lyrics',
     promptForDownloadQuality: Boolean(s.promptForDownloadQuality),
     explicitFilter: s.explicitFilter || 'explicit',
     appleEmailMasked: s.appleEmail
@@ -326,11 +349,15 @@ export async function readPublicSettings() {
     autoDownloadCheckFrequency: s.autoDownloadCheckFrequency || 'auto',
     stagingInsideMusicLibrary: Boolean(s.stagingInsideMusicLibrary),
     namingConvention: s.namingConvention || 'apple',
+    pathTemplate: s.pathTemplate || '',
+    primaryAlbumArtist: Boolean(s.primaryAlbumArtist),
     versionOptionsEnabled: Boolean(s.versionOptionsEnabled),
     versionOptions: Array.isArray(s.versionOptions)
       ? s.versionOptions.filter((g) => VERSION_GROUP_VALUES.has(g))
       : [],
     uiLanguage: s.uiLanguage || 'system',
+    season: s.season || DEFAULTS.season,
+    appearance: s.appearance || DEFAULTS.appearance,
     acceptedLanguages: Array.isArray(s.acceptedLanguages) ? s.acceptedLanguages : [],
     namingLanguageMode: s.namingLanguageMode || DEFAULT_NAMING_LANGUAGE_MODE,
   }
